@@ -175,6 +175,11 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
 .full{grid-column:1/-1}
 .fsect{font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;padding-bottom:5px;border-bottom:1px solid var(--border);margin-top:4px;grid-column:1/-1}
 
+/* SELECTION BAR */
+.sel-bar{display:none;align-items:center;gap:8px;padding:8px 12px;background:var(--accent-bg);border:1px solid var(--accent);border-radius:var(--r);margin-bottom:8px;flex-wrap:wrap}
+.sel-bar.on{display:flex}
+.sel-count{font-size:12.5px;font-weight:600;color:var(--accent);flex:1}
+
 /* LOGS */
 .lf-panel{background:var(--bg);border:1px solid var(--border);border-radius:var(--r2);margin-bottom:12px;box-shadow:var(--sh);overflow:hidden}
 .lf-head{display:flex;align-items:center;justify-content:space-between;padding:9px 13px;cursor:pointer;background:var(--bg3);user-select:none}
@@ -293,6 +298,13 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
       <button class="btn btn-ico" title="Download Sample CSV" onclick="dlSample()">⤓</button>
       <button class="btn btn-ico" title="Export All" onclick="exportAll()">↗</button>
     </div>
+  </div>
+
+  <div class="sel-bar" id="selBar">
+    <span id="selCount" class="sel-count">0 rows selected</span>
+    <button class="btn btn-sm" onclick="dlSelected()">⤓ Download</button>
+    <button class="btn btn-sm" onclick="openBulkEdit()">✎ Bulk Edit</button>
+    <button class="btn btn-sm btn-d" onclick="delSelected()">⊗ Delete</button>
   </div>
 
   <div class="tbl-wrap">
@@ -461,6 +473,41 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
   </div>
 </div>
 
+<!-- BULK EDIT MODAL -->
+<div class="mo-ov" id="beOv">
+  <div class="mo" style="width:480px">
+    <div class="mo-head">
+      <span class="mo-title" id="beTitle">Bulk Edit</span>
+      <button class="act-btn" onclick="closeBE()" style="font-size:17px;color:var(--t2)">✕</button>
+    </div>
+    <div class="mo-body">
+      <p style="font-size:12px;color:var(--t2);margin-bottom:14px;padding:8px 10px;background:var(--bg3);border-radius:var(--r);border-left:3px solid var(--accent)">Leave a field blank to keep each record's existing value unchanged.</p>
+      <div class="fgrid">
+        <div class="fg"><label>Status</label>
+          <select class="fc" id="beStatus">
+            <option value="">— keep existing —</option>
+            <option>Active</option><option>Available</option><option>Reserved</option><option>Inactive</option>
+          </select>
+        </div>
+        <div class="fg"><label>Posted Status</label>
+          <select class="fc" id="bePosted">
+            <option value="">— keep existing —</option>
+            <option value="Yes">Yes</option><option value="No">No</option>
+          </select>
+        </div>
+        <div class="fg"><label>Client</label><input class="fc" id="beClient" placeholder="Leave blank to keep"></div>
+        <div class="fg"><label>Product</label><input class="fc" id="beProduct" placeholder="Leave blank to keep"></div>
+        <div class="fg"><label>Provider</label><input class="fc" id="beProvider" placeholder="Leave blank to keep"></div>
+        <div class="fg full"><label>Remarks</label><input class="fc" id="beRemarks" placeholder="Leave blank to keep"></div>
+      </div>
+    </div>
+    <div class="mo-foot">
+      <button class="btn" onclick="closeBE()">Cancel</button>
+      <button class="btn btn-p" onclick="saveBulkEdit()">Apply to Selected</button>
+    </div>
+  </div>
+</div>
+
 <!-- AUTH OVERLAY -->
 <div class="auth-ov on" id="authOv">
   <div class="auth-box">
@@ -501,7 +548,30 @@ const fauth = firebase.auth();
 const STATUSES=['Active','Available','Reserved','Inactive'];
 const ACT_LABELS={Added:'b-active',Updated:'b-reserved',Deleted:'b-inactive','CSV Upload':'b-available',Exported:'b-available',Login:'b-available'};
 const CSV_HEADERS=['Client','Product','Number','Status','Remarks','Posted Status','Posted Date','Client OSF','Client MRC','Client OTRF','Client Channel Fee','Client CPM','Effective Date','Activated Date','Provider','Arrival Date','Provider Activation Date','Provider OSF','Provider MRC','Provider OTRF','Provider CPM','Type / Session','Route Request by','Deactivation Date','Previous Client'];
+const CSV_FIELD_MAP={'Client':'client','Product':'product','Number':'number','Status':'status','Remarks':'remarks','Posted Status':'postedStatus','Posted Date':'postedDate','Client OSF':'clientOSF','Client MRC':'clientMRC','Client OTRF':'clientOTRF','Client Channel Fee':'clientCF','Client CPM':'clientCPM','Effective Date':'effDate','Activated Date':'actDate','Provider':'provider','Arrival Date':'arrDate','Provider Activation Date':'provActDate','Provider OSF':'provOSF','Provider MRC':'provMRC','Provider OTRF':'provOTRF','Provider CPM':'provCPM','Type / Session':'typeSession','Route Request by':'route','Deactivation Date':'deactDate','Previous Client':'prevClient'};
+const DATE_FIELDS=new Set(['mPostedDate','mEffDate','mActDate','mArrDate','mProvActDate','mDeactDate']);
 const fmt=iso=>iso?iso.replace(/(\d{4})-(\d{2})-(\d{2})/,'$2/$3/$1'):'—';
+
+function sanitizeDate(v){
+  if(!v)return'';
+  const s=String(v);
+  const m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m)return`${m[1]}-${m[2]}-${m[3]}`;
+  const m2=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if(m2)return`${m2[3]}-${m2[1].padStart(2,'0')}-${m2[2].padStart(2,'0')}`;
+  return'';
+}
+
+function parseCSVLine(line){
+  const res=[];let cur='',q=false;
+  for(let i=0;i<line.length;i++){
+    const c=line[i];
+    if(c==='"'){if(q&&line[i+1]==='"'){cur+='"';i++;}else q=!q;}
+    else if(c===','&&!q){res.push(cur);cur='';}
+    else cur+=c;
+  }
+  res.push(cur);return res;
+}
 
 // ── STATE ─────────────────────────────────────────────
 let DB=[],LOGS=[],recentViewed=[];
@@ -708,9 +778,11 @@ function renderTbl(){
   document.getElementById('pgInfo').textContent=`Page ${pg} of ${tp}`;
   document.getElementById('pgPrev').disabled=pg<=1;
   document.getElementById('pgNext').disabled=pg>=tp;
+  document.getElementById('selAll').checked=false;
+  document.getElementById('selBar').classList.remove('on');
   document.getElementById('invBody').innerHTML=fd.slice(s,e).map((r,i)=>`
     <tr onclick="rowClick(event,'${r.id}')">
-      <td onclick="event.stopPropagation()"><input type="checkbox" class="rcb" data-id="${r.id}"></td>
+      <td onclick="event.stopPropagation()"><input type="checkbox" class="rcb" data-id="${r.id}" onchange="updateSelBar()"></td>
       <td class="row-num">${s+i+1}</td>
       <td>${r.client||''}</td>
       <td>${r.product||''}</td>
@@ -730,7 +802,18 @@ function changePg(d){
   const tp=Math.ceil(fd.length/sz)||1;
   pg=Math.max(1,Math.min(pg+d,tp));renderTbl();
 }
-function selAllRows(cb){document.querySelectorAll('.rcb').forEach(c=>c.checked=cb.checked);}
+function selAllRows(cb){document.querySelectorAll('.rcb').forEach(c=>c.checked=cb.checked);updateSelBar();}
+function getCheckedIds(){return[...document.querySelectorAll('.rcb:checked')].map(c=>c.dataset.id);}
+function updateSelBar(){
+  const ids=getCheckedIds();
+  const total=document.querySelectorAll('.rcb').length;
+  const bar=document.getElementById('selBar');
+  const sa=document.getElementById('selAll');
+  document.getElementById('selCount').textContent=`${ids.length} row${ids.length!==1?'s':''} selected`;
+  bar.classList.toggle('on',ids.length>0);
+  sa.indeterminate=ids.length>0&&ids.length<total;
+  if(total>0)sa.checked=ids.length===total;
+}
 function rowClick(e,id){
   if(e.target.tagName==='INPUT')return;
   openSP(id);
@@ -788,7 +871,7 @@ const mMap={
   mTypeSession:'typeSession',mRoute:'route',mDeactDate:'deactDate',mPrevClient:'prevClient'
 };
 function clearMo(){Object.keys(mMap).forEach(id=>{const el=document.getElementById(id);if(el)el.value=id==='mStatus'?'Available':id==='mPosted'?'No':'';});}
-function fillMo(r){Object.entries(mMap).forEach(([id,key])=>{const el=document.getElementById(id);if(el&&r[key]!==undefined)el.value=r[key];});}
+function fillMo(r){Object.entries(mMap).forEach(([id,key])=>{const el=document.getElementById(id);if(el&&r[key]!==undefined)el.value=DATE_FIELDS.has(id)?sanitizeDate(r[key]):r[key];});}
 function openAdd(){editId=null;document.getElementById('moTitle').textContent='Add Number';clearMo();document.getElementById('moOv').classList.add('on');}
 function openEdit(){if(!curRec)return;openEditById(curRec.id);}
 function openEditById(id){const r=DB.find(x=>x.id===id);if(!r)return;editId=id;document.getElementById('moTitle').textContent='Edit Number';fillMo(r);document.getElementById('moOv').classList.add('on');}
@@ -829,8 +912,55 @@ async function delRec(id){
 // ── CSV / EXPORT ──────────────────────────────────────
 async function handleCSV(e){
   const f=e.target.files[0];if(!f)return;
-  await addLog('CSV Upload',`Uploaded CSV file: ${f.name}`);
-  alert(`CSV "${f.name}" uploaded. (Demo — data not imported)`);
+  const text=await f.text();
+  const lines=text.split(/\r?\n/).filter(l=>l.trim());
+  if(lines.length<2){alert('CSV has no data rows.');e.target.value='';return;}
+  const hdr=parseCSVLine(lines[0]);
+  const colMap={};
+  hdr.forEach((h,i)=>{const field=CSV_FIELD_MAP[h.trim()];if(field)colMap[i]=field;});
+  if(!Object.values(colMap).includes('number')){alert('CSV must have a "Number" column.');e.target.value='';return;}
+  const ops=[];
+  for(let i=1;i<lines.length;i++){
+    if(!lines[i].trim())continue;
+    const cols=parseCSVLine(lines[i]);
+    const nd={};
+    Object.entries(colMap).forEach(([idx,field])=>{nd[field]=cols[idx]||'';});
+    if(!nd.number)continue;
+    nd.updatedBy=currentUser?.email||'system';
+    nd.updatedAt=new Date().toISOString();
+    const existing=DB.find(r=>r.number===nd.number);
+    if(existing){
+      ops.push({type:'update',ref:fdb.collection('inventory').doc(existing.id),data:nd,id:existing.id});
+    }else{
+      nd.createdBy=currentUser?.email||'system';
+      nd.createdAt=new Date().toISOString();
+      const ref=fdb.collection('inventory').doc();
+      nd.id=ref.id;
+      ops.push({type:'set',ref,data:nd});
+    }
+  }
+  if(!ops.length){alert('No valid rows found.');e.target.value='';return;}
+  try{
+    const CHUNK=400;
+    for(let i=0;i<ops.length;i+=CHUNK){
+      const b=fdb.batch();
+      ops.slice(i,i+CHUNK).forEach(op=>op.type==='update'?b.update(op.ref,op.data):b.set(op.ref,op.data));
+      await b.commit();
+    }
+    let added=0,updated=0;
+    ops.forEach(op=>{
+      if(op.type==='update'){
+        const idx=DB.findIndex(r=>r.id===op.id);
+        if(idx>-1)DB[idx]={...DB[idx],...op.data};
+        updated++;
+      }else{
+        DB.push(op.data);added++;
+      }
+    });
+    fd=[...DB];pg=1;renderTbl();renderDash();
+    await addLog('CSV Upload',`"${f.name}": ${added} added, ${updated} updated`);
+    alert(`Import complete!\n✔ ${added} added\n✔ ${updated} updated`);
+  }catch(err){alert('Import error: '+err.message);}
   e.target.value='';
 }
 function dlSample(){
@@ -920,8 +1050,81 @@ function changeLPg(d){
   lpg=Math.max(1,Math.min(lpg+d,tp));renderLogs();
 }
 
+// ── DOWNLOAD SELECTED ────────────────────────────────
+function dlSelected(){
+  const ids=getCheckedIds();if(!ids.length)return;
+  const rows=ids.map(id=>DB.find(r=>r.id===id)).filter(Boolean);
+  const data=rows.map(r=>[r.client,r.product,r.number,r.status,r.remarks,r.postedStatus,r.postedDate,r.clientOSF,r.clientMRC,r.clientOTRF,r.clientCF,r.clientCPM,r.effDate,r.actDate,r.provider,r.arrDate,r.provActDate,r.provOSF,r.provMRC,r.provOTRF,r.provCPM,r.typeSession,r.route,r.deactDate,r.prevClient]);
+  dlCSV([CSV_HEADERS,...data],`selected_${ids.length}_entries.csv`);
+  addLog('Exported',`Downloaded ${ids.length} selected record${ids.length!==1?'s':''}`);
+}
+
+// ── BULK DELETE ───────────────────────────────────────
+async function delSelected(){
+  const ids=getCheckedIds();if(!ids.length)return;
+  if(!confirm(`Delete ${ids.length} selected record${ids.length!==1?'s':''}? This cannot be undone.`))return;
+  try{
+    const CHUNK=400;
+    for(let i=0;i<ids.length;i+=CHUNK){
+      const b=fdb.batch();
+      ids.slice(i,i+CHUNK).forEach(id=>b.delete(fdb.collection('inventory').doc(id)));
+      await b.commit();
+    }
+    const nums=ids.map(id=>DB.find(r=>r.id===id)?.number).filter(Boolean).join(', ');
+    DB=DB.filter(r=>!ids.includes(r.id));
+    fd=fd.filter(r=>!ids.includes(r.id));
+    await addLog('Deleted',`Bulk deleted ${ids.length} records: ${nums}`);
+    renderTbl();closeSP();
+  }catch(err){alert('Delete error: '+err.message);}
+}
+
+// ── BULK EDIT ─────────────────────────────────────────
+function openBulkEdit(){
+  const ids=getCheckedIds();if(!ids.length)return;
+  document.getElementById('beTitle').textContent=`Bulk Edit — ${ids.length} record${ids.length!==1?'s':''}`;
+  ['beStatus','bePosted'].forEach(id=>document.getElementById(id).value='');
+  ['beClient','beProduct','beProvider','beRemarks'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('beOv').classList.add('on');
+}
+function closeBE(){document.getElementById('beOv').classList.remove('on');}
+async function saveBulkEdit(){
+  const ids=getCheckedIds();if(!ids.length)return;
+  const updates={};
+  const s=document.getElementById('beStatus').value;
+  const p=document.getElementById('bePosted').value;
+  const cl=document.getElementById('beClient').value.trim();
+  const pr=document.getElementById('beProduct').value.trim();
+  const pv=document.getElementById('beProvider').value.trim();
+  const rm=document.getElementById('beRemarks').value.trim();
+  if(s)updates.status=s;
+  if(p)updates.postedStatus=p;
+  if(cl)updates.client=cl;
+  if(pr)updates.product=pr;
+  if(pv)updates.provider=pv;
+  if(rm)updates.remarks=rm;
+  if(!Object.keys(updates).length){closeBE();return;}
+  updates.updatedBy=currentUser?.email||'system';
+  updates.updatedAt=new Date().toISOString();
+  try{
+    const CHUNK=400;
+    for(let i=0;i<ids.length;i+=CHUNK){
+      const b=fdb.batch();
+      ids.slice(i,i+CHUNK).forEach(id=>b.update(fdb.collection('inventory').doc(id),updates));
+      await b.commit();
+    }
+    ids.forEach(id=>{
+      const idx=DB.findIndex(r=>r.id===id);
+      if(idx>-1)DB[idx]={...DB[idx],...updates};
+    });
+    fd=[...DB];pg=1;renderTbl();renderDash();
+    await addLog('Updated',`Bulk edited ${ids.length} records: ${Object.keys(updates).filter(k=>k!=='updatedBy'&&k!=='updatedAt').join(', ')}`);
+    closeBE();
+  }catch(err){alert('Bulk edit error: '+err.message);}
+}
+
 // ── CLOSE MODAL ON OVERLAY CLICK ──────────────────────
 document.getElementById('moOv').addEventListener('click',function(e){if(e.target===this)closeMo();});
+document.getElementById('beOv').addEventListener('click',function(e){if(e.target===this)closeBE();});
 
 // ── RESIZE CHART ON WINDOW RESIZE ────────────────────
 window.addEventListener('resize',()=>{if(document.getElementById('page-dashboard').classList.contains('on'))drawChart();});
