@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="en" data-dark>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CS Inventory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #ffffff; --bg2: #f8f9fa; --bg3: #f1f3f4;
+  --border: #e0e0e0; --t1: #1a1a1a; --t2: #5f6368; --t3: #999;
+  --accent: #1a73e8; --accent-h: #1557b0; --accent-bg: #e8f0fe;
+  --ok: #188038; --warn: #b06000; --err: #c5221f;
+  --nav: #1e2a3a; --nav-t: #9aa5b4; --nav-h: #2d3f52;
+  --sh: 0 1px 3px rgba(0,0,0,.08); --sh2: 0 4px 12px rgba(0,0,0,.12);
+  --r: 6px; --r2: 8px; --r3: 12px;
+}
+[data-dark] {
+  --bg: #0f172a; --bg2: #1e293b; --bg3: #253347;
+  --border: #2d3f52; --t1: #e2e8f0; --t2: #94a3b8; --t3: #64748b;
+  --accent: #4f8ef7; --accent-h: #3b7de0; --accent-bg: #1a2f50;
+  --ok: #34d399; --warn: #fbbf24; --err: #f87171;
+  --nav: #0f172a; --nav-t: #7b8ea4; --nav-h: #1e293b;
+  --sh: 0 1px 3px rgba(0,0,0,.3); --sh2: 0 4px 12px rgba(0,0,0,.4);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg2);color:var(--t1);font-size:13.5px;line-height:1.5}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:var(--bg3)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+/* NAV */
+.nav{background:var(--nav);height:50px;display:flex;align-items:center;padding:0 16px;gap:4px;position:sticky;top:0;z-index:100;border-bottom:1px solid rgba(255,255,255,.04)}
+.nav-brand{color:#fff;font-weight:700;font-size:15px;letter-spacing:-.3px;margin-right:20px;white-space:nowrap}
+.nav-links{display:flex;gap:2px;flex:1}
+.nav-btn{background:none;border:none;color:var(--nav-t);padding:5px 11px;border-radius:var(--r);font-size:13px;font-weight:500;cursor:pointer;transition:.15s}
+.nav-btn:hover{background:var(--nav-h);color:#fff}
+.nav-btn.on{background:rgba(255,255,255,.11);color:#fff}
+.nav-right{display:flex;align-items:center;gap:6px;margin-left:auto}
+.nav-user{background:rgba(255,255,255,.09);border:none;color:#d1dae6;cursor:pointer;padding:4px 10px;border-radius:var(--r);font-size:12px;font-weight:500;transition:.15s;white-space:nowrap}
+.nav-user:hover{background:rgba(255,255,255,.17)}
+.nav-ico{background:none;border:none;color:var(--nav-t);cursor:pointer;width:30px;height:30px;border-radius:var(--r);display:flex;align-items:center;justify-content:center;font-size:15px;transition:.15s}
+.nav-ico:hover{background:var(--nav-h);color:#fff}
+
+/* LAYOUT */
+.main{max-width:1600px;margin:0 auto;padding:20px 22px}
+.page{display:none}
+.page.on{display:block}
+.ph{margin-bottom:18px}
+.ph h1{font-size:19px;font-weight:700}
+.ph p{color:var(--t2);font-size:12.5px;margin-top:2px}
+
+/* CARDS */
+.card{background:var(--bg);border:1px solid var(--border);border-radius:var(--r2);padding:15px;box-shadow:var(--sh)}
+.ctitle{font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:11px}
+
+/* STATS */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;margin-bottom:14px}
+.stat{background:var(--bg);border:1px solid var(--border);border-radius:var(--r2);padding:15px 17px;box-shadow:var(--sh)}
+.stat-lbl{font-size:11.5px;color:var(--t2);font-weight:500;margin-bottom:5px}
+.stat-val{font-family:'DM Mono',monospace;font-size:26px;font-weight:500;line-height:1;color:var(--t1)}
+.stat.c-a .stat-val{color:var(--accent)}
+.stat.c-ok .stat-val{color:var(--ok)}
+.stat.c-w .stat-val{color:var(--warn)}
+
+/* DASH GRIDS */
+.dg2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.dg3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+
+/* CHART */
+.chart-wrap{height:175px;position:relative}
+.chart-legend{display:flex;gap:14px;margin-top:7px}
+.legend-dot{width:9px;height:9px;border-radius:2px;display:inline-block;margin-right:4px}
+.legend-item{display:flex;align-items:center;font-size:11.5px;color:var(--t2)}
+
+/* LIST ITEMS */
+.li{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);font-size:12.5px}
+.li:last-child{border-bottom:none}
+.li-left{line-height:1.35}
+.li-name{font-weight:500;color:var(--t1)}
+.li-sub{font-size:11.5px;color:var(--t2)}
+
+/* BADGES */
+.badge{padding:2px 7px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
+.b-active{background:#d4edda;color:#155724}
+.b-available{background:#cfe2ff;color:#084298}
+.b-reserved{background:#fff3cd;color:#664d03}
+.b-inactive{background:#f8d7da;color:#721c24}
+[data-dark] .b-active{background:#14532d;color:#6ee7b7}
+[data-dark] .b-available{background:#1e3a5f;color:#93c5fd}
+[data-dark] .b-reserved{background:#431407;color:#fcd34d}
+[data-dark] .b-inactive{background:#450a0a;color:#fca5a5}
+
+/* STATUS BAR */
+.sbar{margin-bottom:9px}
+.sbar-row{display:flex;justify-content:space-between;font-size:12px;color:var(--t2);margin-bottom:3px}
+.sbar-track{height:5px;background:var(--bg3);border-radius:3px;overflow:hidden}
+.sbar-fill{height:100%;border-radius:3px}
+
+/* ── INVENTORY ── */
+.inv-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.filter-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap;flex:1}
+.more-row{display:flex;align-items:center;gap:6px;padding-top:6px;display:none}
+.more-row.on{display:flex}
+.fsel,.finp{height:30px;padding:0 8px;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--t1);font-size:12.5px;outline:none;transition:.15s}
+.fsel:focus,.finp:focus{border-color:var(--accent)}
+.finp{width:175px}
+.btn{height:30px;padding:0 13px;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--t1);font-size:12.5px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:5px;transition:.15s;white-space:nowrap}
+.btn:hover{background:var(--bg3);border-color:var(--t3)}
+.btn-p{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn-p:hover{background:var(--accent-h);border-color:var(--accent-h)}
+.btn-ico{width:30px;height:30px;padding:0;justify-content:center;font-size:15px}
+.btn-sm{height:26px;padding:0 8px;font-size:11.5px}
+.btn-d{color:var(--err);border-color:var(--err)}
+.btn-d:hover{background:#fee2e2}
+[data-dark] .btn-d:hover{background:#450a0a}
+.tb-actions{display:flex;align-items:center;gap:5px;flex-shrink:0}
+
+/* TABLE */
+.tbl-wrap{background:var(--bg);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden;box-shadow:var(--sh)}
+.tbl-scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+thead{background:var(--bg3);border-bottom:2px solid var(--border)}
+th{padding:7px 9px;text-align:left;font-weight:600;color:var(--t2);font-size:11px;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap;user-select:none;position:relative}
+th.sort{cursor:pointer}
+th.sort:hover{background:var(--border);color:var(--t1)}
+th.asc::after{content:' ↑';color:var(--accent)}
+th.desc::after{content:' ↓';color:var(--accent)}
+td{padding:6.5px 9px;border-bottom:1px solid var(--border);color:var(--t1);white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--accent-bg);cursor:pointer}
+.tbl-foot{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-top:1px solid var(--border);background:var(--bg3)}
+.tbl-info{font-size:11.5px;color:var(--t2)}
+.pgn{display:flex;align-items:center;gap:6px}
+.pgsel{height:26px;padding:0 5px;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--t1);font-size:12px;cursor:pointer}
+.row-num{color:var(--t3);font-size:11.5px;font-family:'DM Mono',monospace}
+.num-cell{font-family:'DM Mono',monospace;font-size:12px}
+.act-btns{display:flex;gap:3px}
+.act-btn{background:none;border:none;cursor:pointer;padding:3px 4px;border-radius:4px;color:var(--t3);font-size:13px;transition:.15s}
+.act-btn:hover{color:var(--accent);background:var(--accent-bg)}
+.act-btn.del:hover{color:var(--err);background:#fee2e2}
+[data-dark] .act-btn.del:hover{background:#450a0a}
+input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:pointer}
+
+/* SIDE PANEL */
+.sp-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.25);z-index:200}
+.sp-ov.on{display:block}
+.sp{position:fixed;top:0;right:-450px;width:450px;height:100vh;background:var(--bg);border-left:1px solid var(--border);box-shadow:var(--sh2);z-index:201;overflow-y:auto;transition:right .22s ease;display:flex;flex-direction:column}
+.sp.on{right:0}
+.sp-head{display:flex;align-items:center;justify-content:space-between;padding:13px 15px;border-bottom:1px solid var(--border);background:var(--bg3);position:sticky;top:0;z-index:1;gap:8px}
+.sp-title{font-size:14.5px;font-weight:700;color:var(--t1);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sp-btns{display:flex;gap:5px;flex-shrink:0}
+.sp-body{padding:15px;flex:1}
+.ds{margin-bottom:16px}
+.ds-title{font-size:10.5px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:9px;padding-bottom:5px;border-bottom:1px solid var(--border)}
+.dr{display:flex;gap:8px;margin-bottom:7px;font-size:12.5px;align-items:flex-start}
+.dl{color:var(--t2);min-width:148px;font-weight:500;flex-shrink:0}
+.dv{color:var(--t1);flex:1;word-break:break-word}
+
+/* MODAL */
+.mo-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:300;align-items:center;justify-content:center}
+.mo-ov.on{display:flex}
+.mo{background:var(--bg);border:1px solid var(--border);border-radius:var(--r3);box-shadow:var(--sh2);width:620px;max-width:96vw;max-height:92vh;overflow-y:auto;display:flex;flex-direction:column}
+.mo-head{display:flex;align-items:center;justify-content:space-between;padding:13px 17px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg);z-index:1}
+.mo-title{font-size:15px;font-weight:700}
+.mo-body{padding:17px;flex:1}
+.mo-foot{display:flex;align-items:center;justify-content:flex-end;gap:7px;padding:11px 17px;border-top:1px solid var(--border);background:var(--bg3);position:sticky;bottom:0}
+.fg{display:flex;flex-direction:column;gap:3px}
+.fg label{font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.3px}
+.fc{height:30px;padding:0 9px;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--t1);font-size:12.5px;outline:none;width:100%;transition:.15s}
+.fc:focus{border-color:var(--accent)}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.full{grid-column:1/-1}
+.fsect{font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.6px;padding-bottom:5px;border-bottom:1px solid var(--border);margin-top:4px;grid-column:1/-1}
+
+/* LOGS */
+.lf-panel{background:var(--bg);border:1px solid var(--border);border-radius:var(--r2);margin-bottom:12px;box-shadow:var(--sh);overflow:hidden}
+.lf-head{display:flex;align-items:center;justify-content:space-between;padding:9px 13px;cursor:pointer;background:var(--bg3);user-select:none}
+.lf-head:hover{background:var(--border)}
+.lf-label{font-size:12.5px;font-weight:600;color:var(--t2)}
+.lf-arrow{font-size:11px;color:var(--t3);transition:.18s}
+.lf-arrow.on{transform:rotate(180deg)}
+.lf-body{display:none;padding:11px 13px;border-top:1px solid var(--border)}
+.lf-body.on{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+
+@media(max-width:1100px){.stats{grid-template-columns:repeat(2,1fr)}.dg2{grid-template-columns:1fr}.dg3{grid-template-columns:1fr 1fr}}
+@media(max-width:700px){.stats{grid-template-columns:1fr 1fr}.dg3{grid-template-columns:1fr}.main{padding:12px}.sp{width:100%;right:-100%}}
+
+/* AUTH */
+.auth-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;align-items:center;justify-content:center}
+.auth-ov.on{display:flex}
+.auth-box{background:var(--bg);border:1px solid var(--border);border-radius:var(--r3);box-shadow:var(--sh2);width:360px;max-width:94vw;padding:28px 26px 24px}
+.auth-title{font-size:18px;font-weight:700;color:var(--t1);margin-bottom:4px}
+.auth-sub{font-size:12.5px;color:var(--t2);margin-bottom:22px}
+.auth-fg{display:flex;flex-direction:column;gap:4px;margin-bottom:13px}
+.auth-fg label{font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.3px}
+.auth-err{font-size:12px;color:var(--err);min-height:16px;margin-bottom:10px}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav">
+  <span class="nav-brand">CS Inventory</span>
+  <div class="nav-links">
+    <button class="nav-btn on" onclick="go('dashboard',this)">Dashboard</button>
+    <button class="nav-btn" onclick="go('inventory',this)">Inventory</button>
+    <button class="nav-btn" onclick="go('logs',this)">Logs</button>
+    <button class="nav-btn" onclick="go('admin',this)">Admin</button>
+  </div>
+  <div class="nav-right">
+    <button class="nav-user" id="navUser" title="Signed in">—</button>
+    <button class="nav-ico" title="Sign out" onclick="doSignOut()">⏻</button>
+    <button class="nav-ico" title="Toggle dark / light mode" id="themeBtn" onclick="toggleTheme()">◐</button>
+  </div>
+</nav>
+
+<main class="main">
+
+<!-- ══════════ DASHBOARD ══════════ -->
+<div class="page on" id="page-dashboard">
+  <div class="ph"><h1>Dashboard</h1><p>Overview of your number inventory</p></div>
+
+  <div class="stats">
+    <div class="stat"><div class="stat-lbl">Total Numbers</div><div class="stat-val" id="s-total">—</div></div>
+    <div class="stat c-a"><div class="stat-lbl">Active Status</div><div class="stat-val" id="s-active">—</div></div>
+    <div class="stat c-ok"><div class="stat-lbl">Available</div><div class="stat-val" id="s-avail">—</div></div>
+    <div class="stat c-w"><div class="stat-lbl">Reserved</div><div class="stat-val" id="s-reserved">—</div></div>
+  </div>
+
+  <div class="dg2">
+    <div class="card">
+      <div class="ctitle">Activated &amp; Deactivated — Last 14 Days</div>
+      <div class="chart-wrap"><canvas id="chart"></canvas></div>
+      <div class="chart-legend">
+        <span class="legend-item"><span class="legend-dot" style="background:#4f8ef7"></span>Activated</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#f87171"></span>Deactivated</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ctitle">Recently Viewed Numbers</div>
+      <div id="d-recent"><p style="color:var(--t3);font-size:12px">No recently viewed numbers.</p></div>
+    </div>
+  </div>
+
+  <div class="dg3">
+    <div class="card"><div class="ctitle">Numbers by Status</div><div id="d-status"></div></div>
+    <div class="card"><div class="ctitle">Top Clients</div><div id="d-clients"></div></div>
+    <div class="card"><div class="ctitle">Top Products</div><div id="d-products"></div></div>
+  </div>
+</div>
+
+<!-- ══════════ INVENTORY ══════════ -->
+<div class="page" id="page-inventory">
+  <div class="ph"><h1>Inventory</h1><p>Manage your number inventory</p></div>
+
+  <div class="inv-top">
+    <div style="flex:1">
+      <div class="filter-row">
+        <input class="finp" id="fSearch" placeholder="Search all fields…" oninput="applyF()">
+        <select class="fsel" id="fClient" onchange="applyF()">
+          <option value="">All Clients</option>
+          <option>TOKU</option><option>DIDLOGIC</option><option>TWILIO</option><option>BANDWIDTH</option><option>VONAGE</option>
+        </select>
+        <select class="fsel" id="fStatus" onchange="applyF()">
+          <option value="">All Statuses</option>
+          <option>Active</option><option>Available</option><option>Reserved</option><option>Inactive</option>
+        </select>
+        <select class="fsel" id="fProduct" onchange="applyF()">
+          <option value="">All Products</option>
+          <option>DID Local</option><option>Toll Free</option><option>Mobile</option><option>Shortcode</option>
+        </select>
+        <select class="fsel" id="fProvider" onchange="applyF()">
+          <option value="">All Providers</option>
+          <option>Twilio</option><option>Bandwidth</option><option>Telnyx</option><option>Vonage</option>
+        </select>
+        <button class="btn" id="moreBtn" onclick="toggleMore()">More ▾</button>
+        <button class="btn" onclick="clearF()">Clear</button>
+      </div>
+      <div class="more-row" id="moreRow">
+        <span style="font-size:12px;color:var(--t2);font-weight:500">Activation Date:</span>
+        <input type="date" class="finp" id="fDateFrom" onchange="applyF()" style="width:145px">
+        <span style="font-size:12px;color:var(--t3)">to</span>
+        <input type="date" class="finp" id="fDateTo" onchange="applyF()" style="width:145px">
+      </div>
+    </div>
+    <div class="tb-actions">
+      <button class="btn btn-p" onclick="openAdd()">+ Add Number</button>
+      <button class="btn btn-ico" title="Upload CSV" onclick="document.getElementById('csvIn').click()">⤒</button>
+      <input type="file" id="csvIn" accept=".csv" style="display:none" onchange="handleCSV(event)">
+      <button class="btn btn-ico" title="Download Sample CSV" onclick="dlSample()">⤓</button>
+      <button class="btn btn-ico" title="Export All" onclick="exportAll()">↗</button>
+    </div>
+  </div>
+
+  <div class="tbl-wrap">
+    <div class="tbl-scroll">
+      <table id="invTbl">
+        <thead>
+          <tr>
+            <th style="width:34px"><input type="checkbox" id="selAll" onchange="selAllRows(this)"></th>
+            <th style="width:42px">#</th>
+            <th class="sort" onclick="sortBy('client')">Client</th>
+            <th class="sort" onclick="sortBy('product')">Product</th>
+            <th class="sort" onclick="sortBy('number')">Number</th>
+            <th class="sort" onclick="sortBy('status')">Status</th>
+            <th class="sort" onclick="sortBy('remarks')">Remarks</th>
+            <th style="width:64px">Action</th>
+          </tr>
+        </thead>
+        <tbody id="invBody"></tbody>
+      </table>
+    </div>
+    <div class="tbl-foot">
+      <div class="tbl-info" id="tInfo">—</div>
+      <div class="pgn">
+        <span style="font-size:11.5px;color:var(--t2)">Rows:</span>
+        <select class="pgsel" id="pgSize" onchange="pg=1;renderTbl()">
+          <option>100</option><option>200</option><option>300</option><option>500</option><option>1000</option>
+        </select>
+        <button class="btn btn-sm" id="pgPrev" onclick="changePg(-1)">‹ Prev</button>
+        <span id="pgInfo" style="font-size:11.5px;color:var(--t2)">Page 1</span>
+        <button class="btn btn-sm" id="pgNext" onclick="changePg(1)">Next ›</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ LOGS ══════════ -->
+<div class="page" id="page-logs">
+  <div class="ph"><h1>Logs</h1><p>Activity and change history</p></div>
+
+  <div class="lf-panel">
+    <div class="lf-head" onclick="toggleLF()">
+      <span class="lf-label">Filters</span>
+      <span class="lf-arrow" id="lfArrow">▾</span>
+    </div>
+    <div class="lf-body" id="lfBody">
+      <select class="fsel" id="lAction" onchange="applyLF()">
+        <option value="">All Actions</option>
+        <option>Added</option><option>Updated</option><option>Deleted</option>
+        <option>CSV Upload</option><option>Exported</option><option>Login</option>
+      </select>
+      <input type="date" class="finp" id="lFrom" onchange="applyLF()" style="width:140px">
+      <span style="font-size:12px;color:var(--t3)">to</span>
+      <input type="date" class="finp" id="lTo" onchange="applyLF()" style="width:140px">
+      <button class="btn" onclick="clearLF()">Clear</button>
+      <button class="btn btn-p" onclick="exportLogs()">Export</button>
+      <button class="btn btn-d" onclick="clearAllLogs()">Clear All</button>
+    </div>
+  </div>
+
+  <div class="tbl-wrap">
+    <div class="tbl-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:42px">#</th>
+            <th class="sort" onclick="sortL('datetime')">Date &amp; Time</th>
+            <th class="sort" onclick="sortL('user')">User</th>
+            <th class="sort" onclick="sortL('action')">Action</th>
+            <th class="sort" onclick="sortL('details')">Details</th>
+          </tr>
+        </thead>
+        <tbody id="logBody"></tbody>
+      </table>
+    </div>
+    <div class="tbl-foot">
+      <div class="tbl-info" id="lInfo">—</div>
+      <div class="pgn">
+        <span style="font-size:11.5px;color:var(--t2)">Rows:</span>
+        <select class="pgsel" id="lPgSize" onchange="lpg=1;renderLogs()">
+          <option value="25" selected>25</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+          <option value="200">200</option>
+          <option value="500">500</option>
+        </select>
+        <button class="btn btn-sm" id="lPgPrev" onclick="changeLPg(-1)">‹ Prev</button>
+        <span id="lPgInfo" style="font-size:11.5px;color:var(--t2)">Page 1</span>
+        <button class="btn btn-sm" id="lPgNext" onclick="changeLPg(1)">Next ›</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ ADMIN ══════════ -->
+<div class="page" id="page-admin">
+  <div class="ph"><h1>Admin</h1><p>System administration</p></div>
+  <div class="card" style="max-width:480px"><div class="ctitle">Admin Panel</div>
+    <p style="color:var(--t2);font-size:13px">User management, roles, and system settings will appear here.</p>
+  </div>
+</div>
+
+</main>
+
+<!-- SIDE PANEL -->
+<div class="sp-ov" id="spOv" onclick="closeSP()"></div>
+<div class="sp" id="sp">
+  <div class="sp-head">
+    <div class="sp-title" id="spTitle">Details</div>
+    <div class="sp-btns">
+      <button class="btn btn-p btn-sm" onclick="openEdit()">Edit</button>
+      <button class="btn btn-sm" onclick="closeSP()">Close</button>
+    </div>
+  </div>
+  <div class="sp-body" id="spBody"></div>
+</div>
+
+<!-- MODAL -->
+<div class="mo-ov" id="moOv">
+  <div class="mo">
+    <div class="mo-head">
+      <span class="mo-title" id="moTitle">Add Number</span>
+      <button class="act-btn" onclick="closeMo()" style="font-size:17px;color:var(--t2)">✕</button>
+    </div>
+    <div class="mo-body">
+      <div class="fgrid" id="moForm">
+        <div class="fsect">Client Information</div>
+        <div class="fg"><label>Client</label><input class="fc" id="mClient" placeholder="Client name"></div>
+        <div class="fg"><label>Product</label><input class="fc" id="mProduct" placeholder="Product"></div>
+        <div class="fg"><label>Number</label><input class="fc" id="mNumber" placeholder="+1 555 000 0000"></div>
+        <div class="fg"><label>Status</label>
+          <select class="fc" id="mStatus"><option>Available</option><option>Reserved</option><option>Active</option><option>Inactive</option></select>
+        </div>
+        <div class="fg full"><label>Remarks</label><input class="fc" id="mRemarks" placeholder="Any remarks…"></div>
+        <div class="fg"><label>Posted Status</label>
+          <select class="fc" id="mPosted"><option value="No">No</option><option value="Yes">Yes</option></select>
+        </div>
+        <div class="fg"><label>Posted Date</label><input type="date" class="fc" id="mPostedDate"></div>
+        <div class="fg"><label>Client OSF</label><input class="fc" id="mClientOSF" placeholder="0.00"></div>
+        <div class="fg"><label>Client MRC</label><input class="fc" id="mClientMRC" placeholder="0.00"></div>
+        <div class="fg"><label>Client OTRF</label><input class="fc" id="mClientOTRF" placeholder="0.00"></div>
+        <div class="fg"><label>Client Channel Fee</label><input class="fc" id="mClientCF" placeholder="0.00"></div>
+        <div class="fg"><label>Client CPM</label><input class="fc" id="mClientCPM" placeholder="0.0000"></div>
+        <div class="fg"><label>Effective Date</label><input type="date" class="fc" id="mEffDate"></div>
+        <div class="fg"><label>Activated Date</label><input type="date" class="fc" id="mActDate"></div>
+
+        <div class="fsect">Provider Information</div>
+        <div class="fg"><label>Provider</label><input class="fc" id="mProvider" placeholder="Provider name"></div>
+        <div class="fg"><label>Arrival Date</label><input type="date" class="fc" id="mArrDate"></div>
+        <div class="fg"><label>Provider Activation Date</label><input type="date" class="fc" id="mProvActDate"></div>
+        <div class="fg"><label>Provider OSF</label><input class="fc" id="mProvOSF" placeholder="0.00"></div>
+        <div class="fg"><label>Provider MRC</label><input class="fc" id="mProvMRC" placeholder="0.00"></div>
+        <div class="fg"><label>Provider OTRF</label><input class="fc" id="mProvOTRF" placeholder="0.00"></div>
+        <div class="fg"><label>Provider CPM</label><input class="fc" id="mProvCPM" placeholder="0.0000"></div>
+        <div class="fg"><label>Type / Session</label><input class="fc" id="mTypeSession" placeholder="e.g. SIP, WebRTC"></div>
+
+        <div class="fsect">Routing &amp; History</div>
+        <div class="fg"><label>Route Request by</label><input class="fc" id="mRoute" placeholder="Name"></div>
+        <div class="fg"><label>Deactivation Date (Prev Client)</label><input type="date" class="fc" id="mDeactDate"></div>
+        <div class="fg full"><label>Previous Client</label><input class="fc" id="mPrevClient" placeholder="e.g. TOKU, DIDLOGIC"></div>
+      </div>
+    </div>
+    <div class="mo-foot">
+      <button class="btn" onclick="closeMo()">Cancel</button>
+      <button class="btn btn-p" onclick="saveRec()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- AUTH OVERLAY -->
+<div class="auth-ov on" id="authOv">
+  <div class="auth-box">
+    <div class="auth-title">CS Inventory</div>
+    <div class="auth-sub">Sign in to your account to continue</div>
+    <div class="auth-fg">
+      <label>Email</label>
+      <input class="fc" id="authEmail" type="email" placeholder="you@company.com" onkeydown="if(event.key==='Enter')doSignIn()">
+    </div>
+    <div class="auth-fg">
+      <label>Password</label>
+      <input class="fc" id="authPass" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doSignIn()">
+    </div>
+    <div class="auth-err" id="authErr"></div>
+    <button class="btn btn-p" style="width:100%;height:34px;font-size:13px" onclick="doSignIn()">Sign In</button>
+  </div>
+</div>
+
+<!-- FIREBASE SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<script>
+// ── FIREBASE CONFIG — replace all placeholder values ──
+const firebaseConfig = {
+  apiKey:            "AIzaSyABDc89YeU0QRYRtayDQHJmCocMg5MQARw",
+  authDomain:        "cs-inventory-6906b.firebaseapp.com",
+  projectId:         "cs-inventory-6906b",
+  storageBucket:     "cs-inventory-6906b.firebasestorage.app",
+  messagingSenderId: "709498580037",
+  appId:             "1:709498580037:web:584307178d4f253268072c"
+};
+firebase.initializeApp(firebaseConfig);
+const fdb   = firebase.firestore();
+const fauth = firebase.auth();
+
+const STATUSES=['Active','Available','Reserved','Inactive'];
+const ACT_LABELS={Added:'b-active',Updated:'b-reserved',Deleted:'b-inactive','CSV Upload':'b-available',Exported:'b-available',Login:'b-available'};
+const CSV_HEADERS=['Client','Product','Number','Status','Remarks','Posted Status','Posted Date','Client OSF','Client MRC','Client OTRF','Client Channel Fee','Client CPM','Effective Date','Activated Date','Provider','Arrival Date','Provider Activation Date','Provider OSF','Provider MRC','Provider OTRF','Provider CPM','Type / Session','Route Request by','Deactivation Date','Previous Client'];
+const fmt=iso=>iso?iso.replace(/(\d{4})-(\d{2})-(\d{2})/,'$2/$3/$1'):'—';
+
+// ── STATE ─────────────────────────────────────────────
+let DB=[],LOGS=[],recentViewed=[];
+let fd=[],fl=[];
+let pg=1,sortCol=null,sortDir=1;
+let lpg=1,lSortCol=null,lSortDir=1;
+let curRec=null,editId=null,moreOpen=false;
+let currentUser=null;
+
+// ── AUTH ──────────────────────────────────────────────
+fauth.onAuthStateChanged(user=>{
+  if(user){
+    currentUser=user;
+    document.getElementById('authOv').style.display='none';
+    document.getElementById('navUser').textContent=user.email;
+    loadInventory();
+    loadLogs();
+  } else {
+    currentUser=null;
+    DB=[];LOGS=[];fd=[];fl=[];recentViewed=[];
+    document.getElementById('authOv').style.display='flex';
+    document.getElementById('navUser').textContent='—';
+    renderDash();renderTbl();renderLogs();
+  }
+});
+
+async function doSignIn(){
+  const email=document.getElementById('authEmail').value.trim();
+  const pass=document.getElementById('authPass').value;
+  const err=document.getElementById('authErr');
+  if(!email||!pass){err.textContent='Enter email and password.';return;}
+  err.textContent='Signing in…';
+  try{ await fauth.signInWithEmailAndPassword(email,pass); }
+  catch(e){ err.textContent=e.message; }
+}
+function doSignOut(){ fauth.signOut(); }
+
+// ── FIRESTORE LOAD ────────────────────────────────────
+async function loadInventory(){
+  try{
+    const snap=await fdb.collection('inventory').orderBy('client').get();
+    DB=snap.docs.map(d=>({...d.data(),id:d.id}));
+    fd=[...DB];renderTbl();renderDash();
+  }catch(e){console.error('loadInventory:',e);}
+}
+async function loadLogs(){
+  try{
+    const snap=await fdb.collection('logs').orderBy('datetime','desc').limit(500).get();
+    LOGS=snap.docs.map(d=>({...d.data(),id:d.id}));
+    fl=[...LOGS];renderLogs();
+  }catch(e){console.error('loadLogs:',e);}
+}
+
+// ── NAVIGATION ────────────────────────────────────────
+function go(tab,btn){
+  document.querySelectorAll('.page').forEach(el=>el.classList.remove('on'));
+  document.querySelectorAll('.nav-btn').forEach(el=>el.classList.remove('on'));
+  document.getElementById('page-'+tab).classList.add('on');
+  btn.classList.add('on');
+  if(tab==='dashboard')renderDash();
+  if(tab==='inventory')renderTbl();
+  if(tab==='logs')renderLogs();
+}
+
+// ── THEME ─────────────────────────────────────────────
+function toggleTheme(){
+  const h=document.documentElement;
+  const dark=h.hasAttribute('data-dark');
+  dark?h.removeAttribute('data-dark'):h.setAttribute('data-dark','');
+  document.getElementById('themeBtn').textContent=dark?'◑':'◐';
+  setTimeout(drawChart,40);
+}
+
+// ── DASHBOARD ─────────────────────────────────────────
+function renderDash(){
+  const counts={};STATUSES.forEach(s=>counts[s]=0);
+  DB.forEach(r=>counts[r.status]=(counts[r.status]||0)+1);
+  document.getElementById('s-total').textContent=DB.length.toLocaleString();
+  document.getElementById('s-active').textContent=(counts['Active']||0).toLocaleString();
+  document.getElementById('s-avail').textContent=(counts['Available']||0).toLocaleString();
+  document.getElementById('s-reserved').textContent=(counts['Reserved']||0).toLocaleString();
+
+  const rv=document.getElementById('d-recent');
+  if(!recentViewed.length){rv.innerHTML='<p style="color:var(--t3);font-size:12px">No recently viewed numbers.</p>';}
+  else{rv.innerHTML=recentViewed.slice(0,6).map(r=>`
+    <div class="li" onclick="openSP('${r.id}')" style="cursor:pointer">
+      <div class="li-left"><div class="li-name">${r.number}</div><div class="li-sub">${r.client} · ${r.product}</div></div>
+      <span class="badge ${bclass(r.status)}">${r.status}</span>
+    </div>`).join('');}
+
+  const total=DB.length||1;
+  const colors={Active:'#4f8ef7',Available:'#34d399',Reserved:'#fbbf24',Inactive:'#f87171'};
+  document.getElementById('d-status').innerHTML=Object.entries(counts).map(([s,c])=>`
+    <div class="sbar">
+      <div class="sbar-row"><span>${s}</span><span>${c} (${Math.round(c/total*100)}%)</span></div>
+      <div class="sbar-track"><div class="sbar-fill" style="width:${c/total*100}%;background:${colors[s]}"></div></div>
+    </div>`).join('');
+
+  // Top Clients
+  const cc={};DB.forEach(r=>cc[r.client]=(cc[r.client]||0)+1);
+  document.getElementById('d-clients').innerHTML=Object.entries(cc).sort((a,b)=>b[1]-a[1]).slice(0,5)
+    .map(([c,n])=>`<div class="li"><span class="li-name">${c}</span><span style="color:var(--t2);font-size:12px">${n} numbers</span></div>`).join('');
+
+  // Top Products
+  const pc={};DB.forEach(r=>pc[r.product]=(pc[r.product]||0)+1);
+  document.getElementById('d-products').innerHTML=Object.entries(pc).sort((a,b)=>b[1]-a[1]).slice(0,5)
+    .map(([p,n])=>`<div class="li"><span class="li-name">${p}</span><span style="color:var(--t2);font-size:12px">${n} numbers</span></div>`).join('');
+
+  setTimeout(drawChart,60);
+}
+
+function drawChart(){
+  const canvas=document.getElementById('chart');
+  if(!canvas)return;
+  const rect=canvas.getBoundingClientRect();
+  const dpr=window.devicePixelRatio||1;
+  canvas.width=rect.width*dpr;canvas.height=rect.height*dpr;
+  const ctx=canvas.getContext('2d');ctx.scale(dpr,dpr);
+  const W=rect.width,H=rect.height;
+  const dark=document.documentElement.hasAttribute('data-dark');
+  const tc=dark?'#64748b':'#9ca3af';
+  const gc=dark?'#2d3f52':'#e5e7eb';
+  const days=[],act=[],deact=[];
+  const now=Date.now();
+  for(let i=13;i>=0;i--){
+    const d=new Date(now-i*864e5);
+    const ds=d.toISOString().split('T')[0];
+    days.push(d.toLocaleDateString('en-US',{month:'short',day:'numeric'}));
+    act.push(DB.filter(r=>r.actDate===ds).length);
+    deact.push(DB.filter(r=>r.deactDate===ds).length);
+  }
+  const pad={l:32,r:10,t:8,b:26};
+  const cW=W-pad.l-pad.r,cH=H-pad.t-pad.b;
+  const maxV=Math.max(...act,...deact,4)+2;
+  const bW=(cW/days.length)*0.33;
+  ctx.clearRect(0,0,W,H);
+  for(let i=0;i<=4;i++){
+    const y=pad.t+(cH/4)*i;
+    ctx.strokeStyle=gc;ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(W-pad.r,y);ctx.stroke();
+    ctx.fillStyle=tc;ctx.font=`9px 'DM Sans',system-ui`;ctx.textAlign='right';
+    ctx.fillText(Math.round(maxV-(maxV/4)*i),pad.l-3,y+3);
+  }
+  days.forEach((day,i)=>{
+    const x=pad.l+(cW/days.length)*i+(cW/days.length)*0.1;
+    const aH=act[i]/maxV*cH,dH=deact[i]/maxV*cH;
+    ctx.fillStyle='#4f8ef7';ctx.fillRect(x,pad.t+cH-aH,bW,aH);
+    ctx.fillStyle='#f87171';ctx.fillRect(x+bW+2,pad.t+cH-dH,bW,dH);
+    if(i%3===0){ctx.fillStyle=tc;ctx.font=`8px 'DM Sans',system-ui`;ctx.textAlign='center';ctx.fillText(day,x+bW,H-5);}
+  });
+}
+
+// ── BADGE CLASS ───────────────────────────────────────
+function bclass(s){return{Active:'b-active',Available:'b-available',Reserved:'b-reserved',Inactive:'b-inactive'}[s]||''}
+
+// ── FILTERS ───────────────────────────────────────────
+function applyF(){
+  const s=document.getElementById('fSearch').value.toLowerCase();
+  const cl=document.getElementById('fClient').value;
+  const st=document.getElementById('fStatus').value;
+  const pr=document.getElementById('fProduct').value;
+  const pv=document.getElementById('fProvider').value;
+  const df=document.getElementById('fDateFrom').value;
+  const dt=document.getElementById('fDateTo').value;
+  fd=DB.filter(r=>{
+    if(s&&!Object.values(r).join(' ').toLowerCase().includes(s))return false;
+    if(cl&&r.client!==cl)return false;
+    if(st&&r.status!==st)return false;
+    if(pr&&r.product!==pr)return false;
+    if(pv&&r.provider!==pv)return false;
+    if(df&&r.actDate&&r.actDate<df)return false;
+    if(dt&&r.actDate&&r.actDate>dt)return false;
+    return true;
+  });
+  pg=1;renderTbl();
+}
+function clearF(){
+  ['fSearch','fDateFrom','fDateTo'].forEach(id=>document.getElementById(id).value='');
+  ['fClient','fStatus','fProduct','fProvider'].forEach(id=>document.getElementById(id).value='');
+  fd=[...DB];pg=1;renderTbl();
+}
+function toggleMore(){
+  moreOpen=!moreOpen;
+  document.getElementById('moreRow').classList.toggle('on',moreOpen);
+  document.getElementById('moreBtn').textContent=moreOpen?'Less ▴':'More ▾';
+}
+
+// ── SORT ──────────────────────────────────────────────
+const colIdx={client:2,product:3,number:4,status:5,remarks:6};
+function sortBy(col){
+  if(sortCol===col)sortDir*=-1;else{sortCol=col;sortDir=1;}
+  fd.sort((a,b)=>(a[col]||'').localeCompare(b[col]||'')*sortDir);
+  document.querySelectorAll('#invTbl th').forEach(th=>th.classList.remove('asc','desc'));
+  const ths=[...document.querySelectorAll('#invTbl th')];
+  if(colIdx[col])ths[colIdx[col]].classList.add(sortDir===1?'asc':'desc');
+  renderTbl();
+}
+
+// ── RENDER TABLE ──────────────────────────────────────
+function renderTbl(){
+  const sz=parseInt(document.getElementById('pgSize').value);
+  const s=(pg-1)*sz,e=s+sz,total=fd.length,tp=Math.ceil(total/sz)||1;
+  document.getElementById('tInfo').textContent=`Showing ${Math.min(s+1,total)}–${Math.min(e,total)} of ${total} records`;
+  document.getElementById('pgInfo').textContent=`Page ${pg} of ${tp}`;
+  document.getElementById('pgPrev').disabled=pg<=1;
+  document.getElementById('pgNext').disabled=pg>=tp;
+  document.getElementById('invBody').innerHTML=fd.slice(s,e).map((r,i)=>`
+    <tr onclick="rowClick(event,'${r.id}')">
+      <td onclick="event.stopPropagation()"><input type="checkbox" class="rcb" data-id="${r.id}"></td>
+      <td class="row-num">${s+i+1}</td>
+      <td>${r.client||''}</td>
+      <td>${r.product||''}</td>
+      <td class="num-cell" style="color:var(--accent);font-weight:500">${r.number||''}</td>
+      <td><span class="badge ${bclass(r.status)}">${r.status||''}</span></td>
+      <td>${r.remarks||''}</td>
+      <td onclick="event.stopPropagation()">
+        <div class="act-btns">
+          <button class="act-btn" title="Edit" onclick="openEditById('${r.id}')">✎</button>
+          <button class="act-btn del" title="Delete" onclick="delRec('${r.id}')">⊗</button>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+function changePg(d){
+  const sz=parseInt(document.getElementById('pgSize').value);
+  const tp=Math.ceil(fd.length/sz)||1;
+  pg=Math.max(1,Math.min(pg+d,tp));renderTbl();
+}
+function selAllRows(cb){document.querySelectorAll('.rcb').forEach(c=>c.checked=cb.checked);}
+function rowClick(e,id){
+  if(e.target.tagName==='INPUT')return;
+  openSP(id);
+  const r=DB.find(x=>x.id===id);
+  if(r&&!recentViewed.find(x=>x.id===id)){recentViewed.unshift(r);recentViewed=recentViewed.slice(0,6);}
+}
+
+// ── SIDE PANEL ────────────────────────────────────────
+function openSP(id){
+  const r=DB.find(x=>x.id===id);if(!r)return;
+  curRec=r;
+  document.getElementById('spTitle').textContent=r.number;
+  document.getElementById('spBody').innerHTML=`
+    <div class="ds"><div class="ds-title">Client Information</div>
+      ${dr('Client',r.client)}${dr('Product',r.product)}${dr('Number',r.number)}
+      ${dr('Status',`<span class="badge ${bclass(r.status)}">${r.status}</span>`)}
+      ${dr('Remarks',r.remarks||'—')}${dr('Posted Status',r.postedStatus||'—')}
+      ${dr('Posted Date',fmt(r.postedDate))}${dr('Client OSF','$'+(r.clientOSF||'—'))}
+      ${dr('Client MRC','$'+(r.clientMRC||'—'))}${dr('Client OTRF','$'+(r.clientOTRF||'—'))}
+      ${dr('Client Channel Fee','$'+(r.clientCF||'—'))}${dr('Client CPM',r.clientCPM||'—')}
+      ${dr('Effective Date',fmt(r.effDate))}${dr('Activated Date',fmt(r.actDate))}
+    </div>
+    <div class="ds"><div class="ds-title">Provider Information</div>
+      ${dr('Provider',r.provider||'—')}${dr('Arrival Date',fmt(r.arrDate))}
+      ${dr('Provider Activation Date',fmt(r.provActDate))}
+      ${dr('Provider OSF','$'+(r.provOSF||'—'))}${dr('Provider MRC','$'+(r.provMRC||'—'))}
+      ${dr('Provider OTRF','$'+(r.provOTRF||'—'))}${dr('Provider CPM',r.provCPM||'—')}
+      ${dr('Type / Session',r.typeSession||'—')}
+    </div>
+    <div class="ds"><div class="ds-title">Routing &amp; History</div>
+      ${dr('Route Request by',r.route||'—')}
+      ${dr('Deactivation Date (Prev Client)',fmt(r.deactDate))}
+      ${dr('Previous Client',r.prevClient||'—')}
+    </div>
+    <div class="ds"><div class="ds-title">Meta</div>
+      ${dr('Created by',r.createdBy||'—')}${dr('Updated by',r.updatedBy||'—')}
+    </div>`;
+  document.getElementById('spOv').classList.add('on');
+  document.getElementById('sp').classList.add('on');
+}
+function dr(label,val){return`<div class="dr"><span class="dl">${label}</span><span class="dv">${val}</span></div>`;}
+function closeSP(){
+  document.getElementById('spOv').classList.remove('on');
+  document.getElementById('sp').classList.remove('on');
+  curRec=null;
+}
+
+// ── MODAL ─────────────────────────────────────────────
+const mMap={
+  mClient:'client',mProduct:'product',mNumber:'number',mStatus:'status',mRemarks:'remarks',
+  mPosted:'postedStatus',mPostedDate:'postedDate',mClientOSF:'clientOSF',mClientMRC:'clientMRC',
+  mClientOTRF:'clientOTRF',mClientCF:'clientCF',mClientCPM:'clientCPM',mEffDate:'effDate',
+  mActDate:'actDate',mProvider:'provider',mArrDate:'arrDate',mProvActDate:'provActDate',
+  mProvOSF:'provOSF',mProvMRC:'provMRC',mProvOTRF:'provOTRF',mProvCPM:'provCPM',
+  mTypeSession:'typeSession',mRoute:'route',mDeactDate:'deactDate',mPrevClient:'prevClient'
+};
+function clearMo(){Object.keys(mMap).forEach(id=>{const el=document.getElementById(id);if(el)el.value=id==='mStatus'?'Available':id==='mPosted'?'No':'';});}
+function fillMo(r){Object.entries(mMap).forEach(([id,key])=>{const el=document.getElementById(id);if(el&&r[key]!==undefined)el.value=r[key];});}
+function openAdd(){editId=null;document.getElementById('moTitle').textContent='Add Number';clearMo();document.getElementById('moOv').classList.add('on');}
+function openEdit(){if(!curRec)return;openEditById(curRec.id);}
+function openEditById(id){const r=DB.find(x=>x.id===id);if(!r)return;editId=id;document.getElementById('moTitle').textContent='Edit Number';fillMo(r);document.getElementById('moOv').classList.add('on');}
+function closeMo(){document.getElementById('moOv').classList.remove('on');}
+async function saveRec(){
+  const nd={};
+  Object.entries(mMap).forEach(([id,key])=>{const el=document.getElementById(id);if(el)nd[key]=el.value;});
+  nd.updatedBy=currentUser?.email||'system';
+  nd.updatedAt=new Date().toISOString();
+  try{
+    if(editId){
+      await fdb.collection('inventory').doc(editId).update(nd);
+      const idx=DB.findIndex(r=>r.id===editId);
+      if(idx>-1)DB[idx]={...DB[idx],...nd};
+      await addLog('Updated',`Updated number ${nd.number}`);
+    }else{
+      nd.createdBy=currentUser?.email||'system';
+      nd.createdAt=new Date().toISOString();
+      const ref=await fdb.collection('inventory').add(nd);
+      nd.id=ref.id;DB.push(nd);
+      await addLog('Added',`Added number ${nd.number}`);
+    }
+    fd=[...DB];pg=1;renderTbl();closeMo();
+    if(editId)openSP(editId);
+  }catch(e){alert('Save error: '+e.message);}
+}
+async function delRec(id){
+  if(!confirm('Delete this record?'))return;
+  const r=DB.find(x=>x.id===id);
+  try{
+    await fdb.collection('inventory').doc(id).delete();
+    DB=DB.filter(x=>x.id!==id);fd=fd.filter(x=>x.id!==id);
+    if(r)await addLog('Deleted',`Deleted number ${r.number}`);
+    renderTbl();closeSP();
+  }catch(e){alert('Delete error: '+e.message);}
+}
+
+// ── CSV / EXPORT ──────────────────────────────────────
+async function handleCSV(e){
+  const f=e.target.files[0];if(!f)return;
+  await addLog('CSV Upload',`Uploaded CSV file: ${f.name}`);
+  alert(`CSV "${f.name}" uploaded. (Demo — data not imported)`);
+  e.target.value='';
+}
+function dlSample(){
+  const row=['TOKU','DID Local','+15550001234','Active','Sample','No','','100.00','50.00','25.00','10.00','0.0050','2024-01-01','2024-01-15','Twilio','2023-12-15','2024-01-15','80.00','40.00','20.00','0.0040','SIP','Katherine Serrano','','DIDLOGIC'];
+  dlCSV([CSV_HEADERS,row],'sample_inventory.csv');
+  addLog('Exported','Downloaded sample CSV template');
+}
+function exportAll(){
+  const rows=DB.map(r=>[r.client,r.product,r.number,r.status,r.remarks,r.postedStatus,r.postedDate,r.clientOSF,r.clientMRC,r.clientOTRF,r.clientCF,r.clientCPM,r.effDate,r.actDate,r.provider,r.arrDate,r.provActDate,r.provOSF,r.provMRC,r.provOTRF,r.provCPM,r.typeSession,r.route,r.deactDate,r.prevClient]);
+  dlCSV([CSV_HEADERS,...rows],'inventory_export.csv');
+  addLog('Exported',`Exported ${DB.length} records to CSV`);
+}
+function dlCSV(rows,name){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([rows.map(r=>r.map(c=>`"${String(c||'').replace(/"/g,'""')}"`).join(',')).join('\n')],{type:'text/csv'}));
+  a.download=name;a.click();
+}
+
+// ── LOGS ──────────────────────────────────────────────
+async function addLog(action,details){
+  const log={datetime:new Date().toISOString(),user:currentUser?.email||'system',action,details};
+  try{
+    const ref=await fdb.collection('logs').add(log);
+    log.id=ref.id;LOGS.unshift(log);fl=[...LOGS];renderLogs();
+  }catch(e){console.error('addLog:',e);}
+}
+function toggleLF(){
+  const b=document.getElementById('lfBody'),a=document.getElementById('lfArrow');
+  b.classList.toggle('on');a.classList.toggle('on');
+}
+function applyLF(){
+  const act=document.getElementById('lAction').value;
+  const df=document.getElementById('lFrom').value;
+  const dt=document.getElementById('lTo').value;
+  fl=LOGS.filter(r=>{
+    if(act&&r.action!==act)return false;
+    const d=r.datetime.slice(0,10);
+    if(df&&d<df)return false;
+    if(dt&&d>dt)return false;
+    return true;
+  });
+  lpg=1;renderLogs();
+}
+function clearLF(){
+  ['lAction','lFrom','lTo'].forEach(id=>document.getElementById(id).value='');
+  fl=[...LOGS];lpg=1;renderLogs();
+}
+function exportLogs(){
+  dlCSV([['#','Date & Time','User','Action','Details'],...fl.map((r,i)=>[i+1,r.datetime,r.user,r.action,r.details])],'logs_export.csv');
+}
+async function clearAllLogs(){
+  if(!confirm('Clear all logs? This cannot be undone.'))return;
+  try{
+    const snap=await fdb.collection('logs').get();
+    const batch=fdb.batch();
+    snap.docs.forEach(d=>batch.delete(d.ref));
+    await batch.commit();
+    LOGS=[];fl=[];renderLogs();
+  }catch(e){alert('Error: '+e.message);}
+}
+function sortL(col){
+  if(lSortCol===col)lSortDir*=-1;else{lSortCol=col;lSortDir=1;}
+  fl.sort((a,b)=>(a[col]||'').localeCompare(b[col]||'')*lSortDir);
+  renderLogs();
+}
+function renderLogs(){
+  const sz=parseInt(document.getElementById('lPgSize').value)||25;
+  const total=fl.length,tp=Math.ceil(total/sz)||1;
+  lpg=Math.max(1,Math.min(lpg,tp));
+  const s=(lpg-1)*sz,e=s+sz;
+  document.getElementById('logBody').innerHTML=fl.slice(s,e).map((r,i)=>`
+    <tr>
+      <td class="row-num">${s+i+1}</td>
+      <td>${new Date(r.datetime).toLocaleString()}</td>
+      <td>${r.user}</td>
+      <td><span class="badge ${ACT_LABELS[r.action]||'b-available'}">${r.action}</span></td>
+      <td>${r.details}</td>
+    </tr>`).join('');
+  document.getElementById('lInfo').textContent=`Showing ${Math.min(s+1,total)||0}–${Math.min(e,total)} of ${total} records`;
+  document.getElementById('lPgInfo').textContent=`Page ${lpg} of ${tp}`;
+  document.getElementById('lPgPrev').disabled=lpg<=1;
+  document.getElementById('lPgNext').disabled=lpg>=tp;
+}
+function changeLPg(d){
+  const sz=parseInt(document.getElementById('lPgSize').value)||25;
+  const tp=Math.ceil(fl.length/sz)||1;
+  lpg=Math.max(1,Math.min(lpg+d,tp));renderLogs();
+}
+
+// ── CLOSE MODAL ON OVERLAY CLICK ──────────────────────
+document.getElementById('moOv').addEventListener('click',function(e){if(e.target===this)closeMo();});
+
+// ── RESIZE CHART ON WINDOW RESIZE ────────────────────
+window.addEventListener('resize',()=>{if(document.getElementById('page-dashboard').classList.contains('on'))drawChart();});
+
+// ── INIT (renders empty state; Firebase loads data after auth) ──
+renderDash();renderTbl();renderLogs();
+</script>
+</body>
+</html>
