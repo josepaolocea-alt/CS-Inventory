@@ -704,6 +704,26 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
   </div>
 </div>
 
+<!-- CLEAR ALL LOGS CONFIRM MODAL -->
+<div class="mo-ov" id="clearLogsOv" style="z-index:600">
+  <div class="mo" style="width:360px;max-width:94vw">
+    <div class="mo-head" style="border-bottom:none;padding-bottom:4px">
+      <span class="mo-title">Clear All Logs</span>
+      <button class="act-btn" onclick="document.getElementById('clearLogsOv').classList.remove('on')" style="font-size:17px;color:var(--t2)">✕</button>
+    </div>
+    <div class="mo-body" style="text-align:center;padding:8px 24px 20px">
+      <div style="font-size:38px;margin-bottom:12px">🗑️</div>
+      <p style="font-size:14.5px;font-weight:600;color:var(--t1);margin-bottom:6px">Clear all logs?</p>
+      <p style="font-size:13px;color:var(--t2);margin-bottom:0">This will permanently delete all log entries.</p>
+      <p style="font-size:12px;color:var(--t2);margin-top:8px">This cannot be undone.</p>
+    </div>
+    <div class="mo-foot" style="justify-content:center;gap:10px;padding:12px 17px 16px">
+      <button class="btn" style="min-width:90px" onclick="document.getElementById('clearLogsOv').classList.remove('on')">Cancel</button>
+      <button class="btn btn-d" id="clearLogsConfirmBtn" style="min-width:90px">Clear All</button>
+    </div>
+  </div>
+</div>
+
 <!-- REMOVE SELECTION ITEM CONFIRM MODAL -->
 <div class="mo-ov" id="rmSelOv" style="z-index:600">
   <div class="mo" style="width:360px;max-width:94vw">
@@ -1285,15 +1305,19 @@ function clearLF(){
 function exportLogs(){
   dlCSV([['#','Date & Time','User','Action','Details'],...fl.map((r,i)=>[i+1,r.datetime,r.user,r.action,r.details])],'logs_export.csv');
 }
-async function clearAllLogs(){
-  if(!confirm('Clear all logs? This cannot be undone.'))return;
-  try{
-    const snap=await fdb.collection('logs').get();
-    const batch=fdb.batch();
-    snap.docs.forEach(d=>batch.delete(d.ref));
-    await batch.commit();
-    LOGS=[];fl=[];renderLogs();
-  }catch(e){alert('Error: '+e.message);}
+function clearAllLogs(){
+  const ov=document.getElementById('clearLogsOv');
+  document.getElementById('clearLogsConfirmBtn').onclick=async function(){
+    ov.classList.remove('on');
+    try{
+      const snap=await fdb.collection('logs').get();
+      const batch=fdb.batch();
+      snap.docs.forEach(d=>batch.delete(d.ref));
+      await batch.commit();
+      LOGS=[];fl=[];renderLogs();
+    }catch(e){alert('Error: '+e.message);}
+  };
+  ov.classList.add('on');
 }
 function sortL(col){
   if(lSortCol===col)lSortDir*=-1;else{lSortCol=col;lSortDir=1;}
