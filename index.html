@@ -202,6 +202,31 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
 .auth-fg{display:flex;flex-direction:column;gap:4px;margin-bottom:13px}
 .auth-fg label{font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.3px}
 .auth-err{font-size:12px;color:var(--err);min-height:16px;margin-bottom:10px}
+
+/* ── ADMIN ── */
+.um-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.sel-panel{border:1px solid var(--border);border-radius:var(--r2);overflow:hidden;margin-bottom:10px;box-shadow:var(--sh)}
+.sel-panel:last-child{margin-bottom:0}
+.sel-head{display:flex;align-items:center;justify-content:space-between;padding:9px 13px;cursor:pointer;background:var(--bg3);user-select:none}
+.sel-head:hover{background:var(--border)}
+.sel-label{font-size:12.5px;font-weight:600;color:var(--t2)}
+.sel-head-right{display:flex;align-items:center;gap:4px}
+.sel-arrow{font-size:11px;color:var(--t3);transition:.18s;margin-left:3px}
+.sel-arrow.on{transform:rotate(180deg)}
+.sel-body{display:none;padding:13px;border-top:1px solid var(--border)}
+.sel-body.on{display:block}
+.sel-items{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;min-height:20px}
+.sel-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 6px 3px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:20px;font-size:12px;color:var(--t1)}
+.sel-chip-del{background:none;border:none;cursor:pointer;color:var(--t3);font-size:12px;padding:0 2px;line-height:1;display:flex;align-items:center;transition:.1s}
+.sel-chip-del:hover{color:var(--err)}
+.sel-add-row{display:flex;gap:6px;align-items:center}
+.role-badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
+.rb-admin{background:#dbeafe;color:#1e40af}
+.rb-semi{background:#f3e8ff;color:#6b21a8}
+.rb-viewer{background:var(--bg3);color:var(--t2);border:1px solid var(--border)}
+[data-dark] .rb-admin{background:#1e3a5f;color:#93c5fd}
+[data-dark] .rb-semi{background:#3b0764;color:#c4b5fd}
+.viewer-hide{display:none!important}
 </style>
 </head>
 <body>
@@ -212,8 +237,8 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
   <div class="nav-links">
     <button class="nav-btn on" onclick="go('dashboard',this)">Dashboard</button>
     <button class="nav-btn" onclick="go('inventory',this)">Inventory</button>
-    <button class="nav-btn" onclick="go('logs',this)">Logs</button>
-    <button class="nav-btn" onclick="go('admin',this)">Admin</button>
+    <button class="nav-btn" id="navLogs" onclick="go('logs',this)">Logs</button>
+    <button class="nav-btn" id="navAdmin" onclick="go('admin',this)">Admin</button>
   </div>
   <div class="nav-right">
     <button class="nav-user" id="navUser" title="Signed in">—</button>
@@ -267,7 +292,6 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
         <input class="finp" id="fSearch" placeholder="Search all fields…" oninput="applyF()">
         <select class="fsel" id="fClient" onchange="applyF()">
           <option value="">All Clients</option>
-          <option>TOKU</option><option>DIDLOGIC</option><option>TWILIO</option><option>BANDWIDTH</option><option>VONAGE</option>
         </select>
         <select class="fsel" id="fStatus" onchange="applyF()">
           <option value="">All Statuses</option>
@@ -275,11 +299,9 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
         </select>
         <select class="fsel" id="fProduct" onchange="applyF()">
           <option value="">All Products</option>
-          <option>DID Local</option><option>Toll Free</option><option>Mobile</option><option>Shortcode</option>
         </select>
         <select class="fsel" id="fProvider" onchange="applyF()">
           <option value="">All Providers</option>
-          <option>Twilio</option><option>Bandwidth</option><option>Telnyx</option><option>Vonage</option>
         </select>
         <button class="btn" id="moreBtn" onclick="toggleMore()">More ▾</button>
         <button class="btn" onclick="clearF()">Clear</button>
@@ -292,19 +314,19 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
       </div>
     </div>
     <div class="tb-actions">
-      <button class="btn btn-p" onclick="openAdd()">+ Add Number</button>
-      <button class="btn btn-ico" title="Upload CSV" onclick="document.getElementById('csvIn').click()">⤒</button>
+      <button class="btn btn-p" id="btnAdd" onclick="openAdd()">+ Add Number</button>
+      <button class="btn btn-ico" id="btnUpload" title="Upload CSV" onclick="document.getElementById('csvIn').click()">⤒</button>
       <input type="file" id="csvIn" accept=".csv" style="display:none" onchange="handleCSV(event)">
       <button class="btn btn-ico" title="Download Sample CSV" onclick="dlSample()">⤓</button>
-      <button class="btn btn-ico" title="Export All" onclick="exportAll()">↗</button>
+      <button class="btn btn-ico" id="btnExportAll" title="Export All" onclick="exportAll()">↗</button>
     </div>
   </div>
 
   <div class="sel-bar" id="selBar">
     <span id="selCount" class="sel-count">0 rows selected</span>
     <button class="btn btn-sm" onclick="dlSelected()">⤓ Download</button>
-    <button class="btn btn-sm" onclick="openBulkEdit()">✎ Bulk Edit</button>
-    <button class="btn btn-sm btn-d" onclick="delSelected()">⊗ Delete</button>
+    <button class="btn btn-sm" id="btnBulkEdit" onclick="openBulkEdit()">✎ Bulk Edit</button>
+    <button class="btn btn-sm btn-d" id="btnBulkDel" onclick="delSelected()">⊗ Delete</button>
   </div>
 
   <div class="tbl-wrap">
@@ -401,8 +423,112 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
 <!-- ══════════ ADMIN ══════════ -->
 <div class="page" id="page-admin">
   <div class="ph"><h1>Admin</h1><p>System administration</p></div>
-  <div class="card" style="max-width:480px"><div class="ctitle">Admin Panel</div>
-    <p style="color:var(--t2);font-size:13px">User management, roles, and system settings will appear here.</p>
+
+  <!-- Panel 1: User Management -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="um-toolbar">
+      <div class="ctitle" style="margin:0">User Management</div>
+      <button class="btn btn-p btn-sm" onclick="openAddUser()">+ Add User</button>
+    </div>
+    <div class="tbl-wrap">
+      <div class="tbl-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:38px">#</th>
+              <th>Email</th>
+              <th>Password</th>
+              <th>Alias</th>
+              <th>Role</th>
+              <th>Added Date</th>
+              <th style="width:70px">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="umBody"><tr><td colspan="7" style="text-align:center;color:var(--t3);padding:20px">Loading users…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel 2: Selection Management -->
+  <div class="card">
+    <div class="ctitle">Selection Management</div>
+
+    <div class="sel-panel">
+      <div class="sel-head" onclick="toggleSel('clients')">
+        <span class="sel-label">Client</span>
+        <div class="sel-head-right">
+          <button class="btn btn-ico btn-sm" title="Upload CSV" onclick="event.stopPropagation();document.getElementById('csvSel-clients').click()" style="font-size:14px">⤒</button>
+          <input type="file" id="csvSel-clients" accept=".csv" style="display:none" onchange="handleSelCSV(event,'clients')">
+          <button class="btn btn-ico btn-sm" title="Download Sample" onclick="event.stopPropagation();dlSelSample('clients')" style="font-size:14px">⤓</button>
+          <span class="sel-arrow" id="selArrow-clients">▾</span>
+        </div>
+      </div>
+      <div class="sel-body" id="selBody-clients">
+        <div class="sel-items" id="selItems-clients"><span style="font-size:12px;color:var(--t3)">No items.</span></div>
+        <div class="sel-add-row">
+          <input class="finp" id="selInput-clients" placeholder="Add client…" style="flex:1" onkeydown="if(event.key==='Enter')addSelItem('clients')">
+          <button class="btn btn-sm btn-p" onclick="addSelItem('clients')">＋</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="sel-panel">
+      <div class="sel-head" onclick="toggleSel('products')">
+        <span class="sel-label">Product</span>
+        <div class="sel-head-right">
+          <button class="btn btn-ico btn-sm" title="Upload CSV" onclick="event.stopPropagation();document.getElementById('csvSel-products').click()" style="font-size:14px">⤒</button>
+          <input type="file" id="csvSel-products" accept=".csv" style="display:none" onchange="handleSelCSV(event,'products')">
+          <button class="btn btn-ico btn-sm" title="Download Sample" onclick="event.stopPropagation();dlSelSample('products')" style="font-size:14px">⤓</button>
+          <span class="sel-arrow" id="selArrow-products">▾</span>
+        </div>
+      </div>
+      <div class="sel-body" id="selBody-products">
+        <div class="sel-items" id="selItems-products"><span style="font-size:12px;color:var(--t3)">No items.</span></div>
+        <div class="sel-add-row">
+          <input class="finp" id="selInput-products" placeholder="Add product…" style="flex:1" onkeydown="if(event.key==='Enter')addSelItem('products')">
+          <button class="btn btn-sm btn-p" onclick="addSelItem('products')">＋</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="sel-panel">
+      <div class="sel-head" onclick="toggleSel('providers')">
+        <span class="sel-label">Provider</span>
+        <div class="sel-head-right">
+          <button class="btn btn-ico btn-sm" title="Upload CSV" onclick="event.stopPropagation();document.getElementById('csvSel-providers').click()" style="font-size:14px">⤒</button>
+          <input type="file" id="csvSel-providers" accept=".csv" style="display:none" onchange="handleSelCSV(event,'providers')">
+          <button class="btn btn-ico btn-sm" title="Download Sample" onclick="event.stopPropagation();dlSelSample('providers')" style="font-size:14px">⤓</button>
+          <span class="sel-arrow" id="selArrow-providers">▾</span>
+        </div>
+      </div>
+      <div class="sel-body" id="selBody-providers">
+        <div class="sel-items" id="selItems-providers"><span style="font-size:12px;color:var(--t3)">No items.</span></div>
+        <div class="sel-add-row">
+          <input class="finp" id="selInput-providers" placeholder="Add provider…" style="flex:1" onkeydown="if(event.key==='Enter')addSelItem('providers')">
+          <button class="btn btn-sm btn-p" onclick="addSelItem('providers')">＋</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="sel-panel">
+      <div class="sel-head" onclick="toggleSel('routes')">
+        <span class="sel-label">Route Requested by</span>
+        <div class="sel-head-right">
+          <button class="btn btn-ico btn-sm" title="Upload CSV" onclick="event.stopPropagation();document.getElementById('csvSel-routes').click()" style="font-size:14px">⤒</button>
+          <input type="file" id="csvSel-routes" accept=".csv" style="display:none" onchange="handleSelCSV(event,'routes')">
+          <button class="btn btn-ico btn-sm" title="Download Sample" onclick="event.stopPropagation();dlSelSample('routes')" style="font-size:14px">⤓</button>
+          <span class="sel-arrow" id="selArrow-routes">▾</span>
+        </div>
+      </div>
+      <div class="sel-body" id="selBody-routes">
+        <div class="sel-items" id="selItems-routes"><span style="font-size:12px;color:var(--t3)">No items.</span></div>
+        <div class="sel-add-row">
+          <input class="finp" id="selInput-routes" placeholder="Add name…" style="flex:1" onkeydown="if(event.key==='Enter')addSelItem('routes')">
+          <button class="btn btn-sm btn-p" onclick="addSelItem('routes')">＋</button>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -414,7 +540,7 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
   <div class="sp-head">
     <div class="sp-title" id="spTitle">Details</div>
     <div class="sp-btns">
-      <button class="btn btn-p btn-sm" onclick="openEdit()">Edit</button>
+      <button class="btn btn-p btn-sm" id="btnSpEdit" onclick="openEdit()">Edit</button>
       <button class="btn btn-sm" onclick="closeSP()">Close</button>
     </div>
   </div>
@@ -431,8 +557,8 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
     <div class="mo-body">
       <div class="fgrid" id="moForm">
         <div class="fsect">Client Information</div>
-        <div class="fg"><label>Client</label><input class="fc" id="mClient" placeholder="Client name"></div>
-        <div class="fg"><label>Product</label><input class="fc" id="mProduct" placeholder="Product"></div>
+        <div class="fg"><label>Client</label><input class="fc" id="mClient" placeholder="Client name" list="dl-clients" autocomplete="off"></div>
+        <div class="fg"><label>Product</label><input class="fc" id="mProduct" placeholder="Product" list="dl-products" autocomplete="off"></div>
         <div class="fg"><label>Number</label><input class="fc" id="mNumber" placeholder="+1 555 000 0000"></div>
         <div class="fg"><label>Status</label>
           <select class="fc" id="mStatus"><option>Available</option><option>Reserved</option><option>Active</option><option>Inactive</option></select>
@@ -451,7 +577,7 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
         <div class="fg"><label>Activated Date</label><input type="date" class="fc" id="mActDate"></div>
 
         <div class="fsect">Provider Information</div>
-        <div class="fg"><label>Provider</label><input class="fc" id="mProvider" placeholder="Provider name"></div>
+        <div class="fg"><label>Provider</label><input class="fc" id="mProvider" placeholder="Provider name" list="dl-providers" autocomplete="off"></div>
         <div class="fg"><label>Arrival Date</label><input type="date" class="fc" id="mArrDate"></div>
         <div class="fg"><label>Provider Activation Date</label><input type="date" class="fc" id="mProvActDate"></div>
         <div class="fg"><label>Provider OSF</label><input class="fc" id="mProvOSF" placeholder="0.00"></div>
@@ -461,7 +587,7 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
         <div class="fg"><label>Type / Session</label><input class="fc" id="mTypeSession" placeholder="e.g. SIP, WebRTC"></div>
 
         <div class="fsect">Routing &amp; History</div>
-        <div class="fg"><label>Route Request by</label><input class="fc" id="mRoute" placeholder="Name"></div>
+        <div class="fg"><label>Route Request by</label><input class="fc" id="mRoute" placeholder="Name" list="dl-routes" autocomplete="off"></div>
         <div class="fg"><label>Deactivation Date (Prev Client)</label><input type="date" class="fc" id="mDeactDate"></div>
         <div class="fg full"><label>Previous Client</label><input class="fc" id="mPrevClient" placeholder="e.g. TOKU, DIDLOGIC"></div>
       </div>
@@ -504,6 +630,47 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
     <div class="mo-foot">
       <button class="btn" onclick="closeBE()">Cancel</button>
       <button class="btn btn-p" onclick="saveBulkEdit()">Apply to Selected</button>
+    </div>
+  </div>
+</div>
+
+<!-- DATALISTS -->
+<datalist id="dl-clients"></datalist>
+<datalist id="dl-products"></datalist>
+<datalist id="dl-providers"></datalist>
+<datalist id="dl-routes"></datalist>
+
+<!-- USER MODAL -->
+<div class="mo-ov" id="umOv">
+  <div class="mo" style="width:440px">
+    <div class="mo-head">
+      <span class="mo-title" id="umTitle">Add User</span>
+      <button class="act-btn" onclick="closeUM()" style="font-size:17px;color:var(--t2)">✕</button>
+    </div>
+    <div class="mo-body">
+      <div class="fgrid">
+        <div class="fg full"><label>Email</label><input class="fc" id="umEmail" type="email" placeholder="user@example.com" autocomplete="off"></div>
+        <div class="fg full" id="umPassFg"><label>Password</label><input class="fc" id="umPass" type="password" placeholder="Min. 6 characters" autocomplete="new-password"></div>
+        <div class="fg full" id="umResetFg" style="display:none">
+          <label>Password</label>
+          <button class="btn" style="width:100%;justify-content:center" onclick="sendUserResetEmail()">✉ Send Password Reset Email</button>
+        </div>
+        <div class="fg full" id="umAliasFg"><label>Alias</label><input class="fc" id="umAlias" placeholder="Display name (optional)"></div>
+        <div class="fg full"><label>Role</label>
+          <select class="fc" id="umRole">
+            <option value="viewer">Viewer</option>
+            <option value="semi-admin">Semi-Admin</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <div class="fg full" id="umSelfNote" style="display:none">
+          <p style="font-size:12px;color:var(--t2);padding:8px 10px;background:var(--bg3);border-radius:var(--r);border-left:3px solid var(--warn)">You cannot change your own role.</p>
+        </div>
+      </div>
+    </div>
+    <div class="mo-foot">
+      <button class="btn" onclick="closeUM()">Cancel</button>
+      <button class="btn btn-p" onclick="saveUser()">Save</button>
     </div>
   </div>
 </div>
@@ -580,18 +747,28 @@ let pg=1,sortCol=null,sortDir=1;
 let lpg=1,lSortCol=null,lSortDir=1;
 let curRec=null,editId=null,moreOpen=false;
 let currentUser=null;
+let currentRole='viewer';
+let USERS=[];
+let SELECTIONS={clients:[],products:[],providers:[],routes:[]};
+let umEditUid=null,_secondApp=null;
 
 // ── AUTH ──────────────────────────────────────────────
-fauth.onAuthStateChanged(user=>{
+fauth.onAuthStateChanged(async user=>{
   if(user){
     currentUser=user;
+    await loadUserRole(user);
     document.getElementById('authOv').style.display='none';
     document.getElementById('navUser').textContent=user.email;
+    applyRoleRestrictions();
     loadInventory();
     loadLogs();
+    await loadSelections();
+    if(currentRole==='admin') loadUsers();
   } else {
     currentUser=null;
+    currentRole='viewer';
     DB=[];LOGS=[];fd=[];fl=[];recentViewed=[];
+    USERS=[];SELECTIONS={clients:[],products:[],providers:[],routes:[]};
     document.getElementById('authOv').style.display='flex';
     document.getElementById('navUser').textContent='—';
     renderDash();renderTbl();renderLogs();
@@ -627,6 +804,8 @@ async function loadLogs(){
 
 // ── NAVIGATION ────────────────────────────────────────
 function go(tab,btn){
+  if(tab==='admin'&&currentRole!=='admin')return;
+  if(tab==='logs'&&currentRole==='viewer')return;
   document.querySelectorAll('.page').forEach(el=>el.classList.remove('on'));
   document.querySelectorAll('.nav-btn').forEach(el=>el.classList.remove('on'));
   document.getElementById('page-'+tab).classList.add('on');
@@ -634,6 +813,7 @@ function go(tab,btn){
   if(tab==='dashboard')renderDash();
   if(tab==='inventory')renderTbl();
   if(tab==='logs')renderLogs();
+  if(tab==='admin'){loadUsers();}
 }
 
 // ── THEME ─────────────────────────────────────────────
@@ -791,8 +971,7 @@ function renderTbl(){
       <td>${r.remarks||''}</td>
       <td onclick="event.stopPropagation()">
         <div class="act-btns">
-          <button class="act-btn" title="Edit" onclick="openEditById('${r.id}')">✎</button>
-          <button class="act-btn del" title="Delete" onclick="delRec('${r.id}')">⊗</button>
+          ${currentRole!=='viewer'?`<button class="act-btn" title="Edit" onclick="openEditById('${r.id}')">✎</button><button class="act-btn del" title="Delete" onclick="delRec('${r.id}')">⊗</button>`:''}
         </div>
       </td>
     </tr>`).join('');
@@ -1122,9 +1301,285 @@ async function saveBulkEdit(){
   }catch(err){alert('Bulk edit error: '+err.message);}
 }
 
+// ── ROLES & RESTRICTIONS ──────────────────────────────
+function getSecondApp(){
+  if(!_secondApp)_secondApp=firebase.initializeApp(firebaseConfig,'secondary');
+  return _secondApp;
+}
+
+async function loadUserRole(user){
+  try{
+    const doc=await fdb.collection('users').doc(user.uid).get();
+    if(doc.exists){
+      currentRole=doc.data().role||'viewer';
+    }else{
+      const snap=await fdb.collection('users').get();
+      if(snap.empty){
+        currentRole='admin';
+        await fdb.collection('users').doc(user.uid).set({uid:user.uid,email:user.email,alias:'',role:'admin',addedDate:new Date().toISOString(),addedBy:'system'});
+      }else{
+        currentRole='viewer';
+        await fdb.collection('users').doc(user.uid).set({uid:user.uid,email:user.email,alias:'',role:'viewer',addedDate:new Date().toISOString(),addedBy:'system'});
+      }
+    }
+  }catch(e){console.error('loadUserRole:',e);currentRole='viewer';}
+}
+
+function applyRoleRestrictions(){
+  const isViewer=currentRole==='viewer';
+  const isAdmin=currentRole==='admin';
+  // Nav tabs
+  const nl=document.getElementById('navLogs');
+  const na=document.getElementById('navAdmin');
+  if(nl)nl.style.display=isViewer?'none':'';
+  if(na)na.style.display=isAdmin?'':'none';
+  // Toolbar buttons
+  ['btnAdd','btnUpload','btnExportAll'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el)el.style.display=isViewer?'none':'';
+  });
+  // Selection bar bulk buttons
+  ['btnBulkEdit','btnBulkDel'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el)el.style.display=isViewer?'none':'';
+  });
+  // Side panel edit button
+  const se=document.getElementById('btnSpEdit');
+  if(se)se.style.display=isViewer?'none':'';
+  // Redirect if on restricted page
+  if(!isAdmin&&document.getElementById('page-admin').classList.contains('on')){
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+    document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('on'));
+    document.getElementById('page-dashboard').classList.add('on');
+    document.querySelector('.nav-btn').classList.add('on');
+  }
+}
+
+function roleBadge(role){
+  const m={admin:['rb-admin','Admin'],'semi-admin':['rb-semi','Semi-Admin'],viewer:['rb-viewer','Viewer']};
+  const[cls,lbl]=m[role]||['rb-viewer',role];
+  return`<span class="role-badge ${cls}">${lbl}</span>`;
+}
+
+// ── USER MANAGEMENT ───────────────────────────────────
+async function loadUsers(){
+  try{
+    const snap=await fdb.collection('users').get();
+    USERS=snap.docs.map(d=>({...d.data(),uid:d.id}));
+    renderUsers();
+  }catch(e){console.error('loadUsers:',e);}
+}
+
+function renderUsers(){
+  const tbody=document.getElementById('umBody');
+  if(!tbody)return;
+  if(!USERS.length){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--t3);padding:20px">No users found.</td></tr>';return;}
+  const self=currentUser?.uid;
+  tbody.innerHTML=USERS.map((u,i)=>`
+    <tr>
+      <td class="row-num">${i+1}</td>
+      <td>${u.email||'—'}</td>
+      <td style="font-family:'DM Mono',monospace;color:var(--t3);font-size:12px">••••••••</td>
+      <td>${u.alias||'—'}</td>
+      <td>${roleBadge(u.role)}</td>
+      <td style="font-size:12px;color:var(--t2)">${u.addedDate?new Date(u.addedDate).toLocaleDateString():'—'}</td>
+      <td>
+        <div class="act-btns">
+          <button class="act-btn" title="Edit" onclick="openEditUser('${u.uid}')">✎</button>
+          ${u.uid===self?'<span style="color:var(--t3);padding:3px 5px;font-size:12px" title="Cannot delete own account">—</span>':`<button class="act-btn del" title="Delete" onclick="deleteUser('${u.uid}')">⊗</button>`}
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+function openAddUser(){
+  umEditUid=null;
+  document.getElementById('umTitle').textContent='Add User';
+  document.getElementById('umEmail').value='';
+  document.getElementById('umEmail').disabled=false;
+  document.getElementById('umPass').value='';
+  document.getElementById('umPassFg').style.display='';
+  document.getElementById('umResetFg').style.display='none';
+  document.getElementById('umAlias').value='';
+  document.getElementById('umAliasFg').style.display='';
+  document.getElementById('umRole').value='viewer';
+  document.getElementById('umRole').disabled=false;
+  document.getElementById('umSelfNote').style.display='none';
+  document.getElementById('umOv').classList.add('on');
+}
+
+function openEditUser(uid){
+  const u=USERS.find(x=>x.uid===uid);if(!u)return;
+  umEditUid=uid;
+  document.getElementById('umTitle').textContent='Edit User';
+  document.getElementById('umEmail').value=u.email;
+  document.getElementById('umEmail').disabled=true;
+  document.getElementById('umPassFg').style.display='none';
+  document.getElementById('umResetFg').style.display='';
+  document.getElementById('umAlias').value=u.alias||'';
+  document.getElementById('umAliasFg').style.display='';
+  const isSelf=currentUser&&currentUser.uid===uid;
+  document.getElementById('umRole').value=u.role||'viewer';
+  document.getElementById('umRole').disabled=isSelf;
+  document.getElementById('umSelfNote').style.display=isSelf?'':'none';
+  document.getElementById('umOv').classList.add('on');
+}
+
+function closeUM(){
+  document.getElementById('umOv').classList.remove('on');
+  document.getElementById('umRole').disabled=false;
+  umEditUid=null;
+}
+
+async function sendUserResetEmail(){
+  const email=document.getElementById('umEmail').value;
+  if(!email)return;
+  try{
+    await fauth.sendPasswordResetEmail(email);
+    alert(`Password reset email sent to ${email}`);
+  }catch(e){alert('Error: '+e.message);}
+}
+
+async function saveUser(){
+  const email=document.getElementById('umEmail').value.trim();
+  const alias=document.getElementById('umAlias').value.trim();
+  const role=document.getElementById('umRole').value;
+  if(!umEditUid){
+    const pass=document.getElementById('umPass').value;
+    if(!email||!pass){alert('Email and password are required.');return;}
+    if(pass.length<6){alert('Password must be at least 6 characters.');return;}
+    try{
+      const auth2=getSecondApp().auth();
+      const cred=await auth2.createUserWithEmailAndPassword(email,pass);
+      const uid=cred.user.uid;
+      await auth2.signOut();
+      const userData={uid,email,alias,role,addedDate:new Date().toISOString(),addedBy:currentUser?.email||'system'};
+      await fdb.collection('users').doc(uid).set(userData);
+      USERS.push(userData);
+      renderUsers();
+      await addLog('Added',`Added user ${email} (${role})`);
+      closeUM();
+    }catch(e){alert('Error creating user: '+e.message);}
+  }else{
+    const updates={alias};
+    if(!document.getElementById('umRole').disabled)updates.role=role;
+    try{
+      await fdb.collection('users').doc(umEditUid).update(updates);
+      const idx=USERS.findIndex(u=>u.uid===umEditUid);
+      if(idx>-1)USERS[idx]={...USERS[idx],...updates};
+      renderUsers();
+      await addLog('Updated',`Updated user ${email}`);
+      closeUM();
+    }catch(e){alert('Error updating user: '+e.message);}
+  }
+}
+
+async function deleteUser(uid){
+  const u=USERS.find(x=>x.uid===uid);if(!u)return;
+  if(currentUser&&currentUser.uid===uid){alert('You cannot delete your own account.');return;}
+  if(!confirm(`Remove user "${u.email}"?\n\nThis removes their access. To fully delete from Firebase Auth, use the Firebase Console.`))return;
+  try{
+    await fdb.collection('users').doc(uid).delete();
+    USERS=USERS.filter(x=>x.uid!==uid);
+    renderUsers();
+    await addLog('Deleted',`Removed user ${u.email}`);
+  }catch(e){alert('Error: '+e.message);}
+}
+
+// ── SELECTION MANAGEMENT ──────────────────────────────
+async function loadSelections(){
+  try{
+    const types=['clients','products','providers','routes'];
+    const snaps=await Promise.all(types.map(t=>fdb.collection('selections').doc(t).get()));
+    snaps.forEach((s,i)=>{SELECTIONS[types[i]]=s.exists?(s.data().items||[]):[];});
+    populateDropdowns();
+    renderSelections();
+  }catch(e){console.error('loadSelections:',e);}
+}
+
+function renderSelections(){
+  ['clients','products','providers','routes'].forEach(type=>{
+    const el=document.getElementById('selItems-'+type);
+    if(!el)return;
+    const sorted=[...SELECTIONS[type]].sort();
+    el.innerHTML=sorted.length
+      ?sorted.map(v=>`<span class="sel-chip"><span>${v}</span><button class="sel-chip-del" title="Remove" data-type="${type}" data-val="${v.replace(/"/g,'&quot;')}" onclick="removeSelItemBtn(this)">✕</button></span>`).join('')
+      :'<span style="font-size:12px;color:var(--t3)">No items added.</span>';
+  });
+}
+
+function populateDropdowns(){
+  [['clients','fClient','All Clients'],['products','fProduct','All Products'],['providers','fProvider','All Providers']].forEach(([type,id,lbl])=>{
+    const el=document.getElementById(id);if(!el)return;
+    const val=el.value;
+    el.innerHTML=`<option value="">${lbl}</option>`+[...SELECTIONS[type]].sort().map(v=>`<option>${v}</option>`).join('');
+    el.value=val;
+  });
+  ['clients','products','providers','routes'].forEach(type=>{
+    const dlId={'clients':'dl-clients','products':'dl-products','providers':'dl-providers','routes':'dl-routes'}[type];
+    const el=document.getElementById(dlId);
+    if(el)el.innerHTML=[...SELECTIONS[type]].sort().map(v=>`<option value="${v}">`).join('');
+  });
+}
+
+function toggleSel(type){
+  document.getElementById('selBody-'+type).classList.toggle('on');
+  document.getElementById('selArrow-'+type).classList.toggle('on');
+}
+
+async function addSelItem(type){
+  const inp=document.getElementById('selInput-'+type);
+  const val=inp.value.trim();if(!val)return;
+  if(SELECTIONS[type].includes(val)){alert('Item already exists.');return;}
+  try{
+    await fdb.collection('selections').doc(type).set({items:firebase.firestore.FieldValue.arrayUnion(val)},{merge:true});
+    SELECTIONS[type].push(val);
+    inp.value='';
+    populateDropdowns();renderSelections();
+  }catch(e){alert('Error: '+e.message);}
+}
+
+function removeSelItemBtn(btn){
+  removeSelItem(btn.dataset.type,btn.dataset.val);
+}
+
+async function removeSelItem(type,val){
+  if(!confirm(`Remove "${val}"?`))return;
+  try{
+    await fdb.collection('selections').doc(type).update({items:firebase.firestore.FieldValue.arrayRemove(val)});
+    SELECTIONS[type]=SELECTIONS[type].filter(v=>v!==val);
+    populateDropdowns();renderSelections();
+  }catch(e){alert('Error: '+e.message);}
+}
+
+function uploadSelCSV(type){document.getElementById('csvSel-'+type).click();}
+
+async function handleSelCSV(e,type){
+  const f=e.target.files[0];if(!f)return;
+  const text=await f.text();
+  const lines=text.split(/\r?\n/).filter(l=>l.trim());
+  const items=lines.slice(1).map(l=>parseCSVLine(l)[0]?.trim()).filter(Boolean);
+  const toAdd=items.filter(v=>!SELECTIONS[type].includes(v));
+  if(!toAdd.length){alert('No new items found.');e.target.value='';return;}
+  try{
+    await fdb.collection('selections').doc(type).set({items:firebase.firestore.FieldValue.arrayUnion(...toAdd)},{merge:true});
+    SELECTIONS[type].push(...toAdd);
+    populateDropdowns();renderSelections();
+    alert(`Added ${toAdd.length} item${toAdd.length!==1?'s':''}.`);
+  }catch(err){alert('Error: '+err.message);}
+  e.target.value='';
+}
+
+function dlSelSample(type){
+  const labels={clients:'Client',products:'Product',providers:'Provider',routes:'Route Requested by'};
+  const samples={clients:'TOKU',products:'DID Local',providers:'Twilio',routes:'Katherine Serrano'};
+  dlCSV([[labels[type]],[samples[type]]],`sample_${type}.csv`);
+}
+
 // ── CLOSE MODAL ON OVERLAY CLICK ──────────────────────
 document.getElementById('moOv').addEventListener('click',function(e){if(e.target===this)closeMo();});
 document.getElementById('beOv').addEventListener('click',function(e){if(e.target===this)closeBE();});
+document.getElementById('umOv').addEventListener('click',function(e){if(e.target===this)closeUM();});
 
 // ── RESIZE CHART ON WINDOW RESIZE ────────────────────
 window.addEventListener('resize',()=>{if(document.getElementById('page-dashboard').classList.contains('on'))drawChart();});
