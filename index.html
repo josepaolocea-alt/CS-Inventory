@@ -232,9 +232,33 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
 [data-dark] .rb-admin{background:#1e3a5f;color:#93c5fd}
 [data-dark] .rb-semi{background:#3b0764;color:#c4b5fd}
 .viewer-hide{display:none!important}
+
+/* TOAST NOTIFICATIONS */
+#toast-container{position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.toast{display:flex;align-items:flex-start;gap:10px;padding:12px 15px;border-radius:var(--r2);box-shadow:0 4px 16px rgba(0,0,0,.2);min-width:260px;max-width:360px;pointer-events:all;animation:toast-in .22s ease;font-size:13px;line-height:1.4;border-left:4px solid transparent}
+.toast.hiding{animation:toast-out .2s ease forwards}
+@keyframes toast-in{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}}
+@keyframes toast-out{to{opacity:0;transform:translateX(40px)}}
+.toast-icon{font-size:15px;flex-shrink:0;margin-top:1px}
+.toast-body{flex:1}
+.toast-title{font-weight:600;margin-bottom:1px}
+.toast-msg{color:var(--t2);font-size:12px}
+.toast-close{background:none;border:none;cursor:pointer;color:var(--t3);font-size:14px;padding:0 2px;line-height:1;flex-shrink:0;transition:.1s}
+.toast-close:hover{color:var(--t1)}
+.toast.t-success{background:var(--bg);border-color:var(--ok)}
+.toast.t-success .toast-icon{color:var(--ok)}
+.toast.t-error{background:var(--bg);border-color:var(--err)}
+.toast.t-error .toast-icon{color:var(--err)}
+.toast.t-info{background:var(--bg);border-color:var(--accent)}
+.toast.t-info .toast-icon{color:var(--accent)}
+.toast.t-warning{background:var(--bg);border-color:var(--warn)}
+.toast.t-warning .toast-icon{color:var(--warn)}
 </style>
 </head>
 <body>
+
+<!-- TOAST CONTAINER -->
+<div id="toast-container"></div>
 
 <!-- NAV -->
 <nav class="nav" id="appNav" style="display:none">
@@ -744,6 +768,26 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
   </div>
 </div>
 
+<!-- DELETE RECORD CONFIRM MODAL -->
+<div class="mo-ov" id="delRecOv" style="z-index:600">
+  <div class="mo" style="width:380px;max-width:94vw">
+    <div class="mo-head" style="border-bottom:none;padding-bottom:4px">
+      <span class="mo-title">Delete Record</span>
+      <button class="act-btn" onclick="document.getElementById('delRecOv').classList.remove('on')" style="font-size:17px;color:var(--t2)">✕</button>
+    </div>
+    <div class="mo-body" style="text-align:center;padding:8px 24px 20px">
+      <div style="font-size:38px;margin-bottom:12px">🗑️</div>
+      <p id="delRecTitle" style="font-size:15px;font-weight:700;color:var(--t1);margin-bottom:8px"></p>
+      <div id="delRecInfo" style="background:var(--bg2,#f5f5f5);border-radius:8px;padding:10px 14px;margin-bottom:10px;text-align:left;font-size:13px;color:var(--t2);line-height:1.7"></div>
+      <p style="font-size:12px;color:#e05252;font-weight:600;margin-top:2px">⚠ This cannot be undone.</p>
+    </div>
+    <div class="mo-foot" style="justify-content:center;gap:10px;padding:12px 17px 16px">
+      <button class="btn" style="min-width:100px" onclick="document.getElementById('delRecOv').classList.remove('on')">Cancel</button>
+      <button class="btn btn-d" id="delRecConfirmBtn" style="min-width:100px">Delete</button>
+    </div>
+  </div>
+</div>
+
 <!-- SIGN OUT CONFIRM MODAL -->
 <div class="mo-ov" id="soOv" style="z-index:600">
   <div class="mo" style="width:340px;max-width:94vw">
@@ -840,11 +884,32 @@ let USERS=[];
 let SELECTIONS={clients:[],products:[],providers:[],routes:[]};
 let umEditUid=null,_secondApp=null;
 
+// ── TOAST ─────────────────────────────────────────────
+const TOAST_ICONS={success:'✔',error:'✖',info:'ℹ',warning:'⚠'};
+const TOAST_TITLES={success:'Success',error:'Error',info:'Info',warning:'Warning'};
+function showToast(msg,type='success',duration=4000){
+  const c=document.getElementById('toast-container');
+  const t=document.createElement('div');
+  t.className=`toast t-${type}`;
+  t.innerHTML=`<span class="toast-icon">${TOAST_ICONS[type]||'•'}</span><div class="toast-body"><div class="toast-title">${TOAST_TITLES[type]||type}</div><div class="toast-msg">${msg}</div></div><button class="toast-close" onclick="dismissToast(this.closest('.toast'))">✕</button>`;
+  c.appendChild(t);
+  const timer=setTimeout(()=>dismissToast(t),duration);
+  t._timer=timer;
+}
+function dismissToast(t){
+  if(!t||t._dismissed)return;
+  t._dismissed=true;
+  clearTimeout(t._timer);
+  t.classList.add('hiding');
+  setTimeout(()=>t.remove(),210);
+}
+
 // ── AUTH ──────────────────────────────────────────────
 fauth.onAuthStateChanged(async user=>{
   if(user){
     currentUser=user;
     await loadUserRole(user);
+    await addLog('Login',`Signed in as ${user.email}`);
     document.getElementById('authOv').style.display='none';
     document.getElementById('appNav').style.display='';
     document.getElementById('appMain').style.display='';
@@ -1190,18 +1255,34 @@ async function saveRec(){
       await addLog('Added',`Added number ${nd.number}`);
     }
     fd=[...DB];pg=1;renderTbl();closeMo();
+    showToast(editId?`Updated number ${nd.number}`:`Added number ${nd.number}`,'success');
     if(editId)openSP(editId);
-  }catch(e){alert('Save error: '+e.message);}
+  }catch(e){showToast('Save error: '+e.message,'error');}
 }
-async function delRec(id){
-  if(!confirm('Delete this record?'))return;
+function delRec(id){
   const r=DB.find(x=>x.id===id);
-  try{
-    await fdb.collection('inventory').doc(id).delete();
-    DB=DB.filter(x=>x.id!==id);fd=fd.filter(x=>x.id!==id);
-    if(r)await addLog('Deleted',`Deleted number ${r.number}`);
-    renderTbl();closeSP();
-  }catch(e){alert('Delete error: '+e.message);}
+  const title=document.getElementById('delRecTitle');
+  const info=document.getElementById('delRecInfo');
+  const btn=document.getElementById('delRecConfirmBtn');
+  title.textContent='Delete this record?';
+  info.innerHTML=`
+    <div><span style="color:var(--t2)">Number:</span> <strong>${r?.number||id}</strong></div>
+    ${r?.client?`<div><span style="color:var(--t2)">Client:</span> ${r.client}</div>`:''}
+    ${r?.product?`<div><span style="color:var(--t2)">Product:</span> ${r.product}</div>`:''}
+    ${r?.status?`<div><span style="color:var(--t2)">Status:</span> ${r.status}</div>`:''}
+  `.trim();
+  document.getElementById('delRecOv').classList.add('on');
+  const fresh=btn.cloneNode(true);btn.replaceWith(fresh);
+  fresh.onclick=async()=>{
+    document.getElementById('delRecOv').classList.remove('on');
+    try{
+      await fdb.collection('inventory').doc(id).delete();
+      DB=DB.filter(x=>x.id!==id);fd=fd.filter(x=>x.id!==id);
+      if(r)await addLog('Deleted',`Deleted number ${r.number}`);
+      showToast(`Deleted number ${r?r.number:id}`,'info');
+      renderTbl();closeSP();
+    }catch(e){showToast('Delete error: '+e.message,'error');}
+  };
 }
 
 // ── CSV / EXPORT ──────────────────────────────────────
@@ -1209,11 +1290,11 @@ async function handleCSV(e){
   const f=e.target.files[0];if(!f)return;
   const text=await f.text();
   const lines=text.split(/\r?\n/).filter(l=>l.trim());
-  if(lines.length<2){alert('CSV has no data rows.');e.target.value='';return;}
+  if(lines.length<2){showToast('CSV has no data rows.','warning');e.target.value='';return;}
   const hdr=parseCSVLine(lines[0]);
   const colMap={};
   hdr.forEach((h,i)=>{const field=CSV_FIELD_MAP[h.trim()];if(field)colMap[i]=field;});
-  if(!Object.values(colMap).includes('number')){alert('CSV must have a "Number" column.');e.target.value='';return;}
+  if(!Object.values(colMap).includes('number')){showToast('CSV must have a "Number" column.','warning');e.target.value='';return;}
   const ops=[];
   for(let i=1;i<lines.length;i++){
     if(!lines[i].trim())continue;
@@ -1237,7 +1318,7 @@ async function handleCSV(e){
       ops.push({type:'set',ref,data:nd});
     }
   }
-  if(!ops.length){alert('No valid rows found.');e.target.value='';return;}
+  if(!ops.length){showToast('No valid rows found.','warning');e.target.value='';return;}
   try{
     const CHUNK=400;
     for(let i=0;i<ops.length;i+=CHUNK){
@@ -1257,8 +1338,8 @@ async function handleCSV(e){
     });
     fd=[...DB];pg=1;renderTbl();renderDash();
     await addLog('CSV Upload',`"${f.name}": ${added} added, ${updated} updated`);
-    alert(`Import complete!\n✔ ${added} added\n✔ ${updated} updated`);
-  }catch(err){alert('Import error: '+err.message);}
+    showToast(`Upload complete — ${added} added, ${updated} updated`,'success');
+  }catch(err){showToast('Import error: '+err.message,'error');}
   e.target.value='';
 }
 function dlSample(){
@@ -1362,22 +1443,37 @@ function dlSelected(){
 }
 
 // ── BULK DELETE ───────────────────────────────────────
-async function delSelected(){
+function delSelected(){
   const ids=getCheckedIds();if(!ids.length)return;
-  if(!confirm(`Delete ${ids.length} selected record${ids.length!==1?'s':''}? This cannot be undone.`))return;
-  try{
-    const CHUNK=400;
-    for(let i=0;i<ids.length;i+=CHUNK){
-      const b=fdb.batch();
-      ids.slice(i,i+CHUNK).forEach(id=>b.delete(fdb.collection('inventory').doc(id)));
-      await b.commit();
-    }
-    const nums=ids.map(id=>DB.find(r=>r.id===id)?.number).filter(Boolean).join(', ');
-    DB=DB.filter(r=>!ids.includes(r.id));
-    fd=fd.filter(r=>!ids.includes(r.id));
-    await addLog('Deleted',`Bulk deleted ${ids.length} records: ${nums}`);
-    renderTbl();closeSP();
-  }catch(err){alert('Delete error: '+err.message);}
+  const title=document.getElementById('delRecTitle');
+  const info=document.getElementById('delRecInfo');
+  const btn=document.getElementById('delRecConfirmBtn');
+  const count=ids.length;
+  const preview=ids.slice(0,5).map(id=>DB.find(r=>r.id===id)?.number).filter(Boolean);
+  title.textContent=`Delete ${count} selected record${count!==1?'s':''}?`;
+  info.innerHTML=`
+    <div><span style="color:var(--t2)">Records to delete:</span> <strong>${count}</strong></div>
+    ${preview.length?`<div style="margin-top:4px"><span style="color:var(--t2)">Numbers:</span> ${preview.join(', ')}${count>5?` <em>+${count-5} more</em>`:''}</div>`:''}
+  `.trim();
+  document.getElementById('delRecOv').classList.add('on');
+  const fresh=btn.cloneNode(true);btn.replaceWith(fresh);
+  fresh.textContent=`Delete ${count}`;
+  fresh.onclick=async()=>{
+    document.getElementById('delRecOv').classList.remove('on');
+    try{
+      const CHUNK=400;
+      for(let i=0;i<ids.length;i+=CHUNK){
+        const b=fdb.batch();
+        ids.slice(i,i+CHUNK).forEach(id=>b.delete(fdb.collection('inventory').doc(id)));
+        await b.commit();
+      }
+      const nums=ids.map(id=>DB.find(r=>r.id===id)?.number).filter(Boolean).join(', ');
+      DB=DB.filter(r=>!ids.includes(r.id));
+      fd=fd.filter(r=>!ids.includes(r.id));
+      await addLog('Deleted',`Bulk deleted ${ids.length} records: ${nums}`);
+      renderTbl();closeSP();
+    }catch(err){showToast('Delete error: '+err.message,'error');}
+  };
 }
 
 // ── BULK EDIT ─────────────────────────────────────────
@@ -1562,8 +1658,8 @@ async function sendUserResetEmail(){
   if(!email)return;
   try{
     await fauth.sendPasswordResetEmail(email);
-    alert(`Password reset email sent to ${email}`);
-  }catch(e){alert('Error: '+e.message);}
+    showToast(`Password reset email sent to ${email}`,'info');
+  }catch(e){showToast('Error: '+e.message,'error');}
 }
 
 async function saveUser(){
@@ -1572,8 +1668,8 @@ async function saveUser(){
   const role=document.getElementById('umRole').value;
   if(!umEditUid){
     const pass=document.getElementById('umPass').value;
-    if(!email||!pass){alert('Email and password are required.');return;}
-    if(pass.length<6){alert('Password must be at least 6 characters.');return;}
+    if(!email||!pass){showToast('Email and password are required.','warning');return;}
+    if(pass.length<6){showToast('Password must be at least 6 characters.','warning');return;}
     try{
       const auth2=getSecondApp().auth();
       const cred=await auth2.createUserWithEmailAndPassword(email,pass);
@@ -1584,8 +1680,9 @@ async function saveUser(){
       USERS.push(userData);
       renderUsers();
       await addLog('Added',`Added user ${email} (${role})`);
+      showToast(`User ${email} created`,'success');
       closeUM();
-    }catch(e){alert('Error creating user: '+e.message);}
+    }catch(e){showToast('Error creating user: '+e.message,'error');}
   }else{
     const updates={alias};
     if(!document.getElementById('umRole').disabled)updates.role=role;
@@ -1595,21 +1692,23 @@ async function saveUser(){
       if(idx>-1)USERS[idx]={...USERS[idx],...updates};
       renderUsers();
       await addLog('Updated',`Updated user ${email}`);
+      showToast(`User ${email} updated`,'success');
       closeUM();
-    }catch(e){alert('Error updating user: '+e.message);}
+    }catch(e){showToast('Error updating user: '+e.message,'error');}
   }
 }
 
 async function deleteUser(uid){
   const u=USERS.find(x=>x.uid===uid);if(!u)return;
-  if(currentUser&&currentUser.uid===uid){alert('You cannot delete your own account.');return;}
+  if(currentUser&&currentUser.uid===uid){showToast('You cannot delete your own account.','warning');return;}
   if(!confirm(`Remove user "${u.email}"?\n\nThis removes their access. To fully delete from Firebase Auth, use the Firebase Console.`))return;
   try{
     await fdb.collection('users').doc(uid).delete();
     USERS=USERS.filter(x=>x.uid!==uid);
     renderUsers();
     await addLog('Deleted',`Removed user ${u.email}`);
-  }catch(e){alert('Error: '+e.message);}
+    showToast(`User ${u.email} removed`,'info');
+  }catch(e){showToast('Error: '+e.message,'error');}
 }
 
 // ── SELECTION MANAGEMENT ──────────────────────────────
@@ -1736,7 +1835,7 @@ function dlSelSample(type){
 }
 
 // ── CLOSE MODAL ON OVERLAY CLICK ──────────────────────
-document.getElementById('moOv').addEventListener('click',function(e){if(e.target===this)closeMo();});
+// moOv overlay click intentionally does not close — use Cancel, Save, or the X button
 document.getElementById('beOv').addEventListener('click',function(e){if(e.target===this)closeBE();});
 document.getElementById('umOv').addEventListener('click',function(e){if(e.target===this)closeUM();});
 
