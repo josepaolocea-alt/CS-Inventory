@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CS Inventory</title>
+<link rel="icon" href="photo_2026-05-05_22-20-01.jpg" type="image/jpeg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
@@ -233,7 +234,7 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
 
 <!-- NAV -->
 <nav class="nav">
-  <span class="nav-brand">CS Inventory</span>
+  <span class="nav-brand" style="display:flex;align-items:center;gap:7px"><img src="photo_2026-05-05_22-20-01.jpg" style="width:20px;height:20px;filter:invert(1);opacity:.85;flex-shrink:0">CS Inventory</span>
   <div class="nav-links">
     <button class="nav-btn on" onclick="go('dashboard',this)">Dashboard</button>
     <button class="nav-btn" onclick="go('inventory',this)">Inventory</button>
@@ -262,7 +263,7 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
 
   <div class="dg2">
     <div class="card">
-      <div class="ctitle">Activated &amp; Deactivated — Last 14 Days</div>
+      <div class="ctitle" style="display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:4px;margin-bottom:14px"><span>Activated &amp; Deactivated</span><span style="font-size:10px;font-weight:500;color:var(--t3);text-transform:none;letter-spacing:0;white-space:nowrap">Last 14 days</span></div>
       <div class="chart-wrap"><canvas id="chart"></canvas></div>
       <div class="chart-legend">
         <span class="legend-item"><span class="legend-dot" style="background:#4f8ef7"></span>Activated</span>
@@ -698,6 +699,25 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
   </div>
 </div>
 
+<!-- SIGN OUT CONFIRM MODAL -->
+<div class="mo-ov" id="soOv" style="z-index:600">
+  <div class="mo" style="width:340px;max-width:94vw">
+    <div class="mo-head" style="border-bottom:none;padding-bottom:8px">
+      <span class="mo-title">Sign Out</span>
+      <button class="act-btn" onclick="document.getElementById('soOv').classList.remove('on')" style="font-size:17px;color:var(--t2)">✕</button>
+    </div>
+    <div class="mo-body" style="text-align:center;padding:8px 20px 20px">
+      <div style="font-size:36px;margin-bottom:12px;color:var(--t2)">⏻</div>
+      <p style="font-size:14.5px;font-weight:600;color:var(--t1);margin-bottom:7px">Sign out of CS Inventory?</p>
+      <p style="font-size:12.5px;color:var(--t2)">You'll need to sign in again to access your inventory.</p>
+    </div>
+    <div class="mo-foot" style="justify-content:center;gap:10px;padding:12px 17px 16px">
+      <button class="btn" style="min-width:90px" onclick="document.getElementById('soOv').classList.remove('on')">Cancel</button>
+      <button class="btn btn-d" style="min-width:90px" onclick="confirmSignOut()">Sign Out</button>
+    </div>
+  </div>
+</div>
+
 <!-- AUTH OVERLAY -->
 <div class="auth-ov on" id="authOv">
   <div class="auth-box">
@@ -807,7 +827,8 @@ async function doSignIn(){
   try{ await fauth.signInWithEmailAndPassword(email,pass); }
   catch(e){ err.textContent=e.message; }
 }
-function doSignOut(){ if(!confirm('Are you sure you want to sign out?'))return; fauth.signOut(); }
+function doSignOut(){ document.getElementById('soOv').classList.add('on'); }
+function confirmSignOut(){ document.getElementById('soOv').classList.remove('on'); fauth.signOut(); }
 
 // ── FIRESTORE LOAD ────────────────────────────────────
 async function loadInventory(){
