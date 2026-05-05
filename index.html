@@ -557,8 +557,8 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
     <div class="mo-body">
       <div class="fgrid" id="moForm">
         <div class="fsect">Client Information</div>
-        <div class="fg"><label>Client</label><input class="fc" id="mClient" placeholder="Client name" list="dl-clients" autocomplete="off"></div>
-        <div class="fg"><label>Product</label><input class="fc" id="mProduct" placeholder="Product" list="dl-products" autocomplete="off"></div>
+        <div class="fg"><label>Client</label><select class="fc" id="mClient"><option value="">— select client —</option></select></div>
+        <div class="fg"><label>Product</label><select class="fc" id="mProduct"><option value="">— select product —</option></select></div>
         <div class="fg"><label>Number</label><input class="fc" id="mNumber" placeholder="+1 555 000 0000"></div>
         <div class="fg"><label>Status</label>
           <select class="fc" id="mStatus"><option>Available</option><option>Reserved</option><option>Active</option><option>Inactive</option></select>
@@ -577,7 +577,7 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
         <div class="fg"><label>Activated Date</label><input type="date" class="fc" id="mActDate"></div>
 
         <div class="fsect">Provider Information</div>
-        <div class="fg"><label>Provider</label><input class="fc" id="mProvider" placeholder="Provider name" list="dl-providers" autocomplete="off"></div>
+        <div class="fg"><label>Provider</label><select class="fc" id="mProvider"><option value="">— select provider —</option></select></div>
         <div class="fg"><label>Arrival Date</label><input type="date" class="fc" id="mArrDate"></div>
         <div class="fg"><label>Provider Activation Date</label><input type="date" class="fc" id="mProvActDate"></div>
         <div class="fg"><label>Provider OSF</label><input class="fc" id="mProvOSF" placeholder="0.00"></div>
@@ -587,9 +587,9 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
         <div class="fg"><label>Type / Session</label><input class="fc" id="mTypeSession" placeholder="e.g. SIP, WebRTC"></div>
 
         <div class="fsect">Routing &amp; History</div>
-        <div class="fg"><label>Route Request by</label><input class="fc" id="mRoute" placeholder="Name" list="dl-routes" autocomplete="off"></div>
+        <div class="fg"><label>Route Request by</label><select class="fc" id="mRoute"><option value="">— select —</option></select></div>
         <div class="fg"><label>Deactivation Date (Prev Client)</label><input type="date" class="fc" id="mDeactDate"></div>
-        <div class="fg full"><label>Previous Client</label><input class="fc" id="mPrevClient" placeholder="e.g. TOKU, DIDLOGIC"></div>
+        <div class="fg full"><label>Previous Client</label><select class="fc" id="mPrevClient"><option value="">— select prev client —</option></select></div>
       </div>
     </div>
     <div class="mo-foot">
@@ -601,30 +601,53 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
 
 <!-- BULK EDIT MODAL -->
 <div class="mo-ov" id="beOv">
-  <div class="mo" style="width:480px">
+  <div class="mo" style="width:620px">
     <div class="mo-head">
       <span class="mo-title" id="beTitle">Bulk Edit</span>
       <button class="act-btn" onclick="closeBE()" style="font-size:17px;color:var(--t2)">✕</button>
     </div>
     <div class="mo-body">
-      <p style="font-size:12px;color:var(--t2);margin-bottom:14px;padding:8px 10px;background:var(--bg3);border-radius:var(--r);border-left:3px solid var(--accent)">Leave a field blank to keep each record's existing value unchanged.</p>
+      <p style="font-size:12px;color:var(--t2);margin-bottom:14px;padding:8px 10px;background:var(--bg3);border-radius:var(--r);border-left:3px solid var(--accent)">Leave a field blank / unselected to keep each record's existing value unchanged.</p>
       <div class="fgrid">
+        <div class="fsect">Client Information</div>
+        <div class="fg"><label>Client</label><select class="fc" id="beClient"><option value="">— keep existing —</option></select></div>
+        <div class="fg"><label>Product</label><select class="fc" id="beProduct"><option value="">— keep existing —</option></select></div>
         <div class="fg"><label>Status</label>
           <select class="fc" id="beStatus">
             <option value="">— keep existing —</option>
             <option>Active</option><option>Available</option><option>Reserved</option><option>Inactive</option>
           </select>
         </div>
+        <div class="fg full"><label>Remarks</label><input class="fc" id="beRemarks" placeholder="Leave blank to keep"></div>
         <div class="fg"><label>Posted Status</label>
           <select class="fc" id="bePosted">
             <option value="">— keep existing —</option>
             <option value="Yes">Yes</option><option value="No">No</option>
           </select>
         </div>
-        <div class="fg"><label>Client</label><input class="fc" id="beClient" placeholder="Leave blank to keep"></div>
-        <div class="fg"><label>Product</label><input class="fc" id="beProduct" placeholder="Leave blank to keep"></div>
-        <div class="fg"><label>Provider</label><input class="fc" id="beProvider" placeholder="Leave blank to keep"></div>
-        <div class="fg full"><label>Remarks</label><input class="fc" id="beRemarks" placeholder="Leave blank to keep"></div>
+        <div class="fg"><label>Posted Date</label><input type="date" class="fc" id="bePostedDate"></div>
+        <div class="fg"><label>Client OSF</label><input class="fc" id="beClientOSF" placeholder="Leave blank to keep"></div>
+        <div class="fg"><label>Client MRC</label><input class="fc" id="beClientMRC" placeholder="Leave blank to keep"></div>
+        <div class="fg"><label>Client OTRF</label><input class="fc" id="beClientOTRF" placeholder="Leave blank to keep"></div>
+        <div class="fg"><label>Client Channel Fee</label><input class="fc" id="beClientCF" placeholder="Leave blank to keep"></div>
+        <div class="fg"><label>Client CPM</label><input class="fc" id="beClientCPM" placeholder="Leave blank to keep"></div>
+        <div class="fg"><label>Effective Date</label><input type="date" class="fc" id="beEffDate"></div>
+        <div class="fg"><label>Activated Date</label><input type="date" class="fc" id="beActDate"></div>
+
+        <div class="fsect">Provider Information</div>
+        <div class="fg"><label>Provider</label><select class="fc" id="beProvider"><option value="">— keep existing —</option></select></div>
+        <div class="fg"><label>Arrival Date</label><input type="date" class="fc" id="beArrDate"></div>
+        <div class="fg"><label>Provider Activation Date</label><input type="date" class="fc" id="beProvActDate"></div>
+        <div class="fg"><label>Provider OSF</label><input class="fc" id="beProvOSF" placeholder="Leave blank to keep"></div>
+        <div class="fg"><label>Provider MRC</label><input class="fc" id="beProvMRC" placeholder="Leave blank to keep"></div>
+        <div class="fg"><label>Provider OTRF</label><input class="fc" id="beProvOTRF" placeholder="Leave blank to keep"></div>
+        <div class="fg"><label>Provider CPM</label><input class="fc" id="beProvCPM" placeholder="Leave blank to keep"></div>
+        <div class="fg"><label>Type / Session</label><input class="fc" id="beTypeSession" placeholder="Leave blank to keep"></div>
+
+        <div class="fsect">Routing &amp; History</div>
+        <div class="fg"><label>Route Request by</label><select class="fc" id="beRoute"><option value="">— keep existing —</option></select></div>
+        <div class="fg"><label>Deactivation Date (Prev Client)</label><input type="date" class="fc" id="beDeactDate"></div>
+        <div class="fg full"><label>Previous Client</label><select class="fc" id="bePrevClient"><option value="">— keep existing —</option></select></div>
       </div>
     </div>
     <div class="mo-foot">
@@ -784,7 +807,7 @@ async function doSignIn(){
   try{ await fauth.signInWithEmailAndPassword(email,pass); }
   catch(e){ err.textContent=e.message; }
 }
-function doSignOut(){ fauth.signOut(); }
+function doSignOut(){ if(!confirm('Are you sure you want to sign out?'))return; fauth.signOut(); }
 
 // ── FIRESTORE LOAD ────────────────────────────────────
 async function loadInventory(){
@@ -1049,8 +1072,15 @@ const mMap={
   mProvOSF:'provOSF',mProvMRC:'provMRC',mProvOTRF:'provOTRF',mProvCPM:'provCPM',
   mTypeSession:'typeSession',mRoute:'route',mDeactDate:'deactDate',mPrevClient:'prevClient'
 };
+function setSelectVal(el,val){
+  el.value=val;
+  if(el.tagName==='SELECT'&&el.value!==val){
+    const opt=document.createElement('option');opt.value=val;opt.textContent=val;
+    el.appendChild(opt);el.value=val;
+  }
+}
 function clearMo(){Object.keys(mMap).forEach(id=>{const el=document.getElementById(id);if(el)el.value=id==='mStatus'?'Available':id==='mPosted'?'No':'';});}
-function fillMo(r){Object.entries(mMap).forEach(([id,key])=>{const el=document.getElementById(id);if(el&&r[key]!==undefined)el.value=DATE_FIELDS.has(id)?sanitizeDate(r[key]):r[key];});}
+function fillMo(r){Object.entries(mMap).forEach(([id,key])=>{const el=document.getElementById(id);if(!el||r[key]===undefined)return;const v=DATE_FIELDS.has(id)?sanitizeDate(r[key]):r[key];if(el.tagName==='SELECT')setSelectVal(el,v);else el.value=v;});}
 function openAdd(){editId=null;document.getElementById('moTitle').textContent='Add Number';clearMo();document.getElementById('moOv').classList.add('on');}
 function openEdit(){if(!curRec)return;openEditById(curRec.id);}
 function openEditById(id){const r=DB.find(x=>x.id===id);if(!r)return;editId=id;document.getElementById('moTitle').textContent='Edit Number';fillMo(r);document.getElementById('moOv').classList.add('on');}
@@ -1258,29 +1288,32 @@ async function delSelected(){
 }
 
 // ── BULK EDIT ─────────────────────────────────────────
+const BE_SELECT_IDS=['beStatus','bePosted','beClient','beProduct','beProvider','beRoute','bePrevClient'];
+const BE_INPUT_IDS=['beRemarks','beClientOSF','beClientMRC','beClientOTRF','beClientCF','beClientCPM','beProvOSF','beProvMRC','beProvOTRF','beProvCPM','beTypeSession'];
+const BE_DATE_IDS=['bePostedDate','beEffDate','beActDate','beArrDate','beProvActDate','beDeactDate'];
+const BE_FIELD_MAP={
+  beStatus:'status',bePosted:'postedStatus',beClient:'client',beProduct:'product',beProvider:'provider',
+  beRoute:'route',bePrevClient:'prevClient',beRemarks:'remarks',
+  beClientOSF:'clientOSF',beClientMRC:'clientMRC',beClientOTRF:'clientOTRF',beClientCF:'clientCF',beClientCPM:'clientCPM',
+  beEffDate:'effDate',beActDate:'actDate',bePostedDate:'postedDate',
+  beArrDate:'arrDate',beProvActDate:'provActDate',beProvOSF:'provOSF',beProvMRC:'provMRC',
+  beProvOTRF:'provOTRF',beProvCPM:'provCPM',beTypeSession:'typeSession',beDeactDate:'deactDate'
+};
 function openBulkEdit(){
   const ids=getCheckedIds();if(!ids.length)return;
   document.getElementById('beTitle').textContent=`Bulk Edit — ${ids.length} record${ids.length!==1?'s':''}`;
-  ['beStatus','bePosted'].forEach(id=>document.getElementById(id).value='');
-  ['beClient','beProduct','beProvider','beRemarks'].forEach(id=>document.getElementById(id).value='');
+  [...BE_SELECT_IDS,...BE_INPUT_IDS,...BE_DATE_IDS].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.getElementById('beOv').classList.add('on');
 }
 function closeBE(){document.getElementById('beOv').classList.remove('on');}
 async function saveBulkEdit(){
   const ids=getCheckedIds();if(!ids.length)return;
   const updates={};
-  const s=document.getElementById('beStatus').value;
-  const p=document.getElementById('bePosted').value;
-  const cl=document.getElementById('beClient').value.trim();
-  const pr=document.getElementById('beProduct').value.trim();
-  const pv=document.getElementById('beProvider').value.trim();
-  const rm=document.getElementById('beRemarks').value.trim();
-  if(s)updates.status=s;
-  if(p)updates.postedStatus=p;
-  if(cl)updates.client=cl;
-  if(pr)updates.product=pr;
-  if(pv)updates.provider=pv;
-  if(rm)updates.remarks=rm;
+  Object.entries(BE_FIELD_MAP).forEach(([elId,field])=>{
+    const el=document.getElementById(elId);if(!el)return;
+    const v=el.value.trim?el.value.trim():el.value;
+    if(v)updates[field]=v;
+  });
   if(!Object.keys(updates).length){closeBE();return;}
   updates.updatedBy=currentUser?.email||'system';
   updates.updatedAt=new Date().toISOString();
@@ -1509,16 +1542,38 @@ function renderSelections(){
 }
 
 function populateDropdowns(){
+  // Filter selects (Inventory page)
   [['clients','fClient','All Clients'],['products','fProduct','All Products'],['providers','fProvider','All Providers']].forEach(([type,id,lbl])=>{
     const el=document.getElementById(id);if(!el)return;
     const val=el.value;
     el.innerHTML=`<option value="">${lbl}</option>`+[...SELECTIONS[type]].sort().map(v=>`<option>${v}</option>`).join('');
     el.value=val;
   });
-  ['clients','products','providers','routes'].forEach(type=>{
-    const dlId={'clients':'dl-clients','products':'dl-products','providers':'dl-providers','routes':'dl-routes'}[type];
-    const el=document.getElementById(dlId);
-    if(el)el.innerHTML=[...SELECTIONS[type]].sort().map(v=>`<option value="${v}">`).join('');
+  // Main modal selects
+  const modalSelMap=[
+    ['clients','mClient','— select client —'],
+    ['products','mProduct','— select product —'],
+    ['providers','mProvider','— select provider —'],
+    ['routes','mRoute','— select —'],
+    ['clients','mPrevClient','— select prev client —'],
+  ];
+  modalSelMap.forEach(([type,id,lbl])=>{
+    const el=document.getElementById(id);if(!el)return;
+    const val=el.value;
+    el.innerHTML=`<option value="">${lbl}</option>`+[...SELECTIONS[type]].sort().map(v=>`<option value="${v}">${v}</option>`).join('');
+    if(val)setSelectVal(el,val);
+  });
+  // Bulk edit selects
+  const beSelMap=[
+    ['clients','beClient'],
+    ['products','beProduct'],
+    ['providers','beProvider'],
+    ['routes','beRoute'],
+    ['clients','bePrevClient'],
+  ];
+  beSelMap.forEach(([type,id])=>{
+    const el=document.getElementById(id);if(!el)return;
+    el.innerHTML=`<option value="">— keep existing —</option>`+[...SELECTIONS[type]].sort().map(v=>`<option value="${v}">${v}</option>`).join('');
   });
 }
 
