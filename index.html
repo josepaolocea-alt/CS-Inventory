@@ -42,8 +42,11 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg2);color:var(
 .nav-right{display:flex;align-items:center;gap:6px;margin-left:auto}
 .nav-user{background:rgba(255,255,255,.09);border:none;color:#d1dae6;cursor:pointer;padding:4px 10px;border-radius:var(--r);font-size:12px;font-weight:500;transition:.15s;white-space:nowrap}
 .nav-user:hover{background:rgba(255,255,255,.17)}
-.nav-ico{background:none;border:none;color:var(--nav-t);cursor:pointer;width:30px;height:30px;border-radius:var(--r);display:flex;align-items:center;justify-content:center;font-size:15px;transition:.15s}
+.nav-ico{background:none;border:none;color:var(--nav-t);cursor:pointer;width:30px;height:30px;border-radius:var(--r);display:flex;align-items:center;justify-content:center;font-size:15px;line-height:1;transition:.15s}
 .nav-ico:hover{background:var(--nav-h);color:#fff}
+@keyframes spin{to{transform:rotate(360deg)}}
+#syncBtn{font-size:19px}
+#syncBtn.syncing{animation:spin .7s linear infinite;color:#fff;pointer-events:none}
 
 /* LAYOUT */
 .main{max-width:1600px;margin:0 auto;padding:20px 22px}
@@ -71,7 +74,8 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg2);color:var(
 .dg3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:16px}
 
 /* CHART */
-.chart-wrap{height:200px;position:relative}
+.chart-wrap{height:200px;position:relative;overflow:hidden}
+.chart-wrap canvas{display:block;width:100%!important;height:100%!important}
 .chart-legend{display:flex;gap:14px;margin-top:10px}
 .legend-dot{width:9px;height:9px;border-radius:2px;display:inline-block;margin-right:4px}
 .legend-item{display:flex;align-items:center;font-size:11.5px;color:var(--t2)}
@@ -243,6 +247,7 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
   </div>
   <div class="nav-right">
     <button class="nav-user" id="navUser" title="Signed in">—</button>
+    <button class="nav-ico" id="syncBtn" title="Sync — pull latest data from server" onclick="syncData()">↻</button>
     <button class="nav-ico" title="Sign out" onclick="doSignOut()">⏻</button>
     <button class="nav-ico" title="Toggle dark / light mode" id="themeBtn" onclick="toggleTheme()">◐</button>
   </div>
@@ -468,7 +473,7 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
       <div class="sel-body" id="selBody-clients">
         <div class="sel-items" id="selItems-clients"><span style="font-size:12px;color:var(--t3)">No items.</span></div>
         <div class="sel-add-row">
-          <input class="finp" id="selInput-clients" placeholder="Add client…" style="flex:1" onkeydown="if(event.key==='Enter')addSelItem('clients')">
+          <input class="finp" id="selInput-clients" placeholder="Add client…" style="flex:1;text-transform:uppercase" onkeydown="if(event.key==='Enter')addSelItem('clients')">
           <button class="btn btn-sm btn-p" onclick="addSelItem('clients')">＋</button>
         </div>
       </div>
@@ -487,7 +492,7 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
       <div class="sel-body" id="selBody-products">
         <div class="sel-items" id="selItems-products"><span style="font-size:12px;color:var(--t3)">No items.</span></div>
         <div class="sel-add-row">
-          <input class="finp" id="selInput-products" placeholder="Add product…" style="flex:1" onkeydown="if(event.key==='Enter')addSelItem('products')">
+          <input class="finp" id="selInput-products" placeholder="Add product…" style="flex:1;text-transform:uppercase" onkeydown="if(event.key==='Enter')addSelItem('products')">
           <button class="btn btn-sm btn-p" onclick="addSelItem('products')">＋</button>
         </div>
       </div>
@@ -506,7 +511,7 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
       <div class="sel-body" id="selBody-providers">
         <div class="sel-items" id="selItems-providers"><span style="font-size:12px;color:var(--t3)">No items.</span></div>
         <div class="sel-add-row">
-          <input class="finp" id="selInput-providers" placeholder="Add provider…" style="flex:1" onkeydown="if(event.key==='Enter')addSelItem('providers')">
+          <input class="finp" id="selInput-providers" placeholder="Add provider…" style="flex:1;text-transform:uppercase" onkeydown="if(event.key==='Enter')addSelItem('providers')">
           <button class="btn btn-sm btn-p" onclick="addSelItem('providers')">＋</button>
         </div>
       </div>
@@ -525,7 +530,7 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
       <div class="sel-body" id="selBody-routes">
         <div class="sel-items" id="selItems-routes"><span style="font-size:12px;color:var(--t3)">No items.</span></div>
         <div class="sel-add-row">
-          <input class="finp" id="selInput-routes" placeholder="Add name…" style="flex:1" onkeydown="if(event.key==='Enter')addSelItem('routes')">
+          <input class="finp" id="selInput-routes" placeholder="Add name…" style="flex:1;text-transform:uppercase" onkeydown="if(event.key==='Enter')addSelItem('routes')">
           <button class="btn btn-sm btn-p" onclick="addSelItem('routes')">＋</button>
         </div>
       </div>
@@ -699,6 +704,26 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
   </div>
 </div>
 
+<!-- REMOVE SELECTION ITEM CONFIRM MODAL -->
+<div class="mo-ov" id="rmSelOv" style="z-index:600">
+  <div class="mo" style="width:360px;max-width:94vw">
+    <div class="mo-head" style="border-bottom:none;padding-bottom:4px">
+      <span class="mo-title">Remove Entry</span>
+      <button class="act-btn" onclick="document.getElementById('rmSelOv').classList.remove('on')" style="font-size:17px;color:var(--t2)">✕</button>
+    </div>
+    <div class="mo-body" style="text-align:center;padding:8px 24px 20px">
+      <div style="font-size:38px;margin-bottom:12px">🗑️</div>
+      <p style="font-size:14.5px;font-weight:600;color:var(--t1);margin-bottom:6px">Remove this entry?</p>
+      <p id="rmSelMsg" style="font-size:13px;color:var(--t2);margin-bottom:0;word-break:break-all"></p>
+      <p style="font-size:12px;color:var(--t2);margin-top:8px">This will remove it from the dropdown options.</p>
+    </div>
+    <div class="mo-foot" style="justify-content:center;gap:10px;padding:12px 17px 16px">
+      <button class="btn" style="min-width:90px" onclick="document.getElementById('rmSelOv').classList.remove('on')">Cancel</button>
+      <button class="btn btn-d" id="rmSelConfirmBtn" style="min-width:90px">Remove</button>
+    </div>
+  </div>
+</div>
+
 <!-- SIGN OUT CONFIRM MODAL -->
 <div class="mo-ov" id="soOv" style="z-index:600">
   <div class="mo" style="width:340px;max-width:94vw">
@@ -838,6 +863,15 @@ async function loadInventory(){
     fd=[...DB];renderTbl();renderDash();
   }catch(e){console.error('loadInventory:',e);}
 }
+async function syncData(){
+  const btn=document.getElementById('syncBtn');
+  btn.classList.add('syncing');
+  try{
+    await Promise.all([loadInventory(),loadLogs()]);
+  }finally{
+    btn.classList.remove('syncing');
+  }
+}
 async function loadLogs(){
   try{
     const snap=await fdb.collection('logs').orderBy('datetime','desc').limit(500).get();
@@ -910,7 +944,7 @@ function renderDash(){
 function drawChart(){
   const canvas=document.getElementById('chart');
   if(!canvas)return;
-  const rect=canvas.getBoundingClientRect();
+  const rect=canvas.parentElement.getBoundingClientRect();
   const dpr=window.devicePixelRatio||1;
   canvas.width=rect.width*dpr;canvas.height=rect.height*dpr;
   const ctx=canvas.getContext('2d');ctx.scale(dpr,dpr);
@@ -952,6 +986,12 @@ function drawChart(){
 function bclass(s){return{Active:'b-active',Available:'b-available',Reserved:'b-reserved',Inactive:'b-inactive'}[s]||''}
 
 // ── FILTERS ───────────────────────────────────────────
+function wildcardToRegex(s){
+  if(!s.includes('*'))return new RegExp(s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));
+  const esc=s.split('*').map(p=>p.replace(/[.+?^${}()|[\]\\]/g,'\\$&')).join('.*');
+  const anchored=(s[0]!=='*'?'^':'')+esc+(s[s.length-1]!=='*'?'$':'');
+  return new RegExp(anchored);
+}
 function applyF(){
   const s=document.getElementById('fSearch').value.toLowerCase();
   const cl=document.getElementById('fClient').value;
@@ -960,8 +1000,9 @@ function applyF(){
   const pv=document.getElementById('fProvider').value;
   const df=document.getElementById('fDateFrom').value;
   const dt=document.getElementById('fDateTo').value;
+  const sRe=s?wildcardToRegex(s):null;
   fd=DB.filter(r=>{
-    if(s&&!Object.values(r).join(' ').toLowerCase().includes(s))return false;
+    if(sRe&&!sRe.test(Object.values(r).join(' ').toLowerCase()))return false;
     if(cl&&r.client!==cl)return false;
     if(st&&r.status!==st)return false;
     if(pr&&r.product!==pr)return false;
@@ -1154,7 +1195,10 @@ async function handleCSV(e){
     if(!lines[i].trim())continue;
     const cols=parseCSVLine(lines[i]);
     const nd={};
-    Object.entries(colMap).forEach(([idx,field])=>{nd[field]=cols[idx]||'';});
+    Object.entries(colMap).forEach(([idx,field])=>{
+      const v=cols[idx]||'';
+      nd[field]=(field==='client'||field==='product'||field==='provider'||field==='route')?v.toUpperCase():v;
+    });
     if(!nd.number)continue;
     nd.updatedBy=currentUser?.email||'system';
     nd.updatedAt=new Date().toISOString();
@@ -1605,7 +1649,8 @@ function toggleSel(type){
 
 async function addSelItem(type){
   const inp=document.getElementById('selInput-'+type);
-  const val=inp.value.trim();if(!val)return;
+  const raw=inp.value.trim();if(!raw)return;
+  const val=(type==='clients'||type==='products'||type==='providers'||type==='routes')?raw.toUpperCase():raw;
   if(SELECTIONS[type].includes(val)){alert('Item already exists.');return;}
   try{
     await fdb.collection('selections').doc(type).set({items:firebase.firestore.FieldValue.arrayUnion(val)},{merge:true});
@@ -1619,13 +1664,22 @@ function removeSelItemBtn(btn){
   removeSelItem(btn.dataset.type,btn.dataset.val);
 }
 
-async function removeSelItem(type,val){
-  if(!confirm(`Remove "${val}"?`))return;
-  try{
-    await fdb.collection('selections').doc(type).update({items:firebase.firestore.FieldValue.arrayRemove(val)});
-    SELECTIONS[type]=SELECTIONS[type].filter(v=>v!==val);
-    populateDropdowns();renderSelections();
-  }catch(e){alert('Error: '+e.message);}
+function removeSelItem(type,val){
+  const msg=document.getElementById('rmSelMsg');
+  msg.textContent=`"${val}"`;
+  const ov=document.getElementById('rmSelOv');
+  ov.classList.add('on');
+  const btn=document.getElementById('rmSelConfirmBtn');
+  const newBtn=btn.cloneNode(true);
+  btn.parentNode.replaceChild(newBtn,btn);
+  newBtn.onclick=async function(){
+    ov.classList.remove('on');
+    try{
+      await fdb.collection('selections').doc(type).update({items:firebase.firestore.FieldValue.arrayRemove(val)});
+      SELECTIONS[type]=SELECTIONS[type].filter(v=>v!==val);
+      populateDropdowns();renderSelections();
+    }catch(e){alert('Error: '+e.message);}
+  };
 }
 
 function uploadSelCSV(type){document.getElementById('csvSel-'+type).click();}
@@ -1634,7 +1688,8 @@ async function handleSelCSV(e,type){
   const f=e.target.files[0];if(!f)return;
   const text=await f.text();
   const lines=text.split(/\r?\n/).filter(l=>l.trim());
-  const items=lines.slice(1).map(l=>parseCSVLine(l)[0]?.trim()).filter(Boolean);
+  const rawItems=lines.slice(1).map(l=>parseCSVLine(l)[0]?.trim()).filter(Boolean);
+  const items=(type==='clients'||type==='products'||type==='providers'||type==='routes')?rawItems.map(v=>v.toUpperCase()):rawItems;
   const toAdd=items.filter(v=>!SELECTIONS[type].includes(v));
   if(!toAdd.length){alert('No new items found.');e.target.value='';return;}
   try{
