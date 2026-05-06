@@ -324,7 +324,7 @@ function applyF() {
   const dt = document.getElementById('fDateTo').value;
   const sRe = s ? wildcardToRegex(s) : null;
   fd = DB.filter(r => {
-    if (sRe && !sRe.test(Object.values(r).join(' ').toLowerCase())) return false;
+    if (sRe && !Object.values(r).some(v => v != null && sRe.test(String(v).toLowerCase()))) return false;
     if (cl && r.client!==cl)   return false;
     if (st && r.status!==st)   return false;
     if (pr && r.product!==pr)  return false;
