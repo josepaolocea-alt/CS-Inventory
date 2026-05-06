@@ -1148,4 +1148,5 @@ document.addEventListener('keydown', e => {
 
 // ── INIT ──────────────────────────────────────────────
 initEL();
+if (EL.pgSize) EL.pgSize.value = '50';
 renderDash(); renderTbl(); renderLogs();
