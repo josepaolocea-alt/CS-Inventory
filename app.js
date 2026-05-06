@@ -359,7 +359,7 @@ function sortBy(col) {
 
 // ── RENDER TABLE ──────────────────────────────────────
 function renderTbl() {
-  const sz = parseInt(EL.pgSize?.value || 100);
+  const sz = parseInt(EL.pgSize?.value || 50);
   const s = (pg-1)*sz, e = s+sz, total = fd.length, tp = Math.ceil(total/sz)||1;
   if (EL.tInfo)    EL.tInfo.textContent    = `Showing ${Math.min(s+1,total)}–${Math.min(e,total)} of ${total} records`;
   if (EL.pgInfo)   EL.pgInfo.textContent   = `Page ${pg} of ${tp}`;
@@ -384,7 +384,7 @@ function renderTbl() {
     </tr>`).join('');
 }
 function changePg(d) {
-  const sz = parseInt(EL.pgSize?.value || 100);
+  const sz = parseInt(EL.pgSize?.value || 50);
   const tp = Math.ceil(fd.length/sz)||1;
   pg = Math.max(1, Math.min(pg+d, tp)); renderTbl();
 }
