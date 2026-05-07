@@ -341,13 +341,16 @@ function wildcardToRegex(s) {
   const anchored = (s[0]!=='*' ? '^' : '') + esc2 + (s[s.length-1]!=='*' ? '$' : '');
   return new RegExp(anchored, 'i');
 }
+function getPhoneNorms(numberField) {
+  if (!numberField || String(numberField).trim().toUpperCase() === 'NA') return [];
+  return String(numberField).split('/').map(p => normalizePhone(p.trim())).filter(Boolean);
+}
 function getDupeSet() {
   const counts = {};
   DB.forEach(r => {
-    if (!r.number || String(r.number).trim().toUpperCase() === 'NA') return;
-    const key = normalizePhone(r.number);
-    if (!key) return;
-    counts[key] = (counts[key] || 0) + 1;
+    getPhoneNorms(r.number).forEach(key => {
+      counts[key] = (counts[key] || 0) + 1;
+    });
   });
   const dupeKeys = new Set(Object.keys(counts).filter(k => counts[k] > 1));
   return dupeKeys;
@@ -371,8 +374,8 @@ function applyF() {
     if (df && (!r.actDate || r.actDate < df)) return false;
     if (dt && (!r.actDate || r.actDate > dt)) return false;
     if (dupeSet) {
-      if (!r.number || String(r.number).trim().toUpperCase() === 'NA') return false;
-      if (!dupeSet.has(normalizePhone(r.number))) return false;
+      const norms = getPhoneNorms(r.number);
+      if (!norms.length || !norms.some(k => dupeSet.has(k))) return false;
     }
     return true;
   });
