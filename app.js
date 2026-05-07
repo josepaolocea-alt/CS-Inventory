@@ -58,6 +58,17 @@ function parseCSVLine(line) {
   }
   res.push(cur); return res;
 }
+// Strip formatting and leading country/area codes to get a bare local number for comparison.
+// Treats +63/63/0/02 prefixes as equivalent so different regional formats match the same entry.
+function normalizePhone(n) {
+  const digits = String(n == null ? '' : n).replace(/\D/g, '');
+  // Strip known prefixes longest-first so we don't partially strip
+  if (digits.startsWith('632'))  return digits.slice(3);
+  if (digits.startsWith('63'))   return digits.slice(2);
+  if (digits.startsWith('02'))   return digits.slice(2);
+  if (digits.startsWith('0'))    return digits.slice(1);
+  return digits;
+}
 function bclass(s) { return {Active:'b-active',Available:'b-available',Reserved:'b-reserved',Inactive:'b-inactive'}[s]||''; }
 function roleBadge(role) {
   const m = {admin:['rb-admin','Admin'],'semi-admin':['rb-semi','Semi-Admin'],viewer:['rb-viewer','Viewer']};
@@ -704,11 +715,14 @@ async function handleCSV(e) {
     });
     nd.updatedBy = currentUser?.email||'system';
     nd.updatedAt = new Date().toISOString();
-    const existing = DB.find(r => r.number===nd.number);
+    const ndNorm = normalizePhone(nd.number);
+    const existing = DB.find(r => normalizePhone(r.number) === ndNorm);
     if (existing) {
-      // Strip empty-string values so existing non-blank data is not overwritten
+      // Strip empty-string values so existing non-blank data is not overwritten.
+      // Always keep the existing number format — never overwrite with the CSV's format.
       const updateData = {updatedBy: nd.updatedBy, updatedAt: nd.updatedAt};
       Object.entries(nd).forEach(([k, v]) => {
+        if (k === 'number') return;
         if (k !== 'updatedBy' && k !== 'updatedAt' && v !== '' && v !== null && v !== undefined) {
           updateData[k] = v;
         }
