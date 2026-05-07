@@ -59,7 +59,7 @@ function parseCSVLine(line) {
   res.push(cur); return res;
 }
 // Strip formatting and leading country/area codes to get a bare local number for comparison.
-// Treats +63/63/0/02 prefixes as equivalent so different regional formats match the same entry.
+// Treats +63/63/0/02/2 prefixes as equivalent so different regional formats match the same entry.
 function normalizePhone(n) {
   const digits = String(n == null ? '' : n).replace(/\D/g, '');
   // Strip known prefixes longest-first so we don't partially strip
@@ -67,6 +67,8 @@ function normalizePhone(n) {
   if (digits.startsWith('63'))   return digits.slice(2);
   if (digits.startsWith('02'))   return digits.slice(2);
   if (digits.startsWith('0'))    return digits.slice(1);
+  // Strip Metro Manila area code '2' from 9-digit numbers (e.g. 282308167 → 82308167)
+  if (digits.startsWith('2') && digits.length === 9) return digits.slice(1);
   return digits;
 }
 function bclass(s) { return {Active:'b-active',Available:'b-available',Reserved:'b-reserved',Inactive:'b-inactive'}[s]||''; }
@@ -366,8 +368,8 @@ function applyF() {
     if (st && r.status!==st)   return false;
     if (pr && r.product!==pr)  return false;
     if (pv && r.provider!==pv) return false;
-    if (df && r.actDate && r.actDate<df) return false;
-    if (dt && r.actDate && r.actDate>dt) return false;
+    if (df && (!r.actDate || r.actDate < df)) return false;
+    if (dt && (!r.actDate || r.actDate > dt)) return false;
     if (dupeSet) {
       if (!r.number || String(r.number).trim().toUpperCase() === 'NA') return false;
       if (!dupeSet.has(normalizePhone(r.number))) return false;
