@@ -122,11 +122,11 @@ function showToast(msg, type='success', duration=4000) {
   t._timer = timer;
 }
 
-function showUndoToast(msg, onUndo, duration=6000) {
+function showUndoToast(msg, onUndo, duration=6000, title='Deleted') {
   const c = document.getElementById('toast-container');
   const t = document.createElement('div');
   t.className = 'toast t-info';
-  t.innerHTML = `<span class="toast-icon">ℹ</span><div class="toast-body"><div class="toast-title">Deleted</div><div class="toast-msg">${esc(msg)}</div></div><button class="toast-undo">↩ Undo</button><button class="toast-close" onclick="dismissToast(this.closest('.toast'))">✕</button>`;
+  t.innerHTML = `<span class="toast-icon">ℹ</span><div class="toast-body"><div class="toast-title">${esc(title)}</div><div class="toast-msg">${esc(msg)}</div></div><button class="toast-undo">↩ Undo</button><button class="toast-close" onclick="dismissToast(this.closest('.toast'))">✕</button>`;
   t.querySelector('.toast-undo').onclick = () => { clearTimeout(t._timer); dismissToast(t); onUndo(); };
   c.appendChild(t);
   const timer = setTimeout(() => dismissToast(t), duration);
@@ -518,6 +518,9 @@ async function saveRec() {
   nd.updatedAt = new Date().toISOString();
   try {
     if (editId) {
+      // Save old state for undo
+      const idx = DB.findIndex(r => r.id===editId);
+      const oldRec = idx>-1 ? {...DB[idx]} : null;
       // ── Concurrent edit detection ───
       try {
         const snap = await fdb.collection('inventory').doc(editId).get();
@@ -527,19 +530,34 @@ async function saveRec() {
         }
       } catch(e) { /* proceed on check failure */ }
       await fdb.collection('inventory').doc(editId).update(nd);
-      const idx = DB.findIndex(r => r.id===editId);
       if (idx>-1) DB[idx] = {...DB[idx], ...nd};
       await addLog('Updated', `Updated number ${nd.number}`);
+      fd=[...DB]; pg=1; renderTbl(); closeMo();
+      openSP(editId);
+      if (oldRec) {
+        showUndoToast(`Updated ${nd.number}`, async () => {
+          try {
+            const {id:rid, ...oldData} = oldRec;
+            await fdb.collection('inventory').doc(rid).update(oldData);
+            const i = DB.findIndex(r => r.id===rid);
+            if (i>-1) DB[i] = {...oldRec};
+            fd=[...DB]; renderTbl(); renderDash();
+            await addLog('Updated', `Reverted ${oldRec.number} (undo edit)`);
+            showToast(`Reverted ${oldRec.number}`, 'success');
+          } catch(e) { showToast('Revert failed: '+e.message, 'error'); }
+        }, 6000, 'Updated');
+      } else {
+        showToast(`Updated ${nd.number}`, 'success');
+      }
     } else {
       nd.createdBy = currentUser?.email || 'system';
       nd.createdAt = new Date().toISOString();
       const ref = await fdb.collection('inventory').add(nd);
       nd.id = ref.id; DB.push(nd);
       await addLog('Added', `Added number ${nd.number}`);
+      fd=[...DB]; pg=1; renderTbl(); closeMo();
+      showToast(`Added ${nd.number}`, 'success');
     }
-    fd=[...DB]; pg=1; renderTbl(); closeMo();
-    showToast(editId ? `Updated ${nd.number}` : `Added ${nd.number}`, 'success');
-    if (editId) openSP(editId);
   } catch(e) { showToast('Save error: '+e.message, 'error'); }
 }
 
@@ -868,6 +886,16 @@ async function saveBulkEdit() {
   if (!Object.keys(updates).length) { closeBE(); return; }
   updates.updatedBy = currentUser?.email||'system';
   updates.updatedAt = new Date().toISOString();
+
+  // Save original field values for undo
+  const dataFields = Object.keys(updates).filter(k => k!=='updatedBy' && k!=='updatedAt');
+  const savedRecs = ids.map(id => {
+    const r = DB.find(x => x.id===id); if (!r) return null;
+    const saved = {id};
+    dataFields.forEach(f => { saved[f] = r[f] !== undefined ? r[f] : ''; });
+    return saved;
+  }).filter(Boolean);
+
   try {
     const CHUNK = 400;
     for (let i=0; i<ids.length; i+=CHUNK) {
@@ -877,9 +905,32 @@ async function saveBulkEdit() {
     }
     ids.forEach(id => { const idx=DB.findIndex(r=>r.id===id); if(idx>-1) DB[idx]={...DB[idx],...updates}; });
     fd=[...DB]; pg=1; renderTbl(); renderDash();
-    await addLog('Updated', `Bulk edited ${ids.length} records: ${Object.keys(updates).filter(k=>k!=='updatedBy'&&k!=='updatedAt').join(', ')}`);
+    await addLog('Updated', `Bulk edited ${ids.length} records: ${dataFields.join(', ')}`);
     closeBE();
-    showToast(`Bulk updated ${ids.length} records`, 'success');
+    showUndoToast(`Bulk updated ${ids.length} record${ids.length!==1?'s':''}`, async () => {
+      try {
+        const CHUNK2 = 400;
+        for (let i=0; i<savedRecs.length; i+=CHUNK2) {
+          const b = fdb.batch();
+          savedRecs.slice(i,i+CHUNK2).forEach(rec => {
+            const {id, ...data} = rec;
+            b.update(fdb.collection('inventory').doc(id), {
+              ...data,
+              updatedBy: currentUser?.email||'system',
+              updatedAt: new Date().toISOString()
+            });
+          });
+          await b.commit();
+        }
+        savedRecs.forEach(rec => {
+          const idx = DB.findIndex(r => r.id===rec.id);
+          if (idx>-1) DB[idx] = {...DB[idx], ...rec};
+        });
+        fd=[...DB]; renderTbl(); renderDash();
+        await addLog('Updated', `Reverted bulk edit of ${savedRecs.length} records (undo)`);
+        showToast(`Reverted ${savedRecs.length} record${savedRecs.length!==1?'s':''}`, 'success');
+      } catch(e) { showToast('Revert failed: '+e.message, 'error'); }
+    }, 6000, 'Updated');
   } catch(err) { showToast('Bulk edit error: '+err.message, 'error'); }
 }
 
@@ -1132,6 +1183,29 @@ function dlSelSample(type) {
   const labels  = {clients:'Client',products:'Product',providers:'Provider',routes:'Route Requested by'};
   const samples = {clients:'TOKU',products:'DID Local',providers:'Twilio',routes:'Katherine Serrano'};
   dlCSV([[labels[type]],[samples[type]]], `sample_${type}.csv`);
+}
+async function delAllSelItems(type) {
+  const labels = {clients:'Client',products:'Product',providers:'Provider',routes:'Route Requested by'};
+  const count  = SELECTIONS[type].length;
+  if (!count) { showToast(`No ${labels[type]} items to delete.`, 'warning'); return; }
+  document.getElementById('delRecTitle').textContent = `Delete all ${labels[type]} items?`;
+  document.getElementById('delRecInfo').innerHTML = `
+    <div><span style="color:var(--t2)">Items to delete:</span> <strong>${count}</strong></div>
+    <div style="margin-top:4px;font-size:11.5px;color:var(--t3)">All ${count} item${count!==1?'s':''} will be permanently removed from the ${labels[type]} selection list.</div>`.trim();
+  document.getElementById('delRecOv').classList.add('on');
+  const btn   = document.getElementById('delRecConfirmBtn');
+  const fresh = btn.cloneNode(true); btn.replaceWith(fresh);
+  fresh.textContent = 'Delete All';
+  fresh.onclick = async () => {
+    document.getElementById('delRecOv').classList.remove('on');
+    try {
+      await fdb.collection('selections').doc(type).set({items:[]});
+      SELECTIONS[type] = [];
+      populateDropdowns(); renderSelections();
+      await addLog('Updated', `Deleted all ${count} item${count!==1?'s':''} from ${type}`);
+      showToast(`Deleted all ${count} item${count!==1?'s':''} from ${labels[type]}.`, 'success');
+    } catch(e) { showToast('Error: '+e.message, 'error'); }
+  };
 }
 
 // ── EVENT LISTENERS ───────────────────────────────────
