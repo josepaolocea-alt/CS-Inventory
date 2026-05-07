@@ -716,7 +716,8 @@ async function handleCSV(e) {
     nd.updatedBy = currentUser?.email||'system';
     nd.updatedAt = new Date().toISOString();
     const ndNorm = normalizePhone(nd.number);
-    const existing = DB.find(r => normalizePhone(r.number) === ndNorm);
+    const isNA = String(nd.number).trim().toUpperCase() === 'NA';
+    const existing = isNA ? null : DB.find(r => normalizePhone(r.number) === ndNorm);
     if (existing) {
       // Strip empty-string values so existing non-blank data is not overwritten.
       // Always keep the existing number format — never overwrite with the CSV's format.
