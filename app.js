@@ -390,6 +390,10 @@ function clearF() {
 function toggleDupes() {
   showDupes = !showDupes;
   document.getElementById('btnDupes').classList.toggle('active', showDupes);
+  if (showDupes) {
+    document.getElementById('fDateFrom').value = '';
+    document.getElementById('fDateTo').value = '';
+  }
   applyF();
 }
 function toggleMore() {
