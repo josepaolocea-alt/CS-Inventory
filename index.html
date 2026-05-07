@@ -361,11 +361,23 @@
           <select class="fc" id="mPosted"><option value="No">No</option><option value="Yes">Yes</option></select>
         </div>
         <div class="fg"><label>Posted Date</label><input type="date" class="fc" id="mPostedDate"></div>
-        <div class="fg"><label>Client OSF</label><input class="fc" id="mClientOSF" placeholder="0.00 or Waived/POC/NA" list="fee-presets"></div>
-        <div class="fg"><label>Client MRC</label><input class="fc" id="mClientMRC" placeholder="0.00 or Waived/POC/NA" list="fee-presets"></div>
-        <div class="fg"><label>Client OTRF</label><input class="fc" id="mClientOTRF" placeholder="0.00 or Waived/POC/NA" list="fee-presets"></div>
+        <div class="fg"><label>Client OSF</label>
+          <select class="fc" id="mClientOSFSel" onchange="onFeeSel(this)"><option value="">— select —</option><option>Waived</option><option>POC</option><option>NA</option><option value="__amt__">Enter amount…</option></select>
+          <input class="fc" id="mClientOSF" placeholder="0.00" style="display:none">
+        </div>
+        <div class="fg"><label>Client MRC</label>
+          <select class="fc" id="mClientMRCSel" onchange="onFeeSel(this)"><option value="">— select —</option><option>Waived</option><option>POC</option><option>NA</option><option value="__amt__">Enter amount…</option></select>
+          <input class="fc" id="mClientMRC" placeholder="0.00" style="display:none">
+        </div>
+        <div class="fg"><label>Client OTRF</label>
+          <select class="fc" id="mClientOTRFSel" onchange="onFeeSel(this)"><option value="">— select —</option><option>Waived</option><option>POC</option><option>NA</option><option value="__amt__">Enter amount…</option></select>
+          <input class="fc" id="mClientOTRF" placeholder="0.00" style="display:none">
+        </div>
         <div class="fg"><label>Client Channel Fee</label><input class="fc" id="mClientCF" placeholder="0.00"></div>
-        <div class="fg"><label>Client CPM</label><input class="fc" id="mClientCPM" placeholder="0.0000 or Waived/POC/NA" list="fee-presets"></div>
+        <div class="fg"><label>Client CPM</label>
+          <select class="fc" id="mClientCPMSel" onchange="onFeeSel(this)"><option value="">— select —</option><option>Waived</option><option>POC</option><option>NA</option><option value="__amt__">Enter amount…</option></select>
+          <input class="fc" id="mClientCPM" placeholder="0.0000" style="display:none">
+        </div>
         <div class="fg"><label>Effective Date</label><input type="date" class="fc" id="mEffDate"></div>
         <div class="fg"><label>Activated Date</label><input type="date" class="fc" id="mActDate"></div>
 
@@ -373,10 +385,22 @@
         <div class="fg"><label>Provider</label><select class="fc" id="mProvider"><option value="">— select provider —</option></select></div>
         <div class="fg"><label>Arrival Date</label><input type="date" class="fc" id="mArrDate"></div>
         <div class="fg"><label>Provider Activation Date</label><input type="date" class="fc" id="mProvActDate"></div>
-        <div class="fg"><label>Provider OSF</label><input class="fc" id="mProvOSF" placeholder="0.00 or Waived/POC/NA" list="fee-presets"></div>
-        <div class="fg"><label>Provider MRC</label><input class="fc" id="mProvMRC" placeholder="0.00 or Waived/POC/NA" list="fee-presets"></div>
-        <div class="fg"><label>Provider OTRF</label><input class="fc" id="mProvOTRF" placeholder="0.00 or Waived/POC/NA" list="fee-presets"></div>
-        <div class="fg"><label>Provider CPM</label><input class="fc" id="mProvCPM" placeholder="0.0000 or Waived/POC/NA" list="fee-presets"></div>
+        <div class="fg"><label>Provider OSF</label>
+          <select class="fc" id="mProvOSFSel" onchange="onFeeSel(this)"><option value="">— select —</option><option>Waived</option><option>POC</option><option>NA</option><option value="__amt__">Enter amount…</option></select>
+          <input class="fc" id="mProvOSF" placeholder="0.00" style="display:none">
+        </div>
+        <div class="fg"><label>Provider MRC</label>
+          <select class="fc" id="mProvMRCSel" onchange="onFeeSel(this)"><option value="">— select —</option><option>Waived</option><option>POC</option><option>NA</option><option value="__amt__">Enter amount…</option></select>
+          <input class="fc" id="mProvMRC" placeholder="0.00" style="display:none">
+        </div>
+        <div class="fg"><label>Provider OTRF</label>
+          <select class="fc" id="mProvOTRFSel" onchange="onFeeSel(this)"><option value="">— select —</option><option>Waived</option><option>POC</option><option>NA</option><option value="__amt__">Enter amount…</option></select>
+          <input class="fc" id="mProvOTRF" placeholder="0.00" style="display:none">
+        </div>
+        <div class="fg"><label>Provider CPM</label>
+          <select class="fc" id="mProvCPMSel" onchange="onFeeSel(this)"><option value="">— select —</option><option>Waived</option><option>POC</option><option>NA</option><option value="__amt__">Enter amount…</option></select>
+          <input class="fc" id="mProvCPM" placeholder="0.0000" style="display:none">
+        </div>
         <div class="fg"><label>Type / Session</label><input class="fc" id="mTypeSession" placeholder="e.g. SIP, WebRTC"></div>
 
         <div class="fsect">Routing &amp; History</div>
@@ -413,11 +437,23 @@
           <select class="fc" id="bePosted"><option value="">— keep existing —</option><option value="Yes">Yes</option><option value="No">No</option></select>
         </div>
         <div class="fg"><label>Posted Date</label><input type="date" class="fc" id="bePostedDate"></div>
-        <div class="fg"><label>Client OSF</label><input class="fc" id="beClientOSF" placeholder="Leave blank to keep" list="fee-presets"></div>
-        <div class="fg"><label>Client MRC</label><input class="fc" id="beClientMRC" placeholder="Leave blank to keep" list="fee-presets"></div>
-        <div class="fg"><label>Client OTRF</label><input class="fc" id="beClientOTRF" placeholder="Leave blank to keep" list="fee-presets"></div>
+        <div class="fg"><label>Client OSF</label>
+          <select class="fc" id="beClientOSFSel" onchange="onFeeSel(this)"><option value="">— keep existing —</option><option>Waived</option><option>POC</option><option>NA</option><option value="__amt__">Enter amount…</option></select>
+          <input class="fc" id="beClientOSF" placeholder="0.00" style="display:none">
+        </div>
+        <div class="fg"><label>Client MRC</label>
+          <select class="fc" id="beClientMRCSel" onchange="onFeeSel(this)"><option value="">— keep existing —</option><option>Waived</option><option>POC</option><option>NA</option><option value="__amt__">Enter amount…</option></select>
+          <input class="fc" id="beClientMRC" placeholder="0.00" style="display:none">
+        </div>
+        <div class="fg"><label>Client OTRF</label>
+          <select class="fc" id="beClientOTRFSel" onchange="onFeeSel(this)"><option value="">— keep existing —</option><option>Waived</option><option>POC</option><option>NA</option><option value="__amt__">Enter amount…</option></select>
+          <input class="fc" id="beClientOTRF" placeholder="0.00" style="display:none">
+        </div>
         <div class="fg"><label>Client Channel Fee</label><input class="fc" id="beClientCF" placeholder="Leave blank to keep"></div>
-        <div class="fg"><label>Client CPM</label><input class="fc" id="beClientCPM" placeholder="Leave blank to keep" list="fee-presets"></div>
+        <div class="fg"><label>Client CPM</label>
+          <select class="fc" id="beClientCPMSel" onchange="onFeeSel(this)"><option value="">— keep existing —</option><option>Waived</option><option>POC</option><option>NA</option><option value="__amt__">Enter amount…</option></select>
+          <input class="fc" id="beClientCPM" placeholder="0.0000" style="display:none">
+        </div>
         <div class="fg"><label>Effective Date</label><input type="date" class="fc" id="beEffDate"></div>
         <div class="fg"><label>Activated Date</label><input type="date" class="fc" id="beActDate"></div>
 
@@ -425,10 +461,22 @@
         <div class="fg"><label>Provider</label><select class="fc" id="beProvider"><option value="">— keep existing —</option></select></div>
         <div class="fg"><label>Arrival Date</label><input type="date" class="fc" id="beArrDate"></div>
         <div class="fg"><label>Provider Activation Date</label><input type="date" class="fc" id="beProvActDate"></div>
-        <div class="fg"><label>Provider OSF</label><input class="fc" id="beProvOSF" placeholder="Leave blank to keep" list="fee-presets"></div>
-        <div class="fg"><label>Provider MRC</label><input class="fc" id="beProvMRC" placeholder="Leave blank to keep" list="fee-presets"></div>
-        <div class="fg"><label>Provider OTRF</label><input class="fc" id="beProvOTRF" placeholder="Leave blank to keep" list="fee-presets"></div>
-        <div class="fg"><label>Provider CPM</label><input class="fc" id="beProvCPM" placeholder="Leave blank to keep" list="fee-presets"></div>
+        <div class="fg"><label>Provider OSF</label>
+          <select class="fc" id="beProvOSFSel" onchange="onFeeSel(this)"><option value="">— keep existing —</option><option>Waived</option><option>POC</option><option>NA</option><option value="__amt__">Enter amount…</option></select>
+          <input class="fc" id="beProvOSF" placeholder="0.00" style="display:none">
+        </div>
+        <div class="fg"><label>Provider MRC</label>
+          <select class="fc" id="beProvMRCSel" onchange="onFeeSel(this)"><option value="">— keep existing —</option><option>Waived</option><option>POC</option><option>NA</option><option value="__amt__">Enter amount…</option></select>
+          <input class="fc" id="beProvMRC" placeholder="0.00" style="display:none">
+        </div>
+        <div class="fg"><label>Provider OTRF</label>
+          <select class="fc" id="beProvOTRFSel" onchange="onFeeSel(this)"><option value="">— keep existing —</option><option>Waived</option><option>POC</option><option>NA</option><option value="__amt__">Enter amount…</option></select>
+          <input class="fc" id="beProvOTRF" placeholder="0.00" style="display:none">
+        </div>
+        <div class="fg"><label>Provider CPM</label>
+          <select class="fc" id="beProvCPMSel" onchange="onFeeSel(this)"><option value="">— keep existing —</option><option>Waived</option><option>POC</option><option>NA</option><option value="__amt__">Enter amount…</option></select>
+          <input class="fc" id="beProvCPM" placeholder="0.0000" style="display:none">
+        </div>
         <div class="fg"><label>Type / Session</label><input class="fc" id="beTypeSession" placeholder="Leave blank to keep"></div>
 
         <div class="fsect">Routing &amp; History</div>
@@ -588,11 +636,5 @@
 <!-- App -->
 <script src="app.js"></script>
 
-<!-- Fee field presets (Waived / POC / NA) -->
-<datalist id="fee-presets">
-  <option value="Waived">
-  <option value="POC">
-  <option value="NA">
-</datalist>
 </body>
 </html>

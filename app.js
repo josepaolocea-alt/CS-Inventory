@@ -96,6 +96,7 @@ let _editUpdatedAt=null;
 let currentUser=null, currentRole='viewer';
 let USERS=[];
 let SELECTIONS={clients:[],products:[],providers:[],routes:[]};
+let persistentSelIds = new Set();
 let umEditUid=null, _secondApp=null;
 
 // ── THEME INIT (runs immediately on script load) ──────
@@ -170,6 +171,7 @@ fauth.onAuthStateChanged(async user => {
     currentUser = null; currentRole = 'viewer';
     DB=[]; LOGS=[]; fd=[]; fl=[]; recentViewed=[];
     USERS=[]; SELECTIONS={clients:[],products:[],providers:[],routes:[]};
+    persistentSelIds = new Set();
     document.getElementById('authOv').style.display = 'flex';
     document.getElementById('appNav').style.display = 'none';
     document.getElementById('appMain').style.display = 'none';
@@ -377,11 +379,9 @@ function renderTbl() {
   if (EL.pgInfo)   EL.pgInfo.textContent   = `Page ${pg} of ${tp}`;
   if (EL.pgPrev)   EL.pgPrev.disabled      = pg<=1;
   if (EL.pgNext)   EL.pgNext.disabled      = pg>=tp;
-  if (EL.selAll)   EL.selAll.checked       = false;
-  if (EL.selBar)   EL.selBar.classList.remove('on');
   if (EL.invBody)  EL.invBody.innerHTML    = fd.slice(s,e).map((r,i) => `
     <tr onclick="rowClick(event,'${esc(r.id)}')">
-      <td onclick="event.stopPropagation()"><input type="checkbox" class="rcb" data-id="${esc(r.id)}" onchange="updateSelBar()"></td>
+      <td onclick="event.stopPropagation()"><input type="checkbox" class="rcb" data-id="${esc(r.id)}" ${persistentSelIds.has(r.id)?'checked':''} onchange="toggleRowSel(this)"></td>
       <td class="row-num">${s+i+1}</td>
       <td>${esc(r.client)}</td>
       <td>${esc(r.product)}</td>
@@ -394,22 +394,37 @@ function renderTbl() {
         </div>
       </td>
     </tr>`).join('');
+  updateSelBar();
 }
 function changePg(d) {
   const sz = parseInt(EL.pgSize?.value || 50);
   const tp = Math.ceil(fd.length/sz)||1;
   pg = Math.max(1, Math.min(pg+d, tp)); renderTbl();
 }
-function selAllRows(cb) { document.querySelectorAll('.rcb').forEach(c => c.checked=cb.checked); updateSelBar(); }
-function getCheckedIds() { return [...document.querySelectorAll('.rcb:checked')].map(c => c.dataset.id); }
+function selAllRows(cb) {
+  if (cb.checked) {
+    document.querySelectorAll('.rcb').forEach(c => { c.checked=true; persistentSelIds.add(c.dataset.id); });
+  } else {
+    persistentSelIds.clear();
+    document.querySelectorAll('.rcb').forEach(c => c.checked=false);
+  }
+  updateSelBar();
+}
+function toggleRowSel(cb) {
+  if (cb.checked) persistentSelIds.add(cb.dataset.id);
+  else persistentSelIds.delete(cb.dataset.id);
+  updateSelBar();
+}
+function getCheckedIds() { return [...persistentSelIds]; }
 function updateSelBar() {
-  const ids   = getCheckedIds();
+  const count = persistentSelIds.size;
   const total = document.querySelectorAll('.rcb').length;
-  if (EL.selCount) EL.selCount.textContent = `${ids.length} row${ids.length!==1?'s':''} selected`;
-  if (EL.selBar)   EL.selBar.classList.toggle('on', ids.length>0);
+  const checkedOnPage = document.querySelectorAll('.rcb:checked').length;
+  if (EL.selCount) EL.selCount.textContent = `${count} row${count!==1?'s':''} selected`;
+  if (EL.selBar)   EL.selBar.classList.toggle('on', count>0);
   if (EL.selAll) {
-    EL.selAll.indeterminate = ids.length>0 && ids.length<total;
-    if (total>0) EL.selAll.checked = ids.length===total;
+    EL.selAll.indeterminate = checkedOnPage>0 && checkedOnPage<total;
+    EL.selAll.checked = total>0 && checkedOnPage===total;
   }
 }
 function rowClick(e, id) {
@@ -467,6 +482,51 @@ const mMap = {
   mProvOSF:'provOSF',mProvMRC:'provMRC',mProvOTRF:'provOTRF',mProvCPM:'provCPM',
   mTypeSession:'typeSession',mRoute:'route',mDeactDate:'deactDate',mPrevClient:'prevClient'
 };
+const FEE_FIELDS = [
+  ['mClientOSFSel','mClientOSF'],['mClientMRCSel','mClientMRC'],
+  ['mClientOTRFSel','mClientOTRF'],['mClientCPMSel','mClientCPM'],
+  ['mProvOSFSel','mProvOSF'],['mProvMRCSel','mProvMRC'],
+  ['mProvOTRFSel','mProvOTRF'],['mProvCPMSel','mProvCPM']
+];
+const BE_FEE_FIELDS = [
+  ['beClientOSFSel','beClientOSF'],['beClientMRCSel','beClientMRC'],
+  ['beClientOTRFSel','beClientOTRF'],['beClientCPMSel','beClientCPM'],
+  ['beProvOSFSel','beProvOSF'],['beProvMRCSel','beProvMRC'],
+  ['beProvOTRFSel','beProvOTRF'],['beProvCPMSel','beProvCPM']
+];
+function onFeeSel(sel) {
+  const inputId = sel.id.replace('Sel','');
+  const inp = document.getElementById(inputId);
+  if (!inp) return;
+  if (sel.value === '__amt__') {
+    inp.style.display = '';
+    inp.value = '';
+    inp.focus();
+  } else {
+    inp.style.display = 'none';
+    inp.value = sel.value;
+  }
+}
+function initFeeField(selId, inputId, val) {
+  const sel = document.getElementById(selId);
+  const inp = document.getElementById(inputId);
+  if (!sel || !inp) return;
+  if (!val) {
+    sel.value = ''; inp.value = ''; inp.style.display = 'none';
+  } else if (['Waived','POC','NA'].includes(val)) {
+    sel.value = val; inp.value = val; inp.style.display = 'none';
+  } else {
+    sel.value = '__amt__'; inp.value = val; inp.style.display = '';
+  }
+}
+function resetFeeSelects(fieldPairs) {
+  fieldPairs.forEach(([selId, inputId]) => {
+    const sel = document.getElementById(selId);
+    const inp = document.getElementById(inputId);
+    if (sel) sel.value = '';
+    if (inp) { inp.value = ''; inp.style.display = 'none'; }
+  });
+}
 function setSelectVal(el, val) {
   el.value = val;
   if (el.tagName==='SELECT' && el.value!==val) {
@@ -478,6 +538,7 @@ function clearMo() {
   Object.keys(mMap).forEach(id => {
     const el = document.getElementById(id); if (el) el.value = id==='mStatus'?'Available':id==='mPosted'?'No':'';
   });
+  resetFeeSelects(FEE_FIELDS);
   document.getElementById('mNumber')?.classList.remove('err');
 }
 function fillMo(r) {
@@ -486,6 +547,10 @@ function fillMo(r) {
     const el = document.getElementById(id); if (!el || r[key]===undefined) return;
     const v = DATE_FIELDS.has(id) ? sanitizeDate(r[key]) : r[key];
     if (el.tagName==='SELECT') setSelectVal(el,v); else el.value=v;
+  });
+  FEE_FIELDS.forEach(([selId, inputId]) => {
+    const key = mMap[inputId];
+    if (key !== undefined) initFeeField(selId, inputId, r[key] || '');
   });
 }
 function openAdd() {
@@ -580,6 +645,7 @@ function delRec(id) {
     try {
       await fdb.collection('inventory').doc(id).delete();
       DB = DB.filter(x => x.id!==id); fd = fd.filter(x => x.id!==id);
+      persistentSelIds.delete(id);
       if (r) await addLog('Deleted', `Deleted number ${r.number}`);
       renderTbl(); closeSP();
       if (savedRec) {
@@ -619,9 +685,15 @@ async function handleCSV(e) {
       nd[field] = (['client','product','provider','route'].includes(field)) ? v.toUpperCase() : v;
     });
     if (!nd.number) { warnings.push(`Row ${i+1}: missing Number — skipped`); continue; }
-    if (nd.status && !VALID_STATUSES.has(nd.status)) {
-      warnings.push(`Row ${i+1}: invalid status "${nd.status}" — cleared`);
-      nd.status = '';
+    if (nd.status) {
+      const trimmed = nd.status.trim();
+      const matched = ['Active','Available','Reserved','Inactive'].find(s => s.toLowerCase() === trimmed.toLowerCase());
+      if (matched) {
+        nd.status = matched;
+      } else {
+        warnings.push(`Row ${i+1}: invalid status "${nd.status}" — cleared`);
+        nd.status = '';
+      }
     }
     DATE_CSV_FIELDS.forEach(field => {
       if (nd[field]) {
@@ -836,6 +908,7 @@ function delSelected() {
       }
       const nums = ids.map(id => DB.find(r => r.id===id)?.number).filter(Boolean).join(', ');
       DB = DB.filter(r => !ids.includes(r.id)); fd = fd.filter(r => !ids.includes(r.id));
+      ids.forEach(id => persistentSelIds.delete(id));
       await addLog('Deleted', `Bulk deleted ${ids.length} records: ${nums}`);
       renderTbl(); closeSP();
       showUndoToast(`Deleted ${ids.length} records`, async () => {
@@ -872,6 +945,7 @@ function openBulkEdit() {
   const ids = getCheckedIds(); if (!ids.length) return;
   document.getElementById('beTitle').textContent = `Bulk Edit — ${ids.length} record${ids.length!==1?'s':''}`;
   Object.keys(BE_FIELD_MAP).forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  resetFeeSelects(BE_FEE_FIELDS);
   document.getElementById('beOv').classList.add('on');
 }
 function closeBE() { document.getElementById('beOv').classList.remove('on'); }
