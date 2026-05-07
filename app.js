@@ -102,7 +102,7 @@ let DB=[], LOGS=[], recentViewed=[];
 let fd=[], fl=[];
 let pg=1, sortCol=null, sortDir=1;
 let lpg=1, lSortCol=null, lSortDir=1;
-let curRec=null, editId=null, moreOpen=false;
+let curRec=null, editId=null, moreOpen=false, showDupes=false;
 let _editUpdatedAt=null;
 let currentUser=null, currentRole='viewer';
 let USERS=[];
@@ -339,6 +339,17 @@ function wildcardToRegex(s) {
   const anchored = (s[0]!=='*' ? '^' : '') + esc2 + (s[s.length-1]!=='*' ? '$' : '');
   return new RegExp(anchored, 'i');
 }
+function getDupeSet() {
+  const counts = {};
+  DB.forEach(r => {
+    if (!r.number || String(r.number).trim().toUpperCase() === 'NA') return;
+    const key = normalizePhone(r.number);
+    if (!key) return;
+    counts[key] = (counts[key] || 0) + 1;
+  });
+  const dupeKeys = new Set(Object.keys(counts).filter(k => counts[k] > 1));
+  return dupeKeys;
+}
 function applyF() {
   const s  = document.getElementById('fSearch').value.toLowerCase();
   const cl = document.getElementById('fClient').value;
@@ -348,6 +359,7 @@ function applyF() {
   const df = document.getElementById('fDateFrom').value;
   const dt = document.getElementById('fDateTo').value;
   const sRe = s ? wildcardToRegex(s) : null;
+  const dupeSet = showDupes ? getDupeSet() : null;
   fd = DB.filter(r => {
     if (sRe && !Object.values(r).some(v => v != null && sRe.test(String(v).toLowerCase()))) return false;
     if (cl && r.client!==cl)   return false;
@@ -356,6 +368,10 @@ function applyF() {
     if (pv && r.provider!==pv) return false;
     if (df && r.actDate && r.actDate<df) return false;
     if (dt && r.actDate && r.actDate>dt) return false;
+    if (dupeSet) {
+      if (!r.number || String(r.number).trim().toUpperCase() === 'NA') return false;
+      if (!dupeSet.has(normalizePhone(r.number))) return false;
+    }
     return true;
   });
   pg=1; renderTbl();
@@ -363,7 +379,16 @@ function applyF() {
 function clearF() {
   ['fSearch','fDateFrom','fDateTo'].forEach(id => document.getElementById(id).value='');
   ['fClient','fStatus','fProduct','fProvider'].forEach(id => document.getElementById(id).value='');
+  if (showDupes) {
+    showDupes = false;
+    document.getElementById('btnDupes').classList.remove('active');
+  }
   fd=[...DB]; pg=1; renderTbl();
+}
+function toggleDupes() {
+  showDupes = !showDupes;
+  document.getElementById('btnDupes').classList.toggle('active', showDupes);
+  applyF();
 }
 function toggleMore() {
   moreOpen = !moreOpen;
