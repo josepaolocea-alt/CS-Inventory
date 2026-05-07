@@ -29,11 +29,23 @@ function esc(s) {
 const fmt = iso => iso ? iso.replace(/(\d{4})-(\d{2})-(\d{2})/,'$2/$3/$1') : '—';
 function sanitizeDate(v) {
   if (!v) return '';
-  const s = String(v);
+  const s = String(v).trim();
+  // YYYY-MM-DD
   const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  // MM/DD/YYYY
   const m2 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
   if (m2) return `${m2[3]}-${m2[1].padStart(2,'0')}-${m2[2].padStart(2,'0')}`;
+  // D-Mon-YY or D-Mon-YYYY (e.g. 8-Dec-14, 27-May-2020)
+  const MONTHS = {jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12'};
+  const m3 = s.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{2,4})$/);
+  if (m3) {
+    const mon = MONTHS[m3[2].toLowerCase()];
+    if (mon) {
+      const yr = m3[3].length === 2 ? (parseInt(m3[3]) >= 50 ? '19' : '20') + m3[3] : m3[3];
+      return `${yr}-${mon}-${m3[1].padStart(2,'0')}`;
+    }
+  }
   return '';
 }
 function parseCSVLine(line) {
@@ -604,7 +616,14 @@ async function handleCSV(e) {
     nd.updatedAt = new Date().toISOString();
     const existing = DB.find(r => r.number===nd.number);
     if (existing) {
-      ops.push({type:'update', ref:fdb.collection('inventory').doc(existing.id), data:nd, id:existing.id});
+      // Strip empty-string values so existing non-blank data is not overwritten
+      const updateData = {updatedBy: nd.updatedBy, updatedAt: nd.updatedAt};
+      Object.entries(nd).forEach(([k, v]) => {
+        if (k !== 'updatedBy' && k !== 'updatedAt' && v !== '' && v !== null && v !== undefined) {
+          updateData[k] = v;
+        }
+      });
+      ops.push({type:'update', ref:fdb.collection('inventory').doc(existing.id), data:updateData, id:existing.id});
     } else {
       nd.createdBy = currentUser?.email||'system';
       nd.createdAt = new Date().toISOString();
