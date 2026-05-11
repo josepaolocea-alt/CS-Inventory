@@ -366,7 +366,10 @@ function applyF() {
   const sRe = s ? wildcardToRegex(s) : null;
   const dupeSet = showDupes ? getDupeSet() : null;
   fd = DB.filter(r => {
-    if (sRe && !Object.values(r).some(v => v != null && sRe.test(String(v).toLowerCase()))) return false;
+    if (sRe) {
+      const SKIP = new Set(['id','createdBy','updatedBy','createdAt','updatedAt']);
+      if (!Object.entries(r).some(([k,v]) => !SKIP.has(k) && v != null && sRe.test(String(v).toLowerCase()))) return false;
+    }
     if (cl && r.client!==cl)   return false;
     if (st && r.status!==st)   return false;
     if (pr && r.product!==pr)  return false;
