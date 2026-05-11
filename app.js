@@ -61,14 +61,13 @@ function parseCSVLine(line) {
 // Strip formatting and leading country/area codes to get a bare local number for comparison.
 // Treats +63/63/0/02/2 prefixes as equivalent so different regional formats match the same entry.
 function normalizePhone(n) {
-  const digits = String(n == null ? '' : n).replace(/\D/g, '');
-  // Strip known prefixes longest-first so we don't partially strip
-  if (digits.startsWith('632'))  return digits.slice(3);
-  if (digits.startsWith('63'))   return digits.slice(2);
-  if (digits.startsWith('02'))   return digits.slice(2);
-  if (digits.startsWith('0'))    return digits.slice(1);
-  // Strip Metro Manila area code '2' from 9-digit numbers (e.g. 282308167 → 82308167)
-  if (digits.startsWith('2') && digits.length === 9) return digits.slice(1);
+  let digits = String(n == null ? '' : n).replace(/\D/g, '');
+  // Step 1: strip country code or trunk prefix
+  if (digits.startsWith('63'))       digits = digits.slice(2);
+  else if (digits.startsWith('02'))  digits = digits.slice(2);
+  else if (digits.startsWith('0'))   digits = digits.slice(1);
+  // Step 2: strip Metro Manila area code '2' from 9-digit numbers (e.g. 279182881 → 79182881)
+  if (digits.startsWith('2') && digits.length === 9) digits = digits.slice(1);
   return digits;
 }
 function bclass(s) { return {Active:'b-active',Available:'b-available',Reserved:'b-reserved',Inactive:'b-inactive'}[s]||''; }
