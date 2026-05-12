@@ -209,6 +209,7 @@ async function loadInventory() {
   try {
     const snap = await fdb.collection('inventory').orderBy('client').get();
     DB = snap.docs.map(d => ({...d.data(), id:d.id}));
+    DB.sort((a, b) => (b.updatedAt || b.createdAt || '').localeCompare(a.updatedAt || a.createdAt || ''));
     fd = [...DB]; renderTbl(); renderDash();
   } catch(e) { console.error('loadInventory:', e); }
 }
@@ -390,6 +391,8 @@ function clearF() {
     showDupes = false;
     document.getElementById('btnDupes').classList.remove('active');
   }
+  sortCol=null; sortDir=1;
+  document.querySelectorAll('#invTbl th').forEach(th => th.classList.remove('asc','desc'));
   fd=[...DB]; pg=1; renderTbl();
 }
 function toggleDupes() {
