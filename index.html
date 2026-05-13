@@ -29,9 +29,16 @@
   </div>
   <div class="nav-right">
     <button class="nav-user" id="navUser" title="Signed in">—</button>
-    <button class="nav-ico" id="syncBtn" title="Sync — pull latest data from server" onclick="syncData()">↻</button>
-    <button class="nav-ico" title="Sign out" onclick="doSignOut()">⏻</button>
-    <button class="nav-ico" title="Toggle dark / light mode" id="themeBtn" onclick="toggleTheme()">◐</button>
+    <button class="nav-ico" id="syncBtn" title="Sync - pull latest data from server" aria-label="Sync data" onclick="syncData()">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 0 1-14.7 7"/><path d="M3 12A9 9 0 0 1 17.7 5"/><path d="M7 19H3v4"/><path d="M17 5h4V1"/></svg>
+    </button>
+    <button class="nav-ico" title="Sign out" aria-label="Sign out" onclick="doSignOut()">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+    </button>
+    <button class="nav-ico" title="Switch to light mode" aria-label="Switch to light mode" id="themeBtn" onclick="toggleTheme()">
+      <svg class="theme-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+      <svg class="theme-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.2 14.4A8.3 8.3 0 0 1 9.6 3.8 8.8 8.8 0 1 0 20.2 14.4Z"/></svg>
+    </button>
   </div>
 </nav>
 
@@ -182,6 +189,7 @@
       <input type="date" class="finp" id="lTo" onchange="applyLF()" style="width:140px">
       <button class="btn" onclick="clearLF()">Clear</button>
       <button class="btn btn-p" onclick="exportLogs()">Export</button>
+      <button class="btn btn-d" onclick="clearFilteredLogs()">Clear Matching</button>
       <button class="btn btn-d" onclick="clearAllLogs()">Clear All</button>
     </div>
   </div>
@@ -533,14 +541,14 @@
 <div class="mo-ov" id="clearLogsOv" style="z-index:600">
   <div class="mo" style="width:360px;max-width:94vw">
     <div class="mo-head" style="border-bottom:none;padding-bottom:4px">
-      <span class="mo-title">Clear All Logs</span>
+      <span class="mo-title" id="clearLogsTitle">Clear All Logs</span>
       <button class="act-btn" onclick="document.getElementById('clearLogsOv').classList.remove('on')" style="font-size:17px;color:var(--t2)">✕</button>
     </div>
     <div class="mo-body" style="text-align:center;padding:8px 24px 20px">
       <div style="font-size:38px;margin-bottom:12px">🗑️</div>
-      <p style="font-size:14.5px;font-weight:600;color:var(--t1);margin-bottom:6px">Clear all logs?</p>
-      <p style="font-size:13px;color:var(--t2)">This will permanently delete all log entries.</p>
-      <p style="font-size:12px;color:var(--t2);margin-top:8px">This cannot be undone.</p>
+      <p id="clearLogsQuestion" style="font-size:14.5px;font-weight:600;color:var(--t1);margin-bottom:6px">Clear all logs?</p>
+      <p id="clearLogsDesc" style="font-size:13px;color:var(--t2)">This will permanently delete all log entries.</p>
+      <p id="clearLogsNote" style="font-size:12px;color:var(--t2);margin-top:8px">This cannot be undone.</p>
     </div>
     <div class="mo-foot" style="justify-content:center;gap:10px;padding:12px 17px 16px">
       <button class="btn" style="min-width:90px" onclick="document.getElementById('clearLogsOv').classList.remove('on')">Cancel</button>

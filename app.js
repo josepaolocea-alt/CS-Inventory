@@ -112,14 +112,22 @@ let SELECTIONS={clients:[],products:[],providers:[],routes:[]};
 let persistentSelIds = new Set();
 let umEditUid=null, _secondApp=null;
 
+function updateThemeButton() {
+  const btn = document.getElementById('themeBtn');
+  if (!btn) return;
+  const dark = document.documentElement.hasAttribute('data-dark');
+  const label = dark ? 'Switch to light mode' : 'Switch to dark mode';
+  btn.title = label;
+  btn.setAttribute('aria-label', label);
+}
+
 // ── THEME INIT (runs immediately on script load) ──────
 (function() {
   const t = localStorage.getItem('cs-inv-theme');
   if (t === 'light') {
     document.documentElement.removeAttribute('data-dark');
-    const btn = document.getElementById('themeBtn');
-    if (btn) btn.textContent = '◑';
   }
+  updateThemeButton();
 })();
 
 // ── TOAST ─────────────────────────────────────────────
@@ -160,7 +168,7 @@ function toggleTheme() {
   const h = document.documentElement;
   const dark = h.hasAttribute('data-dark');
   dark ? h.removeAttribute('data-dark') : h.setAttribute('data-dark','');
-  document.getElementById('themeBtn').textContent = dark ? '◑' : '◐';
+  updateThemeButton();
   localStorage.setItem('cs-inv-theme', dark ? 'light' : 'dark');
   setTimeout(drawChart, 40);
 }
@@ -886,20 +894,82 @@ function clearLF() {
 function exportLogs() {
   dlCSV([['#','Date & Time','User','Action','Details'],...fl.map((r,i) => [i+1,r.datetime,r.user,r.action,r.details])], 'logs_export.csv');
 }
-function clearAllLogs() {
+function getLogFilterState() {
+  const act = document.getElementById('lAction').value;
+  const df  = document.getElementById('lFrom').value;
+  const dt  = document.getElementById('lTo').value;
+  const parts = [];
+  if (act) parts.push(`Action: ${act}`);
+  if (df) parts.push(`From: ${fmt(df)}`);
+  if (dt) parts.push(`To: ${fmt(dt)}`);
+  return {act, df, dt, summary: parts.join(', ')};
+}
+async function deleteLogsByIds(ids) {
+  const CHUNK = 400;
+  for (let i=0; i<ids.length; i+=CHUNK) {
+    const batch = fdb.batch();
+    ids.slice(i,i+CHUNK).forEach(id => batch.delete(fdb.collection('logs').doc(id)));
+    await batch.commit();
+  }
+  const gone = new Set(ids);
+  LOGS = LOGS.filter(r => !gone.has(r.id));
+  applyLF();
+}
+function openClearLogsConfirm({title, question, desc, note, buttonText, onConfirm}) {
   const ov = document.getElementById('clearLogsOv');
-  document.getElementById('clearLogsConfirmBtn').onclick = async function() {
+  document.getElementById('clearLogsTitle').textContent = title;
+  document.getElementById('clearLogsQuestion').textContent = question;
+  document.getElementById('clearLogsDesc').textContent = desc;
+  document.getElementById('clearLogsNote').textContent = note;
+  const btn = document.getElementById('clearLogsConfirmBtn');
+  const fresh = btn.cloneNode(true); btn.replaceWith(fresh);
+  fresh.textContent = buttonText;
+  fresh.onclick = async function() {
     ov.classList.remove('on');
-    try {
-      const snap = await fdb.collection('logs').get();
-      const batch = fdb.batch();
-      snap.docs.forEach(d => batch.delete(d.ref));
-      await batch.commit();
-      LOGS=[]; fl=[]; renderLogs();
-      showToast('All logs cleared.', 'info');
-    } catch(e) { showToast('Error: '+e.message, 'error'); }
+    await onConfirm();
   };
   ov.classList.add('on');
+}
+function clearFilteredLogs() {
+  const {act, df, dt, summary} = getLogFilterState();
+  if (!act && !df && !dt) {
+    showToast('Choose a log filter first, or use Clear All.', 'warning');
+    return;
+  }
+  const ids = fl.map(r => r.id).filter(Boolean);
+  if (!ids.length) {
+    showToast('No matching logs to clear.', 'warning');
+    return;
+  }
+  openClearLogsConfirm({
+    title: 'Clear Matching Logs',
+    question: `Clear ${ids.length} matching log${ids.length!==1?'s':''}?`,
+    desc: `This will permanently delete logs matching: ${summary}.`,
+    note: 'This cannot be undone.',
+    buttonText: `Clear ${ids.length}`,
+    onConfirm: async () => {
+      try {
+        await deleteLogsByIds(ids);
+        showToast(`Cleared ${ids.length} matching log${ids.length!==1?'s':''}.`, 'info');
+      } catch(e) { showToast('Error: '+e.message, 'error'); }
+    }
+  });
+}
+function clearAllLogs() {
+  openClearLogsConfirm({
+    title: 'Clear All Logs',
+    question: 'Clear all logs?',
+    desc: 'This will permanently delete all log entries.',
+    note: 'This cannot be undone.',
+    buttonText: 'Clear All',
+    onConfirm: async () => {
+      try {
+        const snap = await fdb.collection('logs').get();
+        await deleteLogsByIds(snap.docs.map(d => d.id));
+        showToast('All logs cleared.', 'info');
+      } catch(e) { showToast('Error: '+e.message, 'error'); }
+    }
+  });
 }
 function sortL(col) {
   if (lSortCol===col) lSortDir*=-1; else { lSortCol=col; lSortDir=1; }
