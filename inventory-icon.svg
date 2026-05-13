@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Inventory box">
+  <rect width="64" height="64" rx="14" fill="#1e2a3a"/>
+  <path d="M14 22.5 32 12l18 10.5-18 10.4L14 22.5Z" fill="#f7c948"/>
+  <path d="M14 22.5 32 32.9v19L14 41.5v-19Z" fill="#4f8ef7"/>
+  <path d="M50 22.5 32 32.9v19l18-10.4v-19Z" fill="#34d399"/>
+  <path d="M23 17.3 41 27.8v7.8l-4.8 2.8v-7.8L18.2 20l4.8-2.7Z" fill="#ffffff" opacity=".82"/>
+  <path d="M21 39.5 28 43.5M21 34.5 25 36.8" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity=".86"/>
+</svg>

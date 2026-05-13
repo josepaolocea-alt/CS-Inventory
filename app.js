@@ -71,6 +71,7 @@ function normalizePhone(n) {
   return digits;
 }
 function bclass(s) { return {Active:'b-active',Available:'b-available',Reserved:'b-reserved',Inactive:'b-inactive'}[s]||''; }
+function postedClass(s) { return String(s).toLowerCase()==='yes' ? 'b-posted-yes' : 'b-posted-no'; }
 function roleBadge(role) {
   const m = {admin:['rb-admin','Admin'],'semi-admin':['rb-semi','Semi-Admin'],viewer:['rb-viewer','Viewer']};
   const [cls,lbl] = m[role] || ['rb-viewer', role];
@@ -411,7 +412,7 @@ function toggleMore() {
 }
 
 // ── SORT ──────────────────────────────────────────────
-const colIdx = {client:2,product:3,number:4,status:5,remarks:6};
+const colIdx = {client:2,product:3,number:4,status:5,postedStatus:6,remarks:7};
 function sortBy(col) {
   if (sortCol===col) sortDir*=-1; else { sortCol=col; sortDir=1; }
   fd.sort((a,b) => (a[col]||'').localeCompare(b[col]||'')*sortDir);
@@ -430,13 +431,14 @@ function renderTbl() {
   if (EL.pgPrev)   EL.pgPrev.disabled      = pg<=1;
   if (EL.pgNext)   EL.pgNext.disabled      = pg>=tp;
   if (EL.invBody)  EL.invBody.innerHTML    = fd.slice(s,e).map((r,i) => `
-    <tr onclick="rowClick(event,'${esc(r.id)}')">
+    <tr style="--row-i:${i}" onclick="rowClick(event,'${esc(r.id)}')">
       <td onclick="event.stopPropagation()"><input type="checkbox" class="rcb" data-id="${esc(r.id)}" ${persistentSelIds.has(r.id)?'checked':''} onchange="toggleRowSel(this)"></td>
       <td class="row-num">${s+i+1}</td>
       <td>${esc(r.client)}</td>
       <td>${esc(r.product)}</td>
       <td class="num-cell" style="color:var(--accent);font-weight:500">${esc(r.number)}</td>
       <td><span class="badge ${bclass(r.status)}">${esc(r.status)}</span></td>
+      <td><span class="badge ${postedClass(r.postedStatus)}">${esc(r.postedStatus || 'No')}</span></td>
       <td>${esc(r.remarks)}</td>
       <td onclick="event.stopPropagation()">
         <div class="act-btns">
