@@ -111,6 +111,7 @@ let USERS=[];
 let SELECTIONS={clients:[],products:[],providers:[],routes:[]};
 let persistentSelIds = new Set();
 let umEditUid=null, _secondApp=null;
+let effDateTouched=false, actDateTouched=false, bulkEffDateTouched=false, bulkActDateTouched=false;
 
 function updateThemeButton() {
   const btn = document.getElementById('themeBtn');
@@ -554,6 +555,33 @@ const BE_FEE_FIELDS = [
   ['beProvOSFSel','beProvOSF'],['beProvMRCSel','beProvMRC'],
   ['beProvOTRFSel','beProvOTRF'],['beProvCPMSel','beProvCPM']
 ];
+function bindDateMirror(effId, actId, isActTouched, setEffTouched, setActTouched) {
+  const eff = document.getElementById(effId);
+  const act = document.getElementById(actId);
+  if (!eff || !act || eff.dataset.mirrorBound) return;
+  const mirror = () => {
+    setEffTouched(true);
+    if (!isActTouched()) act.value = eff.value;
+  };
+  eff.addEventListener('input', mirror);
+  eff.addEventListener('change', mirror);
+  act.addEventListener('input', () => setActTouched(true));
+  act.addEventListener('change', () => setActTouched(true));
+  eff.dataset.mirrorBound = '1';
+}
+function initDateMirrors() {
+  bindDateMirror('mEffDate','mActDate',() => actDateTouched,v => { effDateTouched=v; },v => { actDateTouched=v; });
+  bindDateMirror('beEffDate','beActDate',() => bulkActDateTouched,v => { bulkEffDateTouched=v; },v => { bulkActDateTouched=v; });
+}
+function resetDateMirror(scope) {
+  if (scope === 'bulk') {
+    bulkEffDateTouched = false;
+    bulkActDateTouched = false;
+  } else {
+    effDateTouched = false;
+    actDateTouched = false;
+  }
+}
 function onFeeSel(sel) {
   const inputId = sel.id.replace('Sel','');
   const inp = document.getElementById(inputId);
@@ -595,6 +623,7 @@ function setSelectVal(el, val) {
   }
 }
 function clearMo() {
+  resetDateMirror('single');
   Object.keys(mMap).forEach(id => {
     const el = document.getElementById(id); if (el) el.value = id==='mStatus'?'Available':id==='mPosted'?'No':'';
   });
@@ -603,6 +632,7 @@ function clearMo() {
 }
 function fillMo(r) {
   _editUpdatedAt = r.updatedAt || null;
+  resetDateMirror('single');
   Object.entries(mMap).forEach(([id,key]) => {
     const el = document.getElementById(id); if (!el || r[key]===undefined) return;
     const v = DATE_FIELDS.has(id) ? sanitizeDate(r[key]) : r[key];
@@ -637,6 +667,9 @@ async function saveRec() {
   }
   numEl?.classList.remove('err');
 
+  if (effDateTouched && !actDateTouched) {
+    document.getElementById('mActDate').value = document.getElementById('mEffDate').value;
+  }
   const nd = {};
   Object.entries(mMap).forEach(([id,key]) => { const el=document.getElementById(id); if(el) nd[key]=el.value; });
   nd.updatedBy = currentUser?.email || 'system';
@@ -1070,6 +1103,7 @@ const BE_FIELD_MAP = {
 function openBulkEdit() {
   const ids = getCheckedIds(); if (!ids.length) return;
   document.getElementById('beTitle').textContent = `Bulk Edit — ${ids.length} record${ids.length!==1?'s':''}`;
+  resetDateMirror('bulk');
   Object.keys(BE_FIELD_MAP).forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
   resetFeeSelects(BE_FEE_FIELDS);
   document.getElementById('beOv').classList.add('on');
@@ -1077,6 +1111,9 @@ function openBulkEdit() {
 function closeBE() { document.getElementById('beOv').classList.remove('on'); }
 async function saveBulkEdit() {
   const ids = getCheckedIds(); if (!ids.length) return;
+  if (bulkEffDateTouched && !bulkActDateTouched) {
+    document.getElementById('beActDate').value = document.getElementById('beEffDate').value;
+  }
   const updates = {};
   Object.entries(BE_FIELD_MAP).forEach(([elId,field]) => {
     const el = document.getElementById(elId); if (!el) return;
@@ -1441,5 +1478,6 @@ document.addEventListener('keydown', e => {
 
 // ── INIT ──────────────────────────────────────────────
 initEL();
+initDateMirrors();
 if (EL.pgSize) EL.pgSize.value = '50';
 renderDash(); renderTbl(); renderLogs();
