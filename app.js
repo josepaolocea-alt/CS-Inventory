@@ -219,9 +219,27 @@ async function loadInventory() {
   try {
     const snap = await fdb.collection('inventory').orderBy('client').get();
     DB = snap.docs.map(d => ({...d.data(), id:d.id}));
-    DB.sort((a, b) => (b.updatedAt || b.createdAt || '').localeCompare(a.updatedAt || a.createdAt || ''));
-    fd = [...DB]; renderTbl(); renderDash();
+    refreshInventoryRecent();
   } catch(e) { console.error('loadInventory:', e); }
+}
+function activityStamp(r) {
+  return r?.updatedAt || r?.createdAt || '';
+}
+function sortInventoryByActivity() {
+  DB.sort((a,b) => activityStamp(b).localeCompare(activityStamp(a)) || String(b.id||'').localeCompare(String(a.id||'')));
+}
+function clearInventorySortState() {
+  sortCol = null;
+  sortDir = 1;
+  document.querySelectorAll('#invTbl th').forEach(th => th.classList.remove('asc','desc'));
+}
+function refreshInventoryRecent(resetPage=true) {
+  sortInventoryByActivity();
+  clearInventorySortState();
+  fd = [...DB];
+  if (resetPage) pg = 1;
+  renderTbl();
+  renderDash();
 }
 async function syncData() {
   const btn = document.getElementById('syncBtn');
@@ -690,7 +708,7 @@ async function saveRec() {
       await fdb.collection('inventory').doc(editId).update(nd);
       if (idx>-1) DB[idx] = {...DB[idx], ...nd};
       await addLog('Updated', `Updated number ${nd.number}`);
-      fd=[...DB]; pg=1; renderTbl(); closeMo();
+      refreshInventoryRecent(); closeMo();
       openSP(editId);
       if (oldRec) {
         showUndoToast(`Updated ${nd.number}`, async () => {
@@ -699,7 +717,7 @@ async function saveRec() {
             await fdb.collection('inventory').doc(rid).update(oldData);
             const i = DB.findIndex(r => r.id===rid);
             if (i>-1) DB[i] = {...oldRec};
-            fd=[...DB]; renderTbl(); renderDash();
+            refreshInventoryRecent();
             await addLog('Updated', `Reverted ${oldRec.number} (undo edit)`);
             showToast(`Reverted ${oldRec.number}`, 'success');
           } catch(e) { showToast('Revert failed: '+e.message, 'error'); }
@@ -713,7 +731,7 @@ async function saveRec() {
       const ref = await fdb.collection('inventory').add(nd);
       nd.id = ref.id; DB.push(nd);
       await addLog('Added', `Added number ${nd.number}`);
-      fd=[...DB]; pg=1; renderTbl(); closeMo();
+      refreshInventoryRecent(); closeMo();
       showToast(`Added ${nd.number}`, 'success');
     }
   } catch(e) { showToast('Save error: '+e.message, 'error'); }
@@ -746,8 +764,8 @@ function delRec(id) {
           try {
             const {id:rid, ...data} = savedRec;
             await fdb.collection('inventory').doc(rid).set({...data, id:rid});
-            DB.push(savedRec); fd = [...DB];
-            renderTbl(); renderDash();
+            DB.push(savedRec);
+            refreshInventoryRecent();
             await addLog('Added', `Restored ${savedRec.number} (undo delete)`);
             showToast(`Restored ${savedRec.number}`, 'success');
           } catch(e) { showToast('Restore failed: '+e.message, 'error'); }
@@ -836,7 +854,7 @@ async function handleCSV(e) {
       if (op.type==='update') { const idx=DB.findIndex(r=>r.id===op.id); if(idx>-1) DB[idx]={...DB[idx],...op.data}; updated++; }
       else { DB.push(op.data); added++; }
     });
-    fd=[...DB]; pg=1; renderTbl(); renderDash();
+    refreshInventoryRecent();
     await addLog('CSV Upload', `"${f.name}": ${added} added, ${updated} updated`);
     showToast(`Upload complete — ${added} added, ${updated} updated`, 'success');
   } catch(err) { showToast('Import error: '+err.message, 'error'); }
@@ -1082,7 +1100,7 @@ function delSelected() {
             await b.commit();
           }
           savedRecs.forEach(rec => { if (!DB.find(r => r.id===rec.id)) DB.push(rec); });
-          fd=[...DB]; renderTbl(); renderDash();
+          refreshInventoryRecent();
           await addLog('Added', `Restored ${savedRecs.length} records (undo bulk delete)`);
           showToast(`Restored ${savedRecs.length} records`, 'success');
         } catch(e) { showToast('Restore failed: '+e.message, 'error'); }
@@ -1141,7 +1159,7 @@ async function saveBulkEdit() {
       await b.commit();
     }
     ids.forEach(id => { const idx=DB.findIndex(r=>r.id===id); if(idx>-1) DB[idx]={...DB[idx],...updates}; });
-    fd=[...DB]; pg=1; renderTbl(); renderDash();
+    refreshInventoryRecent();
     await addLog('Updated', `Bulk edited ${ids.length} records: ${dataFields.join(', ')}`);
     closeBE();
     showUndoToast(`Bulk updated ${ids.length} record${ids.length!==1?'s':''}`, async () => {
@@ -1163,7 +1181,7 @@ async function saveBulkEdit() {
           const idx = DB.findIndex(r => r.id===rec.id);
           if (idx>-1) DB[idx] = {...DB[idx], ...rec};
         });
-        fd=[...DB]; renderTbl(); renderDash();
+        refreshInventoryRecent();
         await addLog('Updated', `Reverted bulk edit of ${savedRecs.length} records (undo)`);
         showToast(`Reverted ${savedRecs.length} record${savedRecs.length!==1?'s':''}`, 'success');
       } catch(e) { showToast('Revert failed: '+e.message, 'error'); }
