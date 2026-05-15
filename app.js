@@ -1042,10 +1042,27 @@ function formatLogValue(v) {
   return s || 'blank';
 }
 function changeSummary(changes) {
-  return changes.map(c => `${esc(c.label || FIELD_LABELS[c.field] || c.field || 'Field')}: ${esc(formatLogValue(c.from))} &rarr; ${esc(formatLogValue(c.to))}`).join('<br>');
+  return changes.map(c => {
+    if (c.field === 'status') return `From ${esc(formatLogValue(c.from))} status to ${esc(formatLogValue(c.to))} status`;
+    return `${esc(c.label || FIELD_LABELS[c.field] || c.field || 'Field')}: ${esc(formatLogValue(c.from))} &rarr; ${esc(formatLogValue(c.to))}`;
+  }).join('<br>');
+}
+function inferredLogChanges(r, log) {
+  if (log?.action !== 'Updated' || !Array.isArray(log.fields)) return [];
+  const current = DB.find(x => (r.id && x.id === r.id) || (r.number && x.number === r.number));
+  if (!current) return [];
+  return log.fields.map(field => {
+    if (!(field in r)) return null;
+    const from = r[field] ?? '';
+    const to = current[field] ?? '';
+    if (String(from) === String(to)) return null;
+    return {field, label:FIELD_LABELS[field] || field, from, to};
+  }).filter(Boolean);
 }
 function logRecordDetail(r, log) {
   if (Array.isArray(r.changes) && r.changes.length) return changeSummary(r.changes);
+  const inferred = inferredLogChanges(r, log);
+  if (inferred.length) return changeSummary(inferred);
   if (log?.action === 'Updated' && Array.isArray(log.fields) && log.fields.length) {
     return `${esc(log.fields.map(f => FIELD_LABELS[f] || f).join(', '))} updated`;
   }
