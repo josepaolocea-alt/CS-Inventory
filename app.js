@@ -918,8 +918,8 @@ function closeExportMenu() {
 }
 
 // ── LOGS ──────────────────────────────────────────────
-async function addLog(action, details) {
-  const log = {datetime:new Date().toISOString(), user:currentUser?.email||'system', action, details};
+async function addLog(action, details, extra={}) {
+  const log = {datetime:new Date().toISOString(), user:currentUser?.email||'system', action, details, ...extra};
   try {
     const ref = await fdb.collection('logs').add(log);
     log.id = ref.id; LOGS.unshift(log); fl=[...LOGS]; renderLogs();
@@ -1026,6 +1026,56 @@ function clearAllLogs() {
     }
   });
 }
+function logRecordSummary(r) {
+  return {
+    id: r?.id || '',
+    number: r?.number || '',
+    client: r?.client || '',
+    product: r?.product || '',
+    status: r?.status || ''
+  };
+}
+function logRecordList(log) {
+  if (Array.isArray(log?.records) && log.records.length) {
+    return log.records.map(logRecordSummary).filter(r => r.number || r.id);
+  }
+  const oldDelete = String(log?.details || '').match(/^Bulk deleted \d+ records?:\s*(.+)$/i);
+  if (oldDelete) {
+    return oldDelete[1].split(',').map(n => ({number:n.trim(), client:'', product:'', status:''})).filter(r => r.number);
+  }
+  return [];
+}
+function renderLogDetails(log) {
+  const details = String(log.details || '');
+  const records = logRecordList(log);
+  const m = details.match(/^(.*?)(\d+\s+records?)(.*)$/i);
+  if (!records.length || !m || !log.id) return esc(details);
+  return `${esc(m[1])}<button type="button" class="log-rec-link" onclick="event.stopPropagation();openLogRecords('${esc(log.id)}')">${esc(m[2])}</button>${esc(m[3])}`;
+}
+function openLogRecords(logId) {
+  const log = LOGS.find(r => r.id === logId) || fl.find(r => r.id === logId);
+  if (!log) return;
+  const records = logRecordList(log);
+  const ov = document.getElementById('logRecordsOv');
+  const title = document.getElementById('logRecordsTitle');
+  const meta = document.getElementById('logRecordsMeta');
+  const body = document.getElementById('logRecordsBody');
+  if (!ov || !title || !meta || !body) return;
+  title.textContent = `${log.action || 'Log'} - ${records.length} record${records.length!==1?'s':''}`;
+  meta.textContent = log.details || '';
+  body.innerHTML = records.length ? records.map((r,i) => `
+    <tr>
+      <td class="row-num">${i+1}</td>
+      <td class="num-cell">${esc(r.number || '—')}</td>
+      <td>${esc(r.client || '—')}</td>
+      <td>${esc(r.product || '—')}</td>
+      <td>${r.status ? `<span class="badge ${bclass(r.status)}">${esc(r.status)}</span>` : '—'}</td>
+    </tr>`).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--t3);padding:20px">No record list stored for this log.</td></tr>';
+  ov.classList.add('on');
+}
+function closeLogRecords() {
+  document.getElementById('logRecordsOv')?.classList.remove('on');
+}
 function sortL(col) {
   if (lSortCol===col) lSortDir*=-1; else { lSortCol=col; lSortDir=1; }
   fl.sort((a,b) => (a[col]||'').localeCompare(b[col]||'')*lSortDir);
@@ -1042,7 +1092,7 @@ function renderLogs() {
       <td>${new Date(r.datetime).toLocaleString()}</td>
       <td>${esc(r.user)}</td>
       <td><span class="badge ${ACT_LABELS[r.action]||'b-available'}">${esc(r.action)}</span></td>
-      <td>${esc(r.details)}</td>
+      <td>${renderLogDetails(r)}</td>
     </tr>`).join('');
   if (EL.lInfo)    EL.lInfo.textContent    = `Showing ${Math.min(s+1,total)||0}–${Math.min(e,total)} of ${total} records`;
   if (EL.lPgInfo)  EL.lPgInfo.textContent  = `Page ${lpg} of ${tp}`;
@@ -1080,6 +1130,7 @@ function delSelected() {
   fresh.onclick = async () => {
     document.getElementById('delRecOv').classList.remove('on');
     const savedRecs = ids.map(id => ({...DB.find(r => r.id===id)})).filter(r => r.id);
+    const affectedRecords = savedRecs.map(logRecordSummary);
     try {
       const CHUNK = 400;
       for (let i=0; i<ids.length; i+=CHUNK) {
@@ -1087,10 +1138,9 @@ function delSelected() {
         ids.slice(i,i+CHUNK).forEach(id => b.delete(fdb.collection('inventory').doc(id)));
         await b.commit();
       }
-      const nums = ids.map(id => DB.find(r => r.id===id)?.number).filter(Boolean).join(', ');
       DB = DB.filter(r => !ids.includes(r.id)); fd = fd.filter(r => !ids.includes(r.id));
       ids.forEach(id => persistentSelIds.delete(id));
-      await addLog('Deleted', `Bulk deleted ${ids.length} records: ${nums}`);
+      await addLog('Deleted', `Bulk deleted ${ids.length} records`, {records: affectedRecords});
       renderTbl(); closeSP();
       showUndoToast(`Deleted ${ids.length} records`, async () => {
         try {
@@ -1105,7 +1155,7 @@ function delSelected() {
           }
           savedRecs.forEach(rec => { if (!DB.find(r => r.id===rec.id)) DB.push(rec); });
           refreshInventoryRecent();
-          await addLog('Added', `Restored ${savedRecs.length} records (undo bulk delete)`);
+          await addLog('Added', `Restored ${savedRecs.length} records (undo bulk delete)`, {records: affectedRecords});
           showToast(`Restored ${savedRecs.length} records`, 'success');
         } catch(e) { showToast('Restore failed: '+e.message, 'error'); }
       });
@@ -1154,6 +1204,7 @@ async function saveBulkEdit() {
     dataFields.forEach(f => { saved[f] = r[f] !== undefined ? r[f] : ''; });
     return saved;
   }).filter(Boolean);
+  const affectedRecords = ids.map(id => DB.find(r => r.id===id)).filter(Boolean).map(logRecordSummary);
 
   try {
     const CHUNK = 400;
@@ -1164,7 +1215,7 @@ async function saveBulkEdit() {
     }
     ids.forEach(id => { const idx=DB.findIndex(r=>r.id===id); if(idx>-1) DB[idx]={...DB[idx],...updates}; });
     refreshInventoryRecent();
-    await addLog('Updated', `Bulk edited ${ids.length} records: ${dataFields.join(', ')}`);
+    await addLog('Updated', `Bulk edited ${ids.length} records: ${dataFields.join(', ')}`, {records: affectedRecords, fields:dataFields});
     closeBE();
     showUndoToast(`Bulk updated ${ids.length} record${ids.length!==1?'s':''}`, async () => {
       try {
@@ -1186,7 +1237,7 @@ async function saveBulkEdit() {
           if (idx>-1) DB[idx] = {...DB[idx], ...rec};
         });
         refreshInventoryRecent();
-        await addLog('Updated', `Reverted bulk edit of ${savedRecs.length} records (undo)`);
+        await addLog('Updated', `Reverted bulk edit of ${savedRecs.length} records (undo)`, {records: affectedRecords, fields:dataFields});
         showToast(`Reverted ${savedRecs.length} record${savedRecs.length!==1?'s':''}`, 'success');
       } catch(e) { showToast('Revert failed: '+e.message, 'error'); }
     }, 6000, 'Updated');
@@ -1470,6 +1521,7 @@ async function delAllSelItems(type) {
 // ── EVENT LISTENERS ───────────────────────────────────
 document.getElementById('beOv').addEventListener('click', function(e) { if(e.target===this) closeBE(); });
 document.getElementById('umOv').addEventListener('click', function(e) { if(e.target===this) closeUM(); });
+document.getElementById('logRecordsOv').addEventListener('click', function(e) { if(e.target===this) closeLogRecords(); });
 document.addEventListener('click', () => closeExportMenu());
 window.addEventListener('resize', () => {
   if (document.getElementById('page-dashboard').classList.contains('on')) drawChart();
@@ -1482,6 +1534,7 @@ document.addEventListener('keydown', e => {
     if (document.getElementById('moOv').classList.contains('on'))        { closeMo();  return; }
     if (document.getElementById('beOv').classList.contains('on'))        { closeBE();  return; }
     if (document.getElementById('umOv').classList.contains('on'))        { closeUM();  return; }
+    if (document.getElementById('logRecordsOv').classList.contains('on')){ closeLogRecords(); return; }
     if (document.getElementById('sp').classList.contains('on'))          { closeSP();  return; }
     if (document.getElementById('exportMenu').classList.contains('on'))  { closeExportMenu(); return; }
   }

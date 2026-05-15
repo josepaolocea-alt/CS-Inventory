@@ -209,6 +209,9 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
 .lf-panel{background:var(--bg);border:1px solid var(--border);border-radius:var(--r2);margin-bottom:12px;box-shadow:var(--sh);overflow:hidden}
 .lf-head{display:flex;align-items:center;justify-content:space-between;padding:9px 13px;cursor:pointer;background:var(--bg3);user-select:none}
 .lf-head:hover{background:var(--border)}
+.log-rec-link{background:none;border:none;padding:0;color:var(--accent);font:inherit;font-weight:700;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+.log-rec-link:hover{color:var(--accent-h)}
+.log-records-wrap{box-shadow:none}
 .lf-label{font-size:12.5px;font-weight:600;color:var(--t2)}
 .lf-arrow{font-size:11px;color:var(--t3);transition:.18s}
 .lf-arrow.on{transform:rotate(180deg)}

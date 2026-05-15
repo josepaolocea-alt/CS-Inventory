@@ -537,6 +537,38 @@
   </div>
 </div>
 
+<!-- LOG RECORDS MODAL -->
+<div class="mo-ov" id="logRecordsOv" style="z-index:610">
+  <div class="mo" style="width:620px;max-width:96vw">
+    <div class="mo-head">
+      <span class="mo-title" id="logRecordsTitle">Affected Records</span>
+      <button class="act-btn" onclick="closeLogRecords()" style="font-size:17px;color:var(--t2)">✕</button>
+    </div>
+    <div class="mo-body">
+      <p id="logRecordsMeta" style="font-size:12px;color:var(--t2);margin-bottom:12px"></p>
+      <div class="tbl-wrap log-records-wrap">
+        <div class="tbl-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:42px">#</th>
+                <th>Number</th>
+                <th>Client</th>
+                <th>Product</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="logRecordsBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="mo-foot">
+      <button class="btn" onclick="closeLogRecords()">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- CLEAR ALL LOGS CONFIRM -->
 <div class="mo-ov" id="clearLogsOv" style="z-index:600">
   <div class="mo" style="width:360px;max-width:94vw">
