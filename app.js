@@ -70,7 +70,12 @@ function normalizePhone(n) {
   return digits;
 }
 function bclass(s) { return {Active:'b-active',Available:'b-available',Reserved:'b-reserved',Inactive:'b-inactive'}[s]||''; }
-function postedClass(s) { return String(s).toLowerCase()==='yes' ? 'b-posted-yes' : 'b-posted-no'; }
+function postedClass(s) {
+  const v = String(s || '').trim().toLowerCase();
+  if (v === 'yes') return 'b-posted-yes';
+  if (v === 'not yet') return 'b-posted-notyet';
+  return 'b-posted-no';
+}
 function roleBadge(role) {
   const m = {admin:['rb-admin','Admin'],'semi-admin':['rb-semi','Semi-Admin'],viewer:['rb-viewer','Viewer']};
   const [cls,lbl] = m[role] || ['rb-viewer', role];

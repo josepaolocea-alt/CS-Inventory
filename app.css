@@ -96,11 +96,13 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg2);color:var(
 .b-inactive{background:#f8d7da;color:#721c24}
 .b-posted-yes{background:#d4edda;color:#155724}
 .b-posted-no{background:var(--bg3);color:var(--t2);border:1px solid var(--border)}
+.b-posted-notyet{background:#f8d7da;color:#721c24}
 [data-dark] .b-active{background:#14532d;color:#6ee7b7}
 [data-dark] .b-available{background:#1e3a5f;color:#93c5fd}
 [data-dark] .b-reserved{background:#431407;color:#fcd34d}
 [data-dark] .b-inactive{background:#450a0a;color:#fca5a5}
 [data-dark] .b-posted-yes{background:#14532d;color:#6ee7b7}
+[data-dark] .b-posted-notyet{background:#450a0a;color:#fca5a5}
 
 /* STATUS BAR */
 .sbar{margin-bottom:12px}
