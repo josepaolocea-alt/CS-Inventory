@@ -16,6 +16,7 @@ const STATUSES    = ['Active','Available','Reserved','Inactive'];
 const ACT_LABELS  = {Added:'b-active',Updated:'b-reserved',Deleted:'b-inactive','CSV Upload':'b-available',Exported:'b-available',Login:'b-available'};
 const CSV_HEADERS = ['Client','Product','Number','Status','Remarks','Posted Status','Posted Date','Client OSF','Client MRC','Client OTRF','Client Channel Fee','Client CPM','Effective Date','Activated Date','Provider','Arrival Date','Provider Activation Date','Provider OSF','Provider MRC','Provider OTRF','Provider CPM','Type / Session','Route Request by','Deactivation Date','Previous Client'];
 const CSV_FIELD_MAP = {'Client':'client','Product':'product','Number':'number','Status':'status','Remarks':'remarks','Posted Status':'postedStatus','Posted Date':'postedDate','Client OSF':'clientOSF','Client MRC':'clientMRC','Client OTRF':'clientOTRF','Client Channel Fee':'clientCF','Client CPM':'clientCPM','Effective Date':'effDate','Activated Date':'actDate','Provider':'provider','Arrival Date':'arrDate','Provider Activation Date':'provActDate','Provider OSF':'provOSF','Provider MRC':'provMRC','Provider OTRF':'provOTRF','Provider CPM':'provCPM','Type / Session':'typeSession','Route Request by':'route','Deactivation Date':'deactDate','Previous Client':'prevClient'};
+const FIELD_LABELS = {client:'Client',product:'Product',number:'Number',status:'Status',remarks:'Remarks',postedStatus:'Posted Status',postedDate:'Posted Date',clientOSF:'Client OSF',clientMRC:'Client MRC',clientOTRF:'Client OTRF',clientCF:'Client Channel Fee',clientCPM:'Client CPM',effDate:'Effective Date',actDate:'Activated Date',provider:'Provider',arrDate:'Arrival Date',provActDate:'Provider Activation Date',provOSF:'Provider OSF',provMRC:'Provider MRC',provOTRF:'Provider OTRF',provCPM:'Provider CPM',typeSession:'Type / Session',route:'Route Request by',deactDate:'Deactivation Date',prevClient:'Previous Client'};
 const DATE_FIELDS = new Set(['mPostedDate','mEffDate','mActDate','mArrDate','mProvActDate','mDeactDate']);
 const VALID_STATUSES = new Set(['Active','Available','Reserved','Inactive','']);
 const DATE_CSV_FIELDS = ['postedDate','effDate','actDate','arrDate','provActDate','deactDate'];
@@ -1032,8 +1033,23 @@ function logRecordSummary(r) {
     number: r?.number || '',
     client: r?.client || '',
     product: r?.product || '',
-    status: r?.status || ''
+    status: r?.status || '',
+    changes: Array.isArray(r?.changes) ? r.changes : []
   };
+}
+function formatLogValue(v) {
+  const s = String(v == null ? '' : v).trim();
+  return s || 'blank';
+}
+function changeSummary(changes) {
+  return changes.map(c => `${esc(c.label || FIELD_LABELS[c.field] || c.field || 'Field')}: ${esc(formatLogValue(c.from))} &rarr; ${esc(formatLogValue(c.to))}`).join('<br>');
+}
+function logRecordDetail(r, log) {
+  if (Array.isArray(r.changes) && r.changes.length) return changeSummary(r.changes);
+  if (log?.action === 'Updated' && Array.isArray(log.fields) && log.fields.length) {
+    return `${esc(log.fields.map(f => FIELD_LABELS[f] || f).join(', '))} updated`;
+  }
+  return r.status ? `<span class="badge ${bclass(r.status)}">${esc(r.status)}</span>` : '—';
 }
 function logRecordList(log) {
   if (Array.isArray(log?.records) && log.records.length) {
@@ -1060,7 +1076,10 @@ function openLogRecords(logId) {
   const title = document.getElementById('logRecordsTitle');
   const meta = document.getElementById('logRecordsMeta');
   const body = document.getElementById('logRecordsBody');
+  const lastHead = document.getElementById('logRecordsLastHead');
   if (!ov || !title || !meta || !body) return;
+  const showDetails = log.action === 'Updated';
+  if (lastHead) lastHead.textContent = showDetails ? 'Details' : 'Status';
   title.textContent = `${log.action || 'Log'} - ${records.length} record${records.length!==1?'s':''}`;
   meta.textContent = log.details || '';
   body.innerHTML = records.length ? records.map((r,i) => `
@@ -1069,12 +1088,29 @@ function openLogRecords(logId) {
       <td class="num-cell">${esc(r.number || '—')}</td>
       <td>${esc(r.client || '—')}</td>
       <td>${esc(r.product || '—')}</td>
-      <td>${r.status ? `<span class="badge ${bclass(r.status)}">${esc(r.status)}</span>` : '—'}</td>
+      <td>${showDetails ? logRecordDetail(r, log) : (r.status ? `<span class="badge ${bclass(r.status)}">${esc(r.status)}</span>` : '—')}</td>
     </tr>`).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--t3);padding:20px">No record list stored for this log.</td></tr>';
   ov.classList.add('on');
 }
 function closeLogRecords() {
   document.getElementById('logRecordsOv')?.classList.remove('on');
+}
+function bulkChangeSummary(r, fields, updates) {
+  return {
+    ...logRecordSummary(r),
+    changes: fields.map(field => ({
+      field,
+      label: FIELD_LABELS[field] || field,
+      from: r?.[field] ?? '',
+      to: updates?.[field] ?? ''
+    }))
+  };
+}
+function reverseBulkChanges(records) {
+  return records.map(r => ({
+    ...r,
+    changes: (r.changes || []).map(c => ({...c, from:c.to, to:c.from}))
+  }));
 }
 function sortL(col) {
   if (lSortCol===col) lSortDir*=-1; else { lSortCol=col; lSortDir=1; }
@@ -1204,7 +1240,7 @@ async function saveBulkEdit() {
     dataFields.forEach(f => { saved[f] = r[f] !== undefined ? r[f] : ''; });
     return saved;
   }).filter(Boolean);
-  const affectedRecords = ids.map(id => DB.find(r => r.id===id)).filter(Boolean).map(logRecordSummary);
+  const affectedRecords = ids.map(id => DB.find(r => r.id===id)).filter(Boolean).map(r => bulkChangeSummary(r, dataFields, updates));
 
   try {
     const CHUNK = 400;
@@ -1237,7 +1273,7 @@ async function saveBulkEdit() {
           if (idx>-1) DB[idx] = {...DB[idx], ...rec};
         });
         refreshInventoryRecent();
-        await addLog('Updated', `Reverted bulk edit of ${savedRecs.length} records (undo)`, {records: affectedRecords, fields:dataFields});
+        await addLog('Updated', `Reverted bulk edit of ${savedRecs.length} records (undo)`, {records: reverseBulkChanges(affectedRecords), fields:dataFields});
         showToast(`Reverted ${savedRecs.length} record${savedRecs.length!==1?'s':''}`, 'success');
       } catch(e) { showToast('Revert failed: '+e.message, 'error'); }
     }, 6000, 'Updated');

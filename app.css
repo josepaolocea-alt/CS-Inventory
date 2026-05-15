@@ -212,6 +212,7 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
 .log-rec-link{background:none;border:none;padding:0;color:var(--accent);font:inherit;font-weight:700;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
 .log-rec-link:hover{color:var(--accent-h)}
 .log-records-wrap{box-shadow:none}
+.log-records-wrap td:last-child{white-space:normal;max-width:320px;line-height:1.45}
 .lf-label{font-size:12.5px;font-weight:600;color:var(--t2)}
 .lf-arrow{font-size:11px;color:var(--t3);transition:.18s}
 .lf-arrow.on{transform:rotate(180deg)}
