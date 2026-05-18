@@ -92,7 +92,7 @@ function drHTML(label, valHTML) {
 // ── DOM CACHE ─────────────────────────────────────────
 const EL = {};
 function initEL() {
-  ['invBody','tInfo','pgInfo','pgPrev','pgNext','pgSize','selAll','selBar','selCount',
+  ['invBody','tInfo','pgInfo','pgFirst','pgPrev','pgNext','pgLast','pgSize','selAll','selBar','selCount',
    'logBody','lInfo','lPgInfo','lPgPrev','lPgNext','lPgSize'].forEach(id => EL[id] = document.getElementById(id));
   EL.sTotal    = document.getElementById('s-total');
   EL.sActive   = document.getElementById('s-active');
@@ -460,8 +460,10 @@ function renderTbl() {
   const s = (pg-1)*sz, e = s+sz, total = fd.length, tp = Math.ceil(total/sz)||1;
   if (EL.tInfo)    EL.tInfo.textContent    = `Showing ${Math.min(s+1,total)}–${Math.min(e,total)} of ${total} records`;
   if (EL.pgInfo)   EL.pgInfo.textContent   = `Page ${pg} of ${tp}`;
+  if (EL.pgFirst)  EL.pgFirst.disabled     = pg<=1;
   if (EL.pgPrev)   EL.pgPrev.disabled      = pg<=1;
   if (EL.pgNext)   EL.pgNext.disabled      = pg>=tp;
+  if (EL.pgLast)   EL.pgLast.disabled      = pg>=tp;
   if (EL.invBody)  EL.invBody.innerHTML    = fd.slice(s,e).map((r,i) => `
     <tr style="--row-i:${i}" onclick="rowClick(event,'${esc(r.id)}')">
       <td onclick="event.stopPropagation()"><input type="checkbox" class="rcb" data-id="${esc(r.id)}" ${persistentSelIds.has(r.id)?'checked':''} onchange="toggleRowSel(this)"></td>
@@ -484,6 +486,11 @@ function changePg(d) {
   const sz = parseInt(EL.pgSize?.value || 50);
   const tp = Math.ceil(fd.length/sz)||1;
   pg = Math.max(1, Math.min(pg+d, tp)); renderTbl();
+}
+function goToPage(target) {
+  const sz = parseInt(EL.pgSize?.value || 50);
+  const tp = Math.ceil(fd.length/sz)||1;
+  pg = target === 'first' ? 1 : tp; renderTbl();
 }
 function selAllRows(cb) {
   if (cb.checked) {
