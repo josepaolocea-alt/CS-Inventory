@@ -346,6 +346,7 @@
     <div class="sp-title" id="spTitle">Details</div>
     <div class="sp-btns">
       <button class="btn btn-p btn-sm" id="btnSpEdit" onclick="openEdit()">Edit</button>
+      <button class="btn btn-sm pin-modal-btn" id="btnSpPin" onclick="togglePinSP()">📌 Pin</button>
       <button class="btn btn-sm" onclick="closeSP()">Close</button>
     </div>
   </div>
@@ -434,6 +435,7 @@
     <div class="mo-foot">
       <button class="btn" onclick="closeMo()">Cancel</button>
       <button class="btn btn-d" id="mDeactBtn" style="display:none" onclick="toggleDeactivate('single')">Deactivate</button>
+      <button class="btn pin-modal-btn" id="mPinBtn" style="display:none" onclick="togglePinModal()">📌 Pin</button>
       <button class="btn btn-p" onclick="saveRec()">Save</button>
     </div>
   </div>
@@ -521,6 +523,8 @@
     <div class="mo-foot">
       <button class="btn" onclick="closeBE()">Cancel</button>
       <button class="btn btn-d" id="bDeactBtn" onclick="toggleDeactivate('bulk')">Deactivate Selected</button>
+      <button class="btn pin-modal-btn" onclick="pinSelected()">📌 Pin Selected</button>
+      <button class="btn pin-modal-btn" onclick="unpinSelected()">Unpin Selected</button>
       <button class="btn btn-p" onclick="saveBulkEdit()">Apply to Selected</button>
     </div>
   </div>

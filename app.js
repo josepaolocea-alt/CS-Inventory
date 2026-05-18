@@ -115,6 +115,7 @@ let currentUser=null, currentRole='viewer';
 let USERS=[];
 let SELECTIONS={clients:[],products:[],providers:[],routes:[]};
 let persistentSelIds = new Set();
+let pinnedIds = new Set();
 let umEditUid=null, _secondApp=null;
 let effDateTouched=false, actDateTouched=false, bulkEffDateTouched=false, bulkActDateTouched=false;
 
@@ -230,8 +231,19 @@ async function loadInventory() {
 function activityStamp(r) {
   return r?.updatedAt || r?.createdAt || '';
 }
+function loadPinned() {
+  try { pinnedIds = new Set(JSON.parse(localStorage.getItem('cs-inv-pinned') || '[]')); } catch(e) { pinnedIds = new Set(); }
+}
+function savePinned() {
+  localStorage.setItem('cs-inv-pinned', JSON.stringify([...pinnedIds]));
+}
 function sortInventoryByActivity() {
-  DB.sort((a,b) => activityStamp(b).localeCompare(activityStamp(a)) || String(b.id||'').localeCompare(String(a.id||'')));
+  const pinned = DB.filter(r => pinnedIds.has(r.id));
+  const unpinned = DB.filter(r => !pinnedIds.has(r.id));
+  pinned.sort((a,b) => activityStamp(b).localeCompare(activityStamp(a)) || String(b.id||'').localeCompare(String(a.id||'')));
+  unpinned.sort((a,b) => activityStamp(b).localeCompare(activityStamp(a)) || String(b.id||'').localeCompare(String(a.id||'')));
+  DB.length = 0;
+  for (const r of [...pinned, ...unpinned]) DB.push(r);
 }
 function clearInventorySortState() {
   sortCol = null;
@@ -447,7 +459,10 @@ function toggleMore() {
 const colIdx = {client:2,product:3,number:4,status:5,postedStatus:6,remarks:7};
 function sortBy(col) {
   if (sortCol===col) sortDir*=-1; else { sortCol=col; sortDir=1; }
-  fd.sort((a,b) => (a[col]||'').localeCompare(b[col]||'')*sortDir);
+  const pinnedFd = fd.filter(r => pinnedIds.has(r.id));
+  const unpinnedFd = fd.filter(r => !pinnedIds.has(r.id));
+  unpinnedFd.sort((a,b) => (a[col]||'').localeCompare(b[col]||'')*sortDir);
+  fd = [...pinnedFd, ...unpinnedFd];
   document.querySelectorAll('#invTbl th').forEach(th => th.classList.remove('asc','desc'));
   const ths = [...document.querySelectorAll('#invTbl th')];
   if (colIdx[col]) ths[colIdx[col]].classList.add(sortDir===1?'asc':'desc');
@@ -464,10 +479,12 @@ function renderTbl() {
   if (EL.pgPrev)   EL.pgPrev.disabled      = pg<=1;
   if (EL.pgNext)   EL.pgNext.disabled      = pg>=tp;
   if (EL.pgLast)   EL.pgLast.disabled      = pg>=tp;
-  if (EL.invBody)  EL.invBody.innerHTML    = fd.slice(s,e).map((r,i) => `
-    <tr style="--row-i:${i}" onclick="rowClick(event,'${esc(r.id)}')">
+  if (EL.invBody)  EL.invBody.innerHTML    = fd.slice(s,e).map((r,i) => {
+    const isPinned = pinnedIds.has(r.id);
+    return `
+    <tr style="--row-i:${i}" class="${isPinned?'tr-pinned':''}" onclick="rowClick(event,'${esc(r.id)}')">
       <td onclick="event.stopPropagation()"><input type="checkbox" class="rcb" data-id="${esc(r.id)}" ${persistentSelIds.has(r.id)?'checked':''} onchange="toggleRowSel(this)"></td>
-      <td class="row-num">${s+i+1}</td>
+      <td class="row-num">${isPinned?'<span class="pin-ind" title="Pinned">📌</span>':s+i+1}</td>
       <td>${esc(r.client)}</td>
       <td>${esc(r.product)}</td>
       <td class="num-cell" style="color:var(--accent);font-weight:500">${esc(r.number)}</td>
@@ -476,10 +493,12 @@ function renderTbl() {
       <td>${esc(r.remarks)}</td>
       <td onclick="event.stopPropagation()">
         <div class="act-btns">
+          <button class="act-btn pin-btn${isPinned?' pinned':''}" title="${isPinned?'Unpin this entry':'Pin this entry'}" onclick="togglePin('${esc(r.id)}')">📌</button>
           ${currentRole!=='viewer'?`<button class="act-btn" title="Edit" onclick="openEditById('${esc(r.id)}')">✎</button><button class="act-btn del" title="Delete" onclick="delRec('${esc(r.id)}')">⊗</button>`:''}
         </div>
       </td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
   updateSelBar();
 }
 function changePg(d) {
@@ -507,6 +526,55 @@ function toggleRowSel(cb) {
   updateSelBar();
 }
 function getCheckedIds() { return [...persistentSelIds]; }
+
+function togglePin(id) {
+  if (pinnedIds.has(id)) pinnedIds.delete(id);
+  else pinnedIds.add(id);
+  savePinned();
+  refreshInventoryRecent(false);
+  updatePinBtnState(editId);
+  updateSPPinBtn();
+}
+function pinEntries(ids) {
+  ids.forEach(id => pinnedIds.add(id));
+  savePinned();
+  refreshInventoryRecent(false);
+}
+function unpinEntries(ids) {
+  ids.forEach(id => pinnedIds.delete(id));
+  savePinned();
+  refreshInventoryRecent(false);
+}
+function updatePinBtnState(id) {
+  const btn = document.getElementById('mPinBtn');
+  if (!btn) return;
+  if (!id) { btn.style.display = 'none'; return; }
+  btn.style.display = '';
+  btn.textContent = pinnedIds.has(id) ? '📌 Unpin' : '📌 Pin';
+}
+function togglePinModal() {
+  if (!editId) return;
+  togglePin(editId);
+}
+function togglePinSP() {
+  if (!curRec) return;
+  togglePin(curRec.id);
+}
+function updateSPPinBtn() {
+  const btn = document.getElementById('btnSpPin');
+  if (!btn || !curRec) return;
+  btn.textContent = pinnedIds.has(curRec.id) ? '📌 Unpin' : '📌 Pin';
+}
+function pinSelected() {
+  const ids = getCheckedIds(); if (!ids.length) return;
+  pinEntries(ids);
+  showToast(`Pinned ${ids.length} record${ids.length!==1?'s':''}`, 'success');
+}
+function unpinSelected() {
+  const ids = getCheckedIds(); if (!ids.length) return;
+  unpinEntries(ids);
+  showToast(`Unpinned ${ids.length} record${ids.length!==1?'s':''}`, 'success');
+}
 function updateSelBar() {
   const count = persistentSelIds.size;
   const total = document.querySelectorAll('.rcb').length;
@@ -569,6 +637,7 @@ function openSP(id) {
     </div>`;
   document.getElementById('spOv').classList.add('on');
   document.getElementById('sp').classList.add('on');
+  updateSPPinBtn();
 }
 function closeSP() {
   document.getElementById('spOv').classList.remove('on');
@@ -689,6 +758,7 @@ function openAdd() {
   editId=null; document.getElementById('moTitle').textContent='Add Number';
   clearMo(); resetDeactSection('single');
   const btn = document.getElementById('mDeactBtn'); if (btn) btn.style.display = 'none';
+  updatePinBtnState(null);
   document.getElementById('moOv').classList.add('on');
 }
 function openEdit() { if (curRec) openEditById(curRec.id); }
@@ -697,6 +767,7 @@ function openEditById(id) {
   editId=id; document.getElementById('moTitle').textContent='Edit Number';
   fillMo(r); resetDeactSection('single');
   const btn = document.getElementById('mDeactBtn'); if (btn) btn.style.display = '';
+  updatePinBtnState(id);
   document.getElementById('moOv').classList.add('on');
 }
 function closeMo() { document.getElementById('moOv').classList.remove('on'); }
@@ -1722,5 +1793,6 @@ document.addEventListener('keydown', e => {
 // ── INIT ──────────────────────────────────────────────
 initEL();
 initDateMirrors();
+loadPinned();
 if (EL.pgSize) EL.pgSize.value = '50';
 renderDash(); renderTbl(); renderLogs();
