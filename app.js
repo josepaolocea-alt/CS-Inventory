@@ -552,6 +552,18 @@ function openSP(id) {
       ${dr('Deactivation Date (Prev Client)',fmt(r.deactDate))}
       ${dr('Previous Client',r.prevClient||'—')}
     </div>
+    ${(r.deactivationHistory?.length) ? `<div class="ds"><div class="ds-title">Deactivation History</div>
+      ${[...r.deactivationHistory].reverse().map(h => `
+        <div class="deact-hist-entry">
+          <div class="deact-hist-top">
+            <span class="deact-hist-client">${esc(h.previousClient||'—')}</span>
+            <span class="deact-hist-date">${fmt(h.deactDate)}</span>
+          </div>
+          ${h.requestedBy ? `<div class="deact-hist-row"><span style="color:var(--t3)">Requested by</span> ${esc(h.requestedBy)}</div>` : ''}
+          ${h.remarks ? `<div class="deact-hist-row">${esc(h.remarks)}</div>` : ''}
+          <div class="deact-hist-meta">by ${esc(h.deactivatedBy||'—')} · ${h.deactivatedAt ? new Date(h.deactivatedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—'}</div>
+        </div>`).join('')}
+    </div>` : ''}
     <div class="ds"><div class="ds-title">Meta</div>
       ${dr('Created by',r.createdBy||'—')}${dr('Updated by',r.updatedBy||'—')}
     </div>`;
@@ -675,15 +687,43 @@ function fillMo(r) {
 }
 function openAdd() {
   editId=null; document.getElementById('moTitle').textContent='Add Number';
-  clearMo(); document.getElementById('moOv').classList.add('on');
+  clearMo(); resetDeactSection('single');
+  const btn = document.getElementById('mDeactBtn'); if (btn) btn.style.display = 'none';
+  document.getElementById('moOv').classList.add('on');
 }
 function openEdit() { if (curRec) openEditById(curRec.id); }
 function openEditById(id) {
   const r = DB.find(x => x.id===id); if (!r) return;
   editId=id; document.getElementById('moTitle').textContent='Edit Number';
-  fillMo(r); document.getElementById('moOv').classList.add('on');
+  fillMo(r); resetDeactSection('single');
+  const btn = document.getElementById('mDeactBtn'); if (btn) btn.style.display = '';
+  document.getElementById('moOv').classList.add('on');
 }
 function closeMo() { document.getElementById('moOv').classList.remove('on'); }
+function resetDeactSection(mode) {
+  const isSingle = mode === 'single';
+  const sec = document.getElementById(isSingle ? 'mDeactSection' : 'bDeactSection');
+  const btn = document.getElementById(isSingle ? 'mDeactBtn' : 'bDeactBtn');
+  if (sec) sec.style.display = 'none';
+  if (btn) { btn.classList.remove('active'); btn.textContent = isSingle ? 'Deactivate' : 'Deactivate Selected'; }
+  const d = document.getElementById(isSingle ? 'dDeactDate' : 'bdDeactDate');
+  const r = document.getElementById(isSingle ? 'dRoute' : 'bdRoute');
+  const m = document.getElementById(isSingle ? 'dRemarks' : 'bdRemarks');
+  if (d) d.value = ''; if (r) r.value = ''; if (m) m.value = '';
+}
+function toggleDeactivate(mode) {
+  const isSingle = mode === 'single';
+  const sec = document.getElementById(isSingle ? 'mDeactSection' : 'bDeactSection');
+  const btn = document.getElementById(isSingle ? 'mDeactBtn' : 'bDeactBtn');
+  const isOn = sec.style.display === 'block';
+  if (isOn) {
+    resetDeactSection(mode);
+  } else {
+    sec.style.display = 'block';
+    btn.classList.add('active');
+    btn.textContent = '✕ Cancel Deactivate';
+  }
+}
 
 async function saveRec() {
   // ── Validation ───
@@ -704,6 +744,30 @@ async function saveRec() {
   Object.entries(mMap).forEach(([id,key]) => { const el=document.getElementById(id); if(el) nd[key]=el.value; });
   nd.updatedBy = currentUser?.email || 'system';
   nd.updatedAt = new Date().toISOString();
+
+  // ── Deactivation ───
+  const isDeact = editId && document.getElementById('mDeactSection')?.style.display === 'block';
+  if (isDeact) {
+    const deactDateVal = document.getElementById('dDeactDate').value;
+    if (!deactDateVal) { showToast('Deactivation date is required.', 'warning'); document.getElementById('dDeactDate').focus(); return; }
+    const currentRec = DB.find(r => r.id === editId);
+    const histEntry = {
+      previousClient: currentRec?.client || '',
+      deactDate: deactDateVal,
+      requestedBy: document.getElementById('dRoute').value,
+      remarks: document.getElementById('dRemarks').value,
+      deactivatedBy: currentUser?.email || 'system',
+      deactivatedAt: nd.updatedAt
+    };
+    nd.client = ''; nd.status = 'Available'; nd.remarks = ''; nd.postedStatus = '';
+    nd.postedDate = ''; nd.clientOSF = ''; nd.clientMRC = ''; nd.clientOTRF = '';
+    nd.clientCF = ''; nd.clientCPM = ''; nd.effDate = ''; nd.actDate = '';
+    nd.deactDate = deactDateVal;
+    nd.route = document.getElementById('dRoute').value;
+    nd.prevClient = currentRec?.client || '';
+    nd.deactivationHistory = [...(currentRec?.deactivationHistory || []), histEntry];
+  }
+
   try {
     if (editId) {
       // Save old state for undo
@@ -1238,11 +1302,55 @@ function openBulkEdit() {
   resetDateMirror('bulk');
   Object.keys(BE_FIELD_MAP).forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
   resetFeeSelects(BE_FEE_FIELDS);
+  resetDeactSection('bulk');
   document.getElementById('beOv').classList.add('on');
 }
 function closeBE() { document.getElementById('beOv').classList.remove('on'); }
 async function saveBulkEdit() {
   const ids = getCheckedIds(); if (!ids.length) return;
+
+  // ── Bulk deactivation ───
+  if (document.getElementById('bDeactSection')?.style.display === 'block') {
+    const deactDateVal = document.getElementById('bdDeactDate').value;
+    if (!deactDateVal) { showToast('Deactivation date is required.', 'warning'); document.getElementById('bdDeactDate').focus(); return; }
+    const requestedBy = document.getElementById('bdRoute').value;
+    const bdRemarks = document.getElementById('bdRemarks').value;
+    const deactivatedBy = currentUser?.email || 'system';
+    const deactivatedAt = new Date().toISOString();
+    try {
+      const CHUNK = 400;
+      for (let i=0; i<ids.length; i+=CHUNK) {
+        const b = fdb.batch();
+        ids.slice(i,i+CHUNK).forEach(id => {
+          const rec = DB.find(r => r.id===id);
+          const histEntry = { previousClient: rec?.client||'', deactDate: deactDateVal, requestedBy, remarks: bdRemarks, deactivatedBy, deactivatedAt };
+          b.update(fdb.collection('inventory').doc(id), {
+            client:'', status:'Available', remarks:'', postedStatus:'', postedDate:'',
+            clientOSF:'', clientMRC:'', clientOTRF:'', clientCF:'', clientCPM:'',
+            effDate:'', actDate:'', deactDate: deactDateVal, route: requestedBy,
+            prevClient: rec?.client||'',
+            deactivationHistory: [...(rec?.deactivationHistory||[]), histEntry],
+            updatedBy: deactivatedBy, updatedAt: deactivatedAt
+          });
+        });
+        await b.commit();
+      }
+      ids.forEach(id => {
+        const idx = DB.findIndex(r => r.id===id);
+        if (idx>-1) {
+          const rec = DB[idx];
+          const histEntry = { previousClient: rec.client||'', deactDate: deactDateVal, requestedBy, remarks: bdRemarks, deactivatedBy, deactivatedAt };
+          DB[idx] = {...rec, client:'', status:'Available', remarks:'', postedStatus:'', postedDate:'', clientOSF:'', clientMRC:'', clientOTRF:'', clientCF:'', clientCPM:'', effDate:'', actDate:'', deactDate: deactDateVal, route: requestedBy, prevClient: rec.client||'', deactivationHistory:[...(rec.deactivationHistory||[]),histEntry], updatedBy:deactivatedBy, updatedAt:deactivatedAt};
+        }
+      });
+      refreshInventoryRecent();
+      await addLog('Updated', `Bulk deactivated ${ids.length} record${ids.length!==1?'s':''}`, {fields:['client','status','deactDate','route']});
+      closeBE();
+      showToast(`Deactivated ${ids.length} record${ids.length!==1?'s':''}`, 'success');
+    } catch(err) { showToast('Bulk deactivation error: '+err.message, 'error'); }
+    return;
+  }
+
   if (bulkEffDateTouched && !bulkActDateTouched) {
     document.getElementById('beActDate').value = document.getElementById('beEffDate').value;
   }
@@ -1486,7 +1594,7 @@ function populateDropdowns() {
     el.innerHTML = `<option value="">${lbl}</option>` + [...SELECTIONS[type]].sort().map(v => `<option>${esc(v)}</option>`).join('');
     el.value = val;
   });
-  const modalSelMap = [['clients','mClient','— select client —'],['products','mProduct','— select product —'],['providers','mProvider','— select provider —'],['routes','mRoute','— select —'],['clients','mPrevClient','— select prev client —']];
+  const modalSelMap = [['clients','mClient','— select client —'],['products','mProduct','— select product —'],['providers','mProvider','— select provider —'],['routes','mRoute','— select —'],['clients','mPrevClient','— select prev client —'],['routes','dRoute','— select —'],['routes','bdRoute','— select —']];
   modalSelMap.forEach(([type,id,lbl]) => {
     const el = document.getElementById(id); if (!el) return;
     const val = el.value;

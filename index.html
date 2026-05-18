@@ -419,10 +419,21 @@
         <div class="fg"><label>Route Request by</label><select class="fc" id="mRoute"><option value="">— select —</option></select></div>
         <div class="fg"><label>Deactivation Date (Prev Client)</label><input type="date" class="fc" id="mDeactDate"></div>
         <div class="fg full"><label>Previous Client</label><select class="fc" id="mPrevClient"><option value="">— select prev client —</option></select></div>
+        <div id="mDeactSection" style="display:none;grid-column:1/-1">
+          <div style="background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.28);border-radius:var(--r);padding:12px;margin-top:4px">
+            <div style="font-size:11px;font-weight:700;color:var(--err);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(239,68,68,.2)">Deactivation Details</div>
+            <div class="fgrid" style="padding:0">
+              <div class="fg"><label>Deactivation Date <span style="color:var(--err)">*</span></label><input type="date" class="fc" id="dDeactDate"></div>
+              <div class="fg"><label>Route Requested by</label><select class="fc" id="dRoute"><option value="">— select —</option></select></div>
+              <div class="fg full"><label>Remarks</label><input class="fc" id="dRemarks" placeholder="Reason for deactivation…"></div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
     <div class="mo-foot">
       <button class="btn" onclick="closeMo()">Cancel</button>
+      <button class="btn btn-d" id="mDeactBtn" style="display:none" onclick="toggleDeactivate('single')">Deactivate</button>
       <button class="btn btn-p" onclick="saveRec()">Save</button>
     </div>
   </div>
@@ -495,10 +506,21 @@
         <div class="fg"><label>Route Request by</label><select class="fc" id="beRoute"><option value="">— keep existing —</option></select></div>
         <div class="fg"><label>Deactivation Date (Prev Client)</label><input type="date" class="fc" id="beDeactDate"></div>
         <div class="fg full"><label>Previous Client</label><select class="fc" id="bePrevClient"><option value="">— keep existing —</option></select></div>
+        <div id="bDeactSection" style="display:none;grid-column:1/-1">
+          <div style="background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.28);border-radius:var(--r);padding:12px;margin-top:4px">
+            <div style="font-size:11px;font-weight:700;color:var(--err);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(239,68,68,.2)">Deactivation Details</div>
+            <div class="fgrid" style="padding:0">
+              <div class="fg"><label>Deactivation Date <span style="color:var(--err)">*</span></label><input type="date" class="fc" id="bdDeactDate"></div>
+              <div class="fg"><label>Route Requested by</label><select class="fc" id="bdRoute"><option value="">— select —</option></select></div>
+              <div class="fg full"><label>Remarks</label><input class="fc" id="bdRemarks" placeholder="Reason for deactivation…"></div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
     <div class="mo-foot">
       <button class="btn" onclick="closeBE()">Cancel</button>
+      <button class="btn btn-d" id="bDeactBtn" onclick="toggleDeactivate('bulk')">Deactivate Selected</button>
       <button class="btn btn-p" onclick="saveBulkEdit()">Apply to Selected</button>
     </div>
   </div>
