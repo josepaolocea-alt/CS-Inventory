@@ -412,7 +412,7 @@ function applyF() {
   const dupeSet = showDupes ? getDupeSet() : null;
   fd = DB.filter(r => {
     if (sRe) {
-      const SKIP = new Set(['id','createdBy','updatedBy','createdAt','updatedAt']);
+      const SKIP = new Set(['id','createdBy','updatedBy','createdAt','updatedAt','client','clientOSF','clientMRC','clientOTRF','clientCF','clientCPM','prevClient']);
       if (!Object.entries(r).some(([k,v]) => !SKIP.has(k) && v != null && sRe.test(String(v).toLowerCase()))) return false;
     }
     if (cl && r.client!==cl)   return false;
