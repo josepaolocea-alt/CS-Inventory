@@ -58,6 +58,20 @@ function parseCSVLine(line) {
   }
   res.push(cur); return res;
 }
+function decodeText(bytes, encoding, options) {
+  return new TextDecoder(encoding, options).decode(bytes).replace(/^\uFEFF/, '');
+}
+async function readCSVText(file) {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  if (bytes[0]===0xFF && bytes[1]===0xFE) return decodeText(bytes, 'utf-16le');
+  if (bytes[0]===0xFE && bytes[1]===0xFF) return decodeText(bytes, 'utf-16be');
+  try {
+    return decodeText(bytes, 'utf-8', {fatal:true});
+  } catch(e) {
+    // Excel CSV files saved with an ANSI code page commonly contain Windows-1252 bytes.
+    return decodeText(bytes, 'windows-1252');
+  }
+}
 // Strip formatting and leading country/area codes to get a bare local number for comparison.
 // Treats +63/63/0/02/2 prefixes as equivalent so different regional formats match the same entry.
 function normalizePhone(n) {
@@ -925,7 +939,7 @@ function delRec(id) {
 // ── CSV / EXPORT ──────────────────────────────────────
 async function handleCSV(e) {
   const f = e.target.files[0]; if (!f) return;
-  const text  = await f.text();
+  const text  = await readCSVText(f);
   const lines = text.split(/\r?\n/).filter(l => l.trim());
   if (lines.length < 2) { showToast('CSV has no data rows.','warning'); e.target.value=''; return; }
   const hdr = parseCSVLine(lines[0]);
@@ -1048,7 +1062,8 @@ function exportPDF() {
 
 function dlCSV(rows, name) {
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([rows.map(r => r.map(c => `"${String(c||'').replace(/"/g,'""')}"`).join(',')).join('\n')],{type:'text/csv'}));
+  const text = '\uFEFF' + rows.map(r => r.map(c => `"${String(c||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  a.href = URL.createObjectURL(new Blob([text],{type:'text/csv;charset=utf-8'}));
   a.download = name; a.click();
 }
 
@@ -1713,7 +1728,7 @@ function removeSelItem(type, val) {
 }
 async function handleSelCSV(e, type) {
   const f = e.target.files[0]; if (!f) return;
-  const text  = await f.text();
+  const text  = await readCSVText(f);
   const lines = text.split(/\r?\n/).filter(l => l.trim());
   const rawItems = lines.slice(1).map(l => parseCSVLine(l)[0]?.trim()).filter(Boolean);
   const items    = rawItems.map(v => v.toUpperCase());
