@@ -1403,6 +1403,8 @@ async function saveBulkEdit() {
     const bdRemarks = document.getElementById('bdRemarks').value;
     const deactivatedBy = currentUser?.email || 'system';
     const deactivatedAt = new Date().toISOString();
+    const deactUpdates = {client:'', status:'Available', deactDate:deactDateVal, route:requestedBy};
+    const affectedRecords = ids.map(id => DB.find(r => r.id===id)).filter(Boolean).map(r => bulkChangeSummary(r, ['client','status','deactDate','route'], deactUpdates));
     try {
       const CHUNK = 400;
       for (let i=0; i<ids.length; i+=CHUNK) {
@@ -1430,7 +1432,7 @@ async function saveBulkEdit() {
         }
       });
       refreshInventoryRecent();
-      await addLog('Updated', `Bulk deactivated ${ids.length} record${ids.length!==1?'s':''}`, {fields:['client','status','deactDate','route']});
+      await addLog('Updated', `Bulk deactivated ${ids.length} record${ids.length!==1?'s':''}`, {records:affectedRecords, fields:['client','status','deactDate','route']});
       closeBE();
       showToast(`Deactivated ${ids.length} record${ids.length!==1?'s':''}`, 'success');
     } catch(err) { showToast('Bulk deactivation error: '+err.message, 'error'); }
