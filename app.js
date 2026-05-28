@@ -16,7 +16,7 @@ const STATUSES    = ['Active','Available','Reserved','Inactive'];
 const ACT_LABELS  = {Added:'b-active',Updated:'b-reserved',Deleted:'b-inactive','CSV Upload':'b-available',Exported:'b-available',Login:'b-available'};
 const CSV_HEADERS = ['Client','Product','Number','Status','Remarks','Posted Status','Posted Date','Client OSF','Client MRC','Client OTRF','Client Channel Fee','Client CPM','Effective Date','Activated Date','Provider','Arrival Date','Provider Activation Date','Provider OSF','Provider MRC','Provider OTRF','Provider CPM','Type / Session','Route Request by','Deactivation Date','Previous Client'];
 const CSV_FIELD_MAP = {'Client':'client','Product':'product','Number':'number','Status':'status','Remarks':'remarks','Posted Status':'postedStatus','Posted Date':'postedDate','Client OSF':'clientOSF','Client MRC':'clientMRC','Client OTRF':'clientOTRF','Client Channel Fee':'clientCF','Client CPM':'clientCPM','Effective Date':'effDate','Activated Date':'actDate','Provider':'provider','Arrival Date':'arrDate','Provider Activation Date':'provActDate','Provider OSF':'provOSF','Provider MRC':'provMRC','Provider OTRF':'provOTRF','Provider CPM':'provCPM','Type / Session':'typeSession','Route Request by':'route','Deactivation Date':'deactDate','Previous Client':'prevClient'};
-const FIELD_LABELS = {client:'Client',product:'Product',number:'Number',status:'Status',remarks:'Remarks',postedStatus:'Posted Status',postedDate:'Posted Date',clientOSF:'Client OSF',clientMRC:'Client MRC',clientOTRF:'Client OTRF',clientCF:'Client Channel Fee',clientCPM:'Client CPM',effDate:'Effective Date',actDate:'Activated Date',provider:'Provider',arrDate:'Arrival Date',provActDate:'Provider Activation Date',provOSF:'Provider OSF',provMRC:'Provider MRC',provOTRF:'Provider OTRF',provCPM:'Provider CPM',typeSession:'Type / Session',route:'Route Request by',deactDate:'Deactivation Date',prevClient:'Previous Client'};
+const FIELD_LABELS = {client:'Client',product:'Product',number:'Number',status:'Status',remarks:'Remarks',postedStatus:'Posted Status',postedDate:'Posted Date',postedHour:'Posted Hour',postedMin:'Posted Minute',clientOSF:'Client OSF',clientMRC:'Client MRC',clientOTRF:'Client OTRF',clientCF:'Client Channel Fee',clientCPM:'Client CPM',effDate:'Effective Date',actDate:'Activated Date',provider:'Provider',arrDate:'Arrival Date',provActDate:'Provider Activation Date',provOSF:'Provider OSF',provMRC:'Provider MRC',provOTRF:'Provider OTRF',provCPM:'Provider CPM',typeSession:'Type / Session',route:'Route Request by',deactDate:'Deactivation Date',prevClient:'Previous Client'};
 const DATE_FIELDS = new Set(['mPostedDate','mEffDate','mActDate','mArrDate','mProvActDate','mDeactDate']);
 const VALID_STATUSES = new Set(['Active','Available','Reserved','Inactive','']);
 const DATE_CSV_FIELDS = ['postedDate','effDate','actDate','arrDate','provActDate','deactDate'];
@@ -617,7 +617,7 @@ function openSP(id) {
       ${dr('Client',r.client)}${dr('Product',r.product)}${dr('Number',r.number)}
       ${drHTML('Status',`<span class="badge ${bclass(r.status)}">${esc(r.status)}</span>`)}
       ${dr('Remarks',r.remarks||'—')}${dr('Posted Status',r.postedStatus||'—')}
-      ${dr('Posted Date',fmt(r.postedDate))}${dr('Client OSF','$'+(r.clientOSF||'—'))}
+      ${dr('Posted Date & Time', r.postedDate ? fmt(r.postedDate) + (r.postedHour ? ` ${r.postedHour}:${r.postedMin||'00'}` : '') : '—')}${dr('Client OSF','$'+(r.clientOSF||'—'))}
       ${dr('Client MRC','$'+(r.clientMRC||'—'))}${dr('Client OTRF','$'+(r.clientOTRF||'—'))}
       ${dr('Client Channel Fee','$'+(r.clientCF||'—'))}${dr('Client CPM',r.clientCPM||'—')}
       ${dr('Effective Date',fmt(r.effDate))}${dr('Activated Date',fmt(r.actDate))}
@@ -662,7 +662,8 @@ function closeSP() {
 // ── MODAL ─────────────────────────────────────────────
 const mMap = {
   mClient:'client',mProduct:'product',mNumber:'number',mStatus:'status',mRemarks:'remarks',
-  mPosted:'postedStatus',mPostedDate:'postedDate',mClientOSF:'clientOSF',mClientMRC:'clientMRC',
+  mPosted:'postedStatus',mPostedDate:'postedDate',mPostedHour:'postedHour',mPostedMin:'postedMin',
+  mClientOSF:'clientOSF',mClientMRC:'clientMRC',
   mClientOTRF:'clientOTRF',mClientCF:'clientCF',mClientCPM:'clientCPM',mEffDate:'effDate',
   mActDate:'actDate',mProvider:'provider',mArrDate:'arrDate',mProvActDate:'provActDate',
   mProvOSF:'provOSF',mProvMRC:'provMRC',mProvOTRF:'provOTRF',mProvCPM:'provCPM',
@@ -693,6 +694,22 @@ function bindDateMirror(effId, actId, isActTouched, setEffTouched, setActTouched
   act.addEventListener('input', () => setActTouched(true));
   act.addEventListener('change', () => setActTouched(true));
   eff.dataset.mirrorBound = '1';
+}
+function initPostedTimeSelects() {
+  const hourSel = document.getElementById('mPostedHour');
+  const minSel  = document.getElementById('mPostedMin');
+  if (!hourSel || !minSel || hourSel.dataset.init) return;
+  for (let h = 0; h < 24; h++) {
+    const o = document.createElement('option');
+    o.value = o.textContent = String(h).padStart(2,'0');
+    hourSel.appendChild(o);
+  }
+  for (let m = 0; m < 60; m++) {
+    const o = document.createElement('option');
+    o.value = o.textContent = String(m).padStart(2,'0');
+    minSel.appendChild(o);
+  }
+  hourSel.dataset.init = '1';
 }
 function initDateMirrors() {
   bindDateMirror('mEffDate','mActDate',() => actDateTouched,v => { effDateTouched=v; },v => { actDateTouched=v; });
@@ -1810,6 +1827,7 @@ document.addEventListener('keydown', e => {
 // ── INIT ──────────────────────────────────────────────
 initEL();
 initDateMirrors();
+initPostedTimeSelects();
 loadPinned();
 if (EL.pgSize) EL.pgSize.value = '50';
 renderDash(); renderTbl(); renderLogs();

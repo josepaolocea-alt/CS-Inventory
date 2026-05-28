@@ -376,7 +376,14 @@
         <div class="fg"><label>Posted Status</label>
           <select class="fc" id="mPosted"><option value="No">No</option><option value="Yes">Yes</option><option value="Not Yet">Not Yet</option></select>
         </div>
-        <div class="fg"><label>Posted Date</label><input type="date" class="fc" id="mPostedDate"></div>
+        <div class="fg full">
+          <label>Posted Date &amp; Time <span style="color:var(--t3);font-weight:400;font-size:11px">(optional)</span></label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="date" class="fc" id="mPostedDate" style="flex:2;min-width:0">
+            <select class="fc" id="mPostedHour" style="flex:1;min-width:0"><option value="">HH</option></select>
+            <select class="fc" id="mPostedMin" style="flex:1;min-width:0"><option value="">MM</option></select>
+          </div>
+        </div>
         <div class="fg"><label>Client OSF</label>
           <select class="fc" id="mClientOSFSel" onchange="onFeeSel(this)"><option value="">— select —</option><option>Waived</option><option>POC</option><option>NA</option><option value="__amt__">Enter amount…</option></select>
           <input class="fc" id="mClientOSF" placeholder="0.00" style="display:none">
