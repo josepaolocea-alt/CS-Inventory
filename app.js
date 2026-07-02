@@ -608,6 +608,69 @@ function rowClick(e, id) {
 }
 
 // ── SIDE PANEL ────────────────────────────────────────
+function activationSnapshot(r={}) {
+  return {
+    client: r.client || '',
+    product: r.product || '',
+    status: r.status || '',
+    effDate: r.effDate || '',
+    actDate: r.actDate || '',
+    provider: r.provider || '',
+    arrDate: r.arrDate || '',
+    provActDate: r.provActDate || '',
+    route: r.route || ''
+  };
+}
+function hasActivationSnapshot(a={}) {
+  return !!(a.client || a.product || a.effDate || a.actDate || a.provider || a.arrDate || a.provActDate || a.route);
+}
+function activationRowsHTML(a={}) {
+  if (!hasActivationSnapshot(a)) return '';
+  return `
+    ${a.product ? `<div class="deact-hist-row"><span style="color:var(--t3)">Product</span> ${esc(a.product)}</div>` : ''}
+    ${a.status ? `<div class="deact-hist-row"><span style="color:var(--t3)">Status</span> ${esc(a.status)}</div>` : ''}
+    ${a.effDate ? `<div class="deact-hist-row"><span style="color:var(--t3)">Effective Date</span> ${fmt(a.effDate)}</div>` : ''}
+    ${a.actDate ? `<div class="deact-hist-row"><span style="color:var(--t3)">Activated Date</span> ${fmt(a.actDate)}</div>` : ''}
+    ${a.provider ? `<div class="deact-hist-row"><span style="color:var(--t3)">Provider</span> ${esc(a.provider)}</div>` : ''}
+    ${a.arrDate ? `<div class="deact-hist-row"><span style="color:var(--t3)">Arrival Date</span> ${fmt(a.arrDate)}</div>` : ''}
+    ${a.provActDate ? `<div class="deact-hist-row"><span style="color:var(--t3)">Provider Activation</span> ${fmt(a.provActDate)}</div>` : ''}
+    ${a.route ? `<div class="deact-hist-row"><span style="color:var(--t3)">Route Request by</span> ${esc(a.route)}</div>` : ''}`;
+}
+function metaDate(v) {
+  return v ? new Date(v).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+}
+function currentActivationHTML(r) {
+  const a = activationSnapshot(r);
+  if (!hasActivationSnapshot(a)) return '';
+  return `
+    <div class="deact-hist-entry act-hist-entry">
+      <div class="deact-hist-top">
+        <span class="deact-hist-client">${esc(a.client || 'Activation Details')}</span>
+        <span class="deact-hist-date">${fmt(a.actDate || a.effDate)}</span>
+      </div>
+      <div class="hist-subtitle">Current Activation</div>
+      ${activationRowsHTML(a)}
+      <div class="deact-hist-meta">last updated by ${esc(r.updatedBy || r.createdBy || '—')} · ${metaDate(r.updatedAt || r.createdAt)}</div>
+    </div>`;
+}
+function historySectionHTML(r) {
+  const current = currentActivationHTML(r);
+  const deact = (r.deactivationHistory?.length) ? [...r.deactivationHistory].reverse().map(h => {
+    const activation = h.activation || {};
+    return `
+      <div class="deact-hist-entry">
+        <div class="deact-hist-top">
+          <span class="deact-hist-client">${esc(h.previousClient||'—')}</span>
+          <span class="deact-hist-date">${fmt(h.deactDate)}</span>
+        </div>
+        ${hasActivationSnapshot(activation) ? `<div class="hist-subtitle">Activation Details</div>${activationRowsHTML(activation)}<div class="hist-subtitle">Deactivation Details</div>` : ''}
+        ${h.requestedBy ? `<div class="deact-hist-row"><span style="color:var(--t3)">Requested by</span> ${esc(h.requestedBy)}</div>` : ''}
+        ${h.remarks ? `<div class="deact-hist-row">${esc(h.remarks)}</div>` : ''}
+        <div class="deact-hist-meta">by ${esc(h.deactivatedBy||'—')} · ${metaDate(h.deactivatedAt)}</div>
+      </div>`;
+  }).join('') : '';
+  return (current || deact) ? `<div class="ds"><div class="ds-title">Activation &amp; Deactivation History</div>${current}${deact}</div>` : '';
+}
 function openSP(id) {
   const r = DB.find(x => x.id===id); if (!r) return;
   curRec = r;
@@ -634,18 +697,7 @@ function openSP(id) {
       ${dr('Deactivation Date (Prev Client)',fmt(r.deactDate))}
       ${dr('Previous Client',r.prevClient||'—')}
     </div>
-    ${(r.deactivationHistory?.length) ? `<div class="ds"><div class="ds-title">Deactivation History</div>
-      ${[...r.deactivationHistory].reverse().map(h => `
-        <div class="deact-hist-entry">
-          <div class="deact-hist-top">
-            <span class="deact-hist-client">${esc(h.previousClient||'—')}</span>
-            <span class="deact-hist-date">${fmt(h.deactDate)}</span>
-          </div>
-          ${h.requestedBy ? `<div class="deact-hist-row"><span style="color:var(--t3)">Requested by</span> ${esc(h.requestedBy)}</div>` : ''}
-          ${h.remarks ? `<div class="deact-hist-row">${esc(h.remarks)}</div>` : ''}
-          <div class="deact-hist-meta">by ${esc(h.deactivatedBy||'—')} · ${h.deactivatedAt ? new Date(h.deactivatedAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—'}</div>
-        </div>`).join('')}
-    </div>` : ''}
+    ${historySectionHTML(r)}
     <div class="ds"><div class="ds-title">Meta</div>
       ${dr('Created by',r.createdBy||'—')}${dr('Updated by',r.updatedBy||'—')}
     </div>`;
@@ -855,6 +907,7 @@ async function saveRec() {
     const currentRec = DB.find(r => r.id === editId);
     const histEntry = {
       previousClient: currentRec?.client || '',
+      activation: activationSnapshot(currentRec || {}),
       deactDate: deactDateVal,
       requestedBy: document.getElementById('dRoute').value,
       remarks: document.getElementById('dRemarks').value,
@@ -1428,7 +1481,7 @@ async function saveBulkEdit() {
         const b = fdb.batch();
         ids.slice(i,i+CHUNK).forEach(id => {
           const rec = DB.find(r => r.id===id);
-          const histEntry = { previousClient: rec?.client||'', deactDate: deactDateVal, requestedBy, remarks: bdRemarks, deactivatedBy, deactivatedAt };
+          const histEntry = { previousClient: rec?.client||'', activation: activationSnapshot(rec || {}), deactDate: deactDateVal, requestedBy, remarks: bdRemarks, deactivatedBy, deactivatedAt };
           b.update(fdb.collection('inventory').doc(id), {
             client:'', status:'Available', remarks:'', postedStatus:'', postedDate:'',
             clientOSF:'', clientMRC:'', clientOTRF:'', clientCF:'', clientCPM:'',
@@ -1444,7 +1497,7 @@ async function saveBulkEdit() {
         const idx = DB.findIndex(r => r.id===id);
         if (idx>-1) {
           const rec = DB[idx];
-          const histEntry = { previousClient: rec.client||'', deactDate: deactDateVal, requestedBy, remarks: bdRemarks, deactivatedBy, deactivatedAt };
+          const histEntry = { previousClient: rec.client||'', activation: activationSnapshot(rec), deactDate: deactDateVal, requestedBy, remarks: bdRemarks, deactivatedBy, deactivatedAt };
           DB[idx] = {...rec, client:'', status:'Available', remarks:'', postedStatus:'', postedDate:'', clientOSF:'', clientMRC:'', clientOTRF:'', clientCF:'', clientCPM:'', effDate:'', actDate:'', deactDate: deactDateVal, route: requestedBy, prevClient: rec.client||'', deactivationHistory:[...(rec.deactivationHistory||[]),histEntry], updatedBy:deactivatedBy, updatedAt:deactivatedAt};
         }
       });
