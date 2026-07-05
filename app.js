@@ -14,7 +14,7 @@ const fauth = firebase.auth();
 // ── CONSTANTS ─────────────────────────────────────────
 const STATUSES    = ['Active','Available','Reserved','Inactive'];
 const ACT_LABELS  = {Added:'b-active',Updated:'b-reserved',Deleted:'b-inactive','CSV Upload':'b-available',Exported:'b-available',Login:'b-available'};
-const CSV_HEADERS = ['Client','Product','Number','Status','Remarks','Posted Status','Posted Date','Client OSF','Client MRC','Client OTRF','Client Channel Fee','Client CPM','Effective Date','Activated Date','Provider','Arrival Date','Provider Activation Date','Provider OSF','Provider MRC','Provider OTRF','Provider CPM','Type / Session','Route Request by','Deactivation Date','Previous Client'];
+const CSV_HEADERS = ['Client','Product','Number','Status','Remarks','Posted Status','Posted Date','Posted Time','Client OSF','Client MRC','Client OTRF','Client Channel Fee','Client CPM','Effective Date','Activated Date','Provider','Arrival Date','Provider Activation Date','Provider OSF','Provider MRC','Provider OTRF','Provider CPM','Type / Session','Route Request by','Deactivation Date','Previous Client'];
 const CSV_FIELD_MAP = {'Client':'client','Product':'product','Number':'number','Status':'status','Remarks':'remarks','Posted Status':'postedStatus','Posted Date':'postedDate','Client OSF':'clientOSF','Client MRC':'clientMRC','Client OTRF':'clientOTRF','Client Channel Fee':'clientCF','Client CPM':'clientCPM','Effective Date':'effDate','Activated Date':'actDate','Provider':'provider','Arrival Date':'arrDate','Provider Activation Date':'provActDate','Provider OSF':'provOSF','Provider MRC':'provMRC','Provider OTRF':'provOTRF','Provider CPM':'provCPM','Type / Session':'typeSession','Route Request by':'route','Deactivation Date':'deactDate','Previous Client':'prevClient'};
 const FIELD_LABELS = {client:'Client',product:'Product',number:'Number',status:'Status',remarks:'Remarks',postedStatus:'Posted Status',postedDate:'Posted Date',postedHour:'Posted Hour',postedMin:'Posted Minute',clientOSF:'Client OSF',clientMRC:'Client MRC',clientOTRF:'Client OTRF',clientCF:'Client Channel Fee',clientCPM:'Client CPM',effDate:'Effective Date',actDate:'Activated Date',provider:'Provider',arrDate:'Arrival Date',provActDate:'Provider Activation Date',provOSF:'Provider OSF',provMRC:'Provider MRC',provOTRF:'Provider OTRF',provCPM:'Provider CPM',typeSession:'Type / Session',route:'Route Request by',deactDate:'Deactivation Date',prevClient:'Previous Client'};
 const DATE_FIELDS = new Set(['mPostedDate','mEffDate','mActDate','mArrDate','mProvActDate','mDeactDate']);
@@ -1099,7 +1099,7 @@ function dlSample() {
 }
 
 function exportAll() {
-  const rows = DB.map(r => [r.client,r.product,r.number,r.status,r.remarks,r.postedStatus,r.postedDate,r.clientOSF,r.clientMRC,r.clientOTRF,r.clientCF,r.clientCPM,r.effDate,r.actDate,r.provider,r.arrDate,r.provActDate,r.provOSF,r.provMRC,r.provOTRF,r.provCPM,r.typeSession,r.route,r.deactDate,r.prevClient]);
+  const rows = DB.map(r => [r.client,r.product,r.number,r.status,r.remarks,r.postedStatus,r.postedDate,r.postedHour?(r.postedHour+':'+(r.postedMin||'00')):'',r.clientOSF,r.clientMRC,r.clientOTRF,r.clientCF,r.clientCPM,r.effDate,r.actDate,r.provider,r.arrDate,r.provActDate,r.provOSF,r.provMRC,r.provOTRF,r.provCPM,r.typeSession,r.route,r.deactDate,r.prevClient]);
   dlCSV([CSV_HEADERS,...rows], 'inventory_export.csv');
   closeExportMenu();
   addLog('Exported', `Exported ${DB.length} records to CSV`);
@@ -1107,7 +1107,7 @@ function exportAll() {
 
 function exportExcel() {
   if (typeof XLSX === 'undefined') { showToast('Excel library not loaded yet. Try again in a moment.','warning'); return; }
-  const rows = DB.map(r => ({'Client':r.client,'Product':r.product,'Number':r.number,'Status':r.status,'Remarks':r.remarks,'Posted Status':r.postedStatus,'Posted Date':r.postedDate,'Client OSF':r.clientOSF,'Client MRC':r.clientMRC,'Client OTRF':r.clientOTRF,'Client Channel Fee':r.clientCF,'Client CPM':r.clientCPM,'Effective Date':r.effDate,'Activated Date':r.actDate,'Provider':r.provider,'Arrival Date':r.arrDate,'Provider Activation Date':r.provActDate,'Provider OSF':r.provOSF,'Provider MRC':r.provMRC,'Provider OTRF':r.provOTRF,'Provider CPM':r.provCPM,'Type / Session':r.typeSession,'Route Request by':r.route,'Deactivation Date':r.deactDate,'Previous Client':r.prevClient}));
+  const rows = DB.map(r => ({'Client':r.client,'Product':r.product,'Number':r.number,'Status':r.status,'Remarks':r.remarks,'Posted Status':r.postedStatus,'Posted Date':r.postedDate,'Posted Time':r.postedHour?(r.postedHour+':'+(r.postedMin||'00')):'','Client OSF':r.clientOSF,'Client MRC':r.clientMRC,'Client OTRF':r.clientOTRF,'Client Channel Fee':r.clientCF,'Client CPM':r.clientCPM,'Effective Date':r.effDate,'Activated Date':r.actDate,'Provider':r.provider,'Arrival Date':r.arrDate,'Provider Activation Date':r.provActDate,'Provider OSF':r.provOSF,'Provider MRC':r.provMRC,'Provider OTRF':r.provOTRF,'Provider CPM':r.provCPM,'Type / Session':r.typeSession,'Route Request by':r.route,'Deactivation Date':r.deactDate,'Previous Client':r.prevClient}));
   const ws = XLSX.utils.json_to_sheet(rows);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Inventory');
@@ -1132,7 +1132,7 @@ let _gsAccessToken = null;
 function gsRecordToRow(r) {
   return [
     r.client||'', r.product||'', r.number||'', r.status||'', r.remarks||'',
-    r.postedStatus||'', r.postedDate||'', r.clientOSF||'', r.clientMRC||'',
+    r.postedStatus||'', r.postedDate||'', r.postedHour?(r.postedHour+':'+(r.postedMin||'00')):'', r.clientOSF||'', r.clientMRC||'',
     r.clientOTRF||'', r.clientCF||'', r.clientCPM||'', r.effDate||'', r.actDate||'',
     r.provider||'', r.arrDate||'', r.provActDate||'', r.provOSF||'', r.provMRC||'',
     r.provOTRF||'', r.provCPM||'', r.typeSession||'', r.route||'',
@@ -1242,7 +1242,7 @@ async function doGSSync(spreadsheetId) {
     }
 
     // Clear and write each tab
-    const HEADERS = ['Client','Product','Number','Status','Remarks','Posted Status','Posted Date',
+    const HEADERS = ['Client','Product','Number','Status','Remarks','Posted Status','Posted Date','Posted Time',
       'Client OSF','Client MRC','Client OTRF','Client Channel Fee','Client CPM',
       'Effective Date','Activated Date','Provider','Arrival Date','Provider Activation Date',
       'Provider OSF','Provider MRC','Provider OTRF','Provider CPM',
@@ -1274,7 +1274,7 @@ function exportGoogleSheets() {
     return {
       'Client': r.client||'', 'Product': r.product||'', 'Number': r.number||'',
       'Status': r.status||'', 'Remarks': r.remarks||'', 'Posted Status': r.postedStatus||'',
-      'Posted Date': r.postedDate||'', 'Client OSF': r.clientOSF||'', 'Client MRC': r.clientMRC||'',
+      'Posted Date': r.postedDate||'', 'Posted Time': r.postedHour?(r.postedHour+':'+(r.postedMin||'00')):'', 'Client OSF': r.clientOSF||'', 'Client MRC': r.clientMRC||'',
       'Client OTRF': r.clientOTRF||'', 'Client Channel Fee': r.clientCF||'', 'Client CPM': r.clientCPM||'',
       'Effective Date': r.effDate||'', 'Activated Date': r.actDate||'', 'Provider': r.provider||'',
       'Arrival Date': r.arrDate||'', 'Provider Activation Date': r.provActDate||'',
@@ -1616,7 +1616,7 @@ function changeLPg(d) {
 function dlSelected() {
   const ids = getCheckedIds(); if (!ids.length) return;
   const rows = ids.map(id => DB.find(r => r.id===id)).filter(Boolean);
-  const data = rows.map(r => [r.client,r.product,r.number,r.status,r.remarks,r.postedStatus,r.postedDate,r.clientOSF,r.clientMRC,r.clientOTRF,r.clientCF,r.clientCPM,r.effDate,r.actDate,r.provider,r.arrDate,r.provActDate,r.provOSF,r.provMRC,r.provOTRF,r.provCPM,r.typeSession,r.route,r.deactDate,r.prevClient]);
+  const data = rows.map(r => [r.client,r.product,r.number,r.status,r.remarks,r.postedStatus,r.postedDate,r.postedHour?(r.postedHour+':'+(r.postedMin||'00')):'',r.clientOSF,r.clientMRC,r.clientOTRF,r.clientCF,r.clientCPM,r.effDate,r.actDate,r.provider,r.arrDate,r.provActDate,r.provOSF,r.provMRC,r.provOTRF,r.provCPM,r.typeSession,r.route,r.deactDate,r.prevClient]);
   dlCSV([CSV_HEADERS,...data], `selected_${ids.length}_entries.csv`);
   addLog('Exported', `Downloaded ${ids.length} selected record${ids.length!==1?'s':''}`);
 }
