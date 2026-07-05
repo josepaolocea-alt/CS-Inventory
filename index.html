@@ -125,7 +125,11 @@
         <div class="export-menu" id="exportMenu">
           <button onclick="exportAll()">⤓ Export CSV</button>
           <button onclick="exportExcel()">⤓ Export Excel (.xlsx)</button>
+          <button onclick="exportGoogleSheets()">⤓ Download Multi-Tab Excel</button>
           <button onclick="exportPDF()">⤓ Export PDF</button>
+          <hr style="margin:4px 0;border:none;border-top:1px solid var(--brd)">
+          <button onclick="syncToGoogleSheets()">⟳ Sync to Google Sheets</button>
+          <button onclick="openGSSettings()" style="font-size:11.5px;color:var(--t3)">⚙ Google Sheets Settings</button>
         </div>
       </div>
     </div>
@@ -686,6 +690,39 @@
   </div>
 </div>
 
+<!-- GOOGLE SHEETS SETTINGS MODAL -->
+<div class="mo-ov" id="gsSettingsOv" style="z-index:600" onclick="if(event.target===this)closeGSSettings()">
+  <div class="mo" style="width:500px;max-width:95vw">
+    <div class="mo-head">
+      <span class="mo-title">Google Sheets Sync Settings</span>
+      <button class="act-btn" onclick="closeGSSettings()" style="font-size:17px;color:var(--t2)">✕</button>
+    </div>
+    <div class="mo-body" style="padding:18px 20px 8px;display:flex;flex-direction:column;gap:14px">
+      <div style="background:var(--bg2);border-radius:8px;padding:12px 14px;font-size:12.5px;color:var(--t2);line-height:1.6">
+        <strong style="color:var(--t1)">One-time setup required:</strong><br>
+        1. Go to <strong>console.cloud.google.com</strong> → create a project<br>
+        2. Enable <strong>Google Sheets API</strong><br>
+        3. Create <strong>OAuth 2.0 Credentials</strong> (Web application type)<br>
+        4. Add <code id="gsOriginHint" style="background:var(--bg3,var(--bg));padding:1px 5px;border-radius:3px;font-family:monospace"></code> as an Authorized JavaScript origin<br>
+        5. Copy the <strong>Client ID</strong> and paste it below
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:600;color:var(--t2);display:block;margin-bottom:5px">GOOGLE CLIENT ID</label>
+        <input class="fc" id="gsClientId" type="text" placeholder="xxxxxxxxxxxx-xxxx.apps.googleusercontent.com" style="width:100%;box-sizing:border-box">
+      </div>
+      <div>
+        <label style="font-size:12px;font-weight:600;color:var(--t2);display:block;margin-bottom:5px">GOOGLE SPREADSHEET URL OR ID</label>
+        <input class="fc" id="gsSpreadsheetId" type="text" placeholder="Paste the full Google Sheets URL or just the sheet ID" style="width:100%;box-sizing:border-box">
+        <div style="font-size:11.5px;color:var(--t3);margin-top:4px">This is the existing shared sheet you want to update in place.</div>
+      </div>
+    </div>
+    <div class="mo-foot" style="padding:14px 20px 18px;gap:10px">
+      <button class="btn" onclick="closeGSSettings()">Cancel</button>
+      <button class="btn btn-p" onclick="saveGSSettings()">Save Settings</button>
+    </div>
+  </div>
+</div>
+
 <!-- AUTH OVERLAY -->
 <div class="auth-ov on" id="authOv">
   <div class="auth-box">
@@ -703,6 +740,9 @@
     <button class="btn btn-p" style="width:100%;height:34px;font-size:13px" onclick="doSignIn()">Sign In</button>
   </div>
 </div>
+
+<!-- Google Identity Services (for Google Sheets sync) -->
+<script src="https://accounts.google.com/gsi/client" async></script>
 
 <!-- FIREBASE SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>

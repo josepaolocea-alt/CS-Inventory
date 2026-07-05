@@ -1116,6 +1116,233 @@ function exportExcel() {
   addLog('Exported', `Exported ${DB.length} records to Excel`);
 }
 
+// ── GOOGLE SHEETS SYNC ────────────────────────────────
+const GS_INTL_PREFIXES = [
+  'USA','AUSTRALIA','UK','UNITED KINGDOM','SINGAPORE','CANADA','JAPAN',
+  'HONG KONG','MALAYSIA','INDONESIA','INDIA','CHINA','KOREA','TAIWAN',
+  'THAILAND','VIETNAM','NEW ZEALAND','GERMANY','FRANCE','ITALY','SPAIN',
+  'BRAZIL','MEXICO','SAUDI','UAE','DUBAI','INTERNATIONAL','INTL'
+];
+const gsIsIntl  = p => GS_INTL_PREFIXES.some(x => String(p||'').toUpperCase().trimStart().startsWith(x));
+const gsIsNANum = r => String(r.number||'').trim().toUpperCase() === 'NA';
+
+let _gsTokenClient = null;
+let _gsAccessToken = null;
+
+function gsRecordToRow(r) {
+  return [
+    r.client||'', r.product||'', r.number||'', r.status||'', r.remarks||'',
+    r.postedStatus||'', r.postedDate||'', r.clientOSF||'', r.clientMRC||'',
+    r.clientOTRF||'', r.clientCF||'', r.clientCPM||'', r.effDate||'', r.actDate||'',
+    r.provider||'', r.arrDate||'', r.provActDate||'', r.provOSF||'', r.provMRC||'',
+    r.provOTRF||'', r.provCPM||'', r.typeSession||'', r.route||'',
+    r.deactDate||'', r.prevClient||''
+  ];
+}
+
+async function gsAPI(method, url, body) {
+  const opts = { method, headers: { 'Authorization': `Bearer ${_gsAccessToken}` } };
+  if (body !== undefined) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
+  const resp = await fetch(url, opts);
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `HTTP ${resp.status}`);
+  }
+  return resp.json();
+}
+
+function openGSSettings() {
+  closeExportMenu();
+  const { clientId, spreadsheetId } = gsGetSettings();
+  document.getElementById('gsClientId').value = clientId;
+  document.getElementById('gsSpreadsheetId').value = spreadsheetId;
+  document.getElementById('gsOriginHint').textContent = location.origin;
+  document.getElementById('gsSettingsOv').classList.add('on');
+}
+function closeGSSettings() { document.getElementById('gsSettingsOv').classList.remove('on'); }
+
+function gsGetSettings() {
+  return {
+    clientId: localStorage.getItem('gs-client-id') || '',
+    spreadsheetId: localStorage.getItem('gs-spreadsheet-id') || ''
+  };
+}
+
+function saveGSSettings() {
+  const clientId = document.getElementById('gsClientId').value.trim();
+  let raw = document.getElementById('gsSpreadsheetId').value.trim();
+  const m = raw.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+  const spreadsheetId = m ? m[1] : raw;
+  if (!clientId || !spreadsheetId) { showToast('Both fields are required.', 'warning'); return; }
+  localStorage.setItem('gs-client-id', clientId);
+  localStorage.setItem('gs-spreadsheet-id', spreadsheetId);
+  _gsTokenClient = null; // reset so it re-initialises with new client ID
+  closeGSSettings();
+  showToast('Google Sheets settings saved.', 'success');
+}
+
+function syncToGoogleSheets() {
+  closeExportMenu();
+  const { clientId, spreadsheetId } = gsGetSettings();
+  if (!clientId || !spreadsheetId) {
+    openGSSettings();
+    showToast('Configure your Google Sheets settings first.', 'info');
+    return;
+  }
+  if (typeof google === 'undefined' || !google.accounts) {
+    showToast('Google library not loaded yet. Try again in a moment.', 'warning'); return;
+  }
+  if (!_gsTokenClient) {
+    _gsTokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: 'https://www.googleapis.com/auth/spreadsheets',
+      callback: async resp => {
+        if (resp.error) { showToast('Google auth failed: ' + resp.error, 'error'); return; }
+        _gsAccessToken = resp.access_token;
+        await doGSSync(spreadsheetId);
+      }
+    });
+  }
+  _gsTokenClient.requestAccessToken({ prompt: _gsAccessToken ? '' : 'consent' });
+}
+
+async function doGSSync(spreadsheetId) {
+  const syncToast = document.createElement('div');
+  try {
+    showToast('Syncing to Google Sheets…', 'info', 30000);
+    const base = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`;
+
+    // Build tab list
+    const intlRecords  = DB.filter(r => gsIsIntl(r.product));
+    const naRecords    = DB.filter(r => gsIsNANum(r));
+    const localProds   = [...new Set(DB.map(r => r.product).filter(p => p && !gsIsIntl(p)))].sort();
+    const tabs = [
+      { name: 'All Data',      records: DB },
+      ...(intlRecords.length  ? [{ name: 'International', records: intlRecords }] : []),
+      ...(naRecords.length    ? [{ name: 'NA Numbers',    records: naRecords    }] : []),
+      ...localProds.map(p => ({ name: p.slice(0, 100), records: DB.filter(r => r.product === p) }))
+    ];
+
+    // Get existing sheets
+    const info = await gsAPI('GET', base);
+    const existing = new Map(info.sheets.map(s => [s.properties.title, s.properties.sheetId]));
+
+    // Create any missing tabs
+    const toCreate = tabs.filter(t => !existing.has(t.name));
+    if (toCreate.length) {
+      const created = await gsAPI('POST', `${base}:batchUpdate`, {
+        requests: toCreate.map(t => ({ addSheet: { properties: { title: t.name } } }))
+      });
+      created.replies.forEach((r, i) => {
+        if (r.addSheet) existing.set(toCreate[i].name, r.addSheet.properties.sheetId);
+      });
+    }
+
+    // Clear and write each tab
+    const HEADERS = ['Client','Product','Number','Status','Remarks','Posted Status','Posted Date',
+      'Client OSF','Client MRC','Client OTRF','Client Channel Fee','Client CPM',
+      'Effective Date','Activated Date','Provider','Arrival Date','Provider Activation Date',
+      'Provider OSF','Provider MRC','Provider OTRF','Provider CPM',
+      'Type / Session','Route Request by','Deactivation Date','Previous Client'];
+
+    for (const tab of tabs) {
+      const rangeEnc = encodeURIComponent(`'${tab.name}'!A:Z`);
+      await gsAPI('POST', `${base}/values/${rangeEnc}:clear`, {});
+      const values = [HEADERS, ...tab.records.map(gsRecordToRow)];
+      await gsAPI('PUT', `${base}/values/${encodeURIComponent(`'${tab.name}'!A1`)}?valueInputOption=RAW`, { values });
+    }
+
+    // Dismiss the in-progress toast and show success
+    document.querySelectorAll('.toast.t-info').forEach(t => { if (t.querySelector('.toast-msg')?.textContent?.includes('Syncing')) dismissToast(t); });
+    const tabCount = tabs.length;
+    showToast(`Synced — ${DB.length} records across ${tabCount} tabs`, 'success', 6000);
+    addLog('Exported', `Synced ${DB.length} records to Google Sheets (${tabCount} tabs)`);
+  } catch(e) {
+    document.querySelectorAll('.toast.t-info').forEach(t => { if (t.querySelector('.toast-msg')?.textContent?.includes('Syncing')) dismissToast(t); });
+    showToast('Sync failed: ' + e.message, 'error', 8000);
+    console.error('GS sync error:', e);
+  }
+}
+
+function exportGoogleSheets() {
+  if (typeof XLSX === 'undefined') { showToast('Excel library not loaded yet. Try again in a moment.','warning'); return; }
+
+  function recordToRow(r) {
+    return {
+      'Client': r.client||'', 'Product': r.product||'', 'Number': r.number||'',
+      'Status': r.status||'', 'Remarks': r.remarks||'', 'Posted Status': r.postedStatus||'',
+      'Posted Date': r.postedDate||'', 'Client OSF': r.clientOSF||'', 'Client MRC': r.clientMRC||'',
+      'Client OTRF': r.clientOTRF||'', 'Client Channel Fee': r.clientCF||'', 'Client CPM': r.clientCPM||'',
+      'Effective Date': r.effDate||'', 'Activated Date': r.actDate||'', 'Provider': r.provider||'',
+      'Arrival Date': r.arrDate||'', 'Provider Activation Date': r.provActDate||'',
+      'Provider OSF': r.provOSF||'', 'Provider MRC': r.provMRC||'', 'Provider OTRF': r.provOTRF||'',
+      'Provider CPM': r.provCPM||'', 'Type / Session': r.typeSession||'',
+      'Route Request by': r.route||'', 'Deactivation Date': r.deactDate||'', 'Previous Client': r.prevClient||''
+    };
+  }
+
+  // Country-name prefixes that indicate an international product
+  const INTL_PREFIXES = [
+    'USA','AUSTRALIA','UK','UNITED KINGDOM','SINGAPORE','CANADA','JAPAN',
+    'HONG KONG','MALAYSIA','INDONESIA','INDIA','CHINA','KOREA','TAIWAN',
+    'THAILAND','VIETNAM','NEW ZEALAND','GERMANY','FRANCE','ITALY','SPAIN',
+    'BRAZIL','MEXICO','SAUDI','UAE','DUBAI','INTERNATIONAL','INTL'
+  ];
+  const isIntl  = p => INTL_PREFIXES.some(x => String(p||'').toUpperCase().trimStart().startsWith(x));
+  const isNANum = r => String(r.number||'').trim().toUpperCase() === 'NA';
+
+  // Safe Excel sheet name: max 31 chars, no \ / ? * [ ] :
+  const usedNames = new Set();
+  function sheetName(raw) {
+    let n = String(raw).replace(/[\\\/\?\*\[\]:]/g,'_').slice(0,31);
+    if (!usedNames.has(n)) { usedNames.add(n); return n; }
+    // deduplicate with a numeric suffix
+    for (let i=2; i<100; i++) {
+      const s = n.slice(0,28)+'_'+i;
+      if (!usedNames.has(s)) { usedNames.add(s); return s; }
+    }
+    return n;
+  }
+
+  function makeSheet(records) {
+    const rows = records.map(recordToRow);
+    return XLSX.utils.json_to_sheet(rows.length ? rows : [recordToRow({})]);
+  }
+
+  const wb = XLSX.utils.book_new();
+
+  // Tab 1 — All Data
+  XLSX.utils.book_append_sheet(wb, makeSheet(DB), sheetName('All Data'));
+
+  // International tab
+  const intlRecords = DB.filter(r => isIntl(r.product));
+  if (intlRecords.length) {
+    XLSX.utils.book_append_sheet(wb, makeSheet(intlRecords), sheetName('International'));
+  }
+
+  // NA Numbers tab
+  const naRecords = DB.filter(r => isNANum(r));
+  if (naRecords.length) {
+    XLSX.utils.book_append_sheet(wb, makeSheet(naRecords), sheetName('NA Numbers'));
+  }
+
+  // Per-product tabs (local/domestic products only, sorted)
+  const localProducts = [...new Set(DB.map(r => r.product).filter(p => p && !isIntl(p)))].sort();
+  localProducts.forEach(product => {
+    const recs = DB.filter(r => r.product === product);
+    if (!recs.length) return;
+    XLSX.utils.book_append_sheet(wb, makeSheet(recs), sheetName(product));
+  });
+
+  XLSX.writeFile(wb, 'inventory_sheets.xlsx');
+  closeExportMenu();
+  const tabCount = 1 + (intlRecords.length?1:0) + (naRecords.length?1:0) + localProducts.length;
+  addLog('Exported', `Exported to Google Sheets format — ${DB.length} records across ${tabCount} tabs`);
+}
+
 function exportPDF() {
   const jsPDFCls = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
   if (!jsPDFCls) { showToast('PDF library not loaded yet. Try again in a moment.','warning'); return; }
