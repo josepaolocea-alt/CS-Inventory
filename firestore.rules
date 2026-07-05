@@ -1,0 +1,69 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers ─────────────────────────────────────────────
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    // Privileged read of the caller's own user record.
+    // get()/exists() inside rules bypass these same rules, so this
+    // works even when a user can't "list" the users collection.
+    function hasUserDoc() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+    function myRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    function isAdmin() {
+      return isSignedIn() && hasUserDoc() && myRole() == 'admin';
+    }
+    // admin OR semi-admin may edit inventory / logs / selections
+    function canEdit() {
+      return isSignedIn() && hasUserDoc() &&
+             (myRole() == 'admin' || myRole() == 'semi-admin');
+    }
+
+    // ── inventory: any signed-in user reads; editors write ──
+    // (read stays get()-free so bulk dashboard loads add no cost)
+    match /inventory/{docId} {
+      allow read:  if isSignedIn();
+      allow write: if canEdit();
+    }
+
+    // ── logs: editors read/create/clear; never editable ─────
+    match /logs/{docId} {
+      allow read:   if canEdit();
+      allow create: if canEdit();
+      allow delete: if canEdit();   // app clears logs in bulk
+      allow update: if false;       // logs are append-only
+    }
+
+    // ── selections (dropdown options): all read, editors write
+    match /selections/{docId} {
+      allow read:  if isSignedIn();
+      allow write: if canEdit();
+    }
+
+    // ── users: the sensitive collection ─────────────────────
+    match /users/{uid} {
+      // Read your own record; admins read everyone (for the admin UI).
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+
+      // Admins manage all users, any role.
+      allow create, update, delete: if isAdmin();
+
+      // First-login self-bootstrap: you may create ONLY your own doc
+      // and ONLY as 'viewer'. This is what blocks self-promotion.
+      allow create: if isSignedIn()
+                    && request.auth.uid == uid
+                    && request.resource.data.uid == uid
+                    && request.resource.data.role == 'viewer';
+    }
+
+    // Everything else: deny by default.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
