@@ -1223,7 +1223,7 @@ async function doGSSync(spreadsheetId) {
       { name: 'All Data',      records: DB },
       ...(intlRecords.length  ? [{ name: 'International', records: intlRecords }] : []),
       ...(naRecords.length    ? [{ name: 'NA Numbers',    records: naRecords    }] : []),
-      ...localProds.map(p => ({ name: p.slice(0, 100), records: DB.filter(r => r.product === p) }))
+      ...localProds.map(p => ({ name: p.slice(0, 100), records: DB.filter(r => r.product === p && !gsIsNANum(r)) })).filter(t => t.records.length)
     ];
 
     // Get existing sheets
@@ -1329,10 +1329,10 @@ function exportGoogleSheets() {
     XLSX.utils.book_append_sheet(wb, makeSheet(naRecords), sheetName('NA Numbers'));
   }
 
-  // Per-product tabs (local/domestic products only, sorted)
+  // Per-product tabs (local/domestic products only, sorted — NA numbers excluded, they're in NA Numbers tab)
   const localProducts = [...new Set(DB.map(r => r.product).filter(p => p && !isIntl(p)))].sort();
   localProducts.forEach(product => {
-    const recs = DB.filter(r => r.product === product);
+    const recs = DB.filter(r => r.product === product && !isNANum(r));
     if (!recs.length) return;
     XLSX.utils.book_append_sheet(wb, makeSheet(recs), sheetName(product));
   });
