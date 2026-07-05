@@ -1123,7 +1123,7 @@ const GS_INTL_PREFIXES = [
   'THAILAND','VIETNAM','NEW ZEALAND','GERMANY','FRANCE','ITALY','SPAIN',
   'BRAZIL','MEXICO','SAUDI','UAE','DUBAI','INTERNATIONAL','INTL'
 ];
-const gsIsIntl  = p => GS_INTL_PREFIXES.some(x => String(p||'').toUpperCase().trimStart().startsWith(x));
+const gsIsIntl  = p => { const u = String(p||'').toUpperCase().trim(); return u.endsWith(' DID') || GS_INTL_PREFIXES.some(x => u.startsWith(x)); };
 const gsIsNANum = r => String(r.number||'').trim().toUpperCase() === 'NA';
 
 let _gsTokenClient = null;
@@ -1291,7 +1291,7 @@ function exportGoogleSheets() {
     'THAILAND','VIETNAM','NEW ZEALAND','GERMANY','FRANCE','ITALY','SPAIN',
     'BRAZIL','MEXICO','SAUDI','UAE','DUBAI','INTERNATIONAL','INTL'
   ];
-  const isIntl  = p => INTL_PREFIXES.some(x => String(p||'').toUpperCase().trimStart().startsWith(x));
+  const isIntl  = p => { const u = String(p||'').toUpperCase().trim(); return u.endsWith(' DID') || INTL_PREFIXES.some(x => u.startsWith(x)); };
   const isNANum = r => String(r.number||'').trim().toUpperCase() === 'NA';
 
   // Safe Excel sheet name: max 31 chars, no \ / ? * [ ] :
