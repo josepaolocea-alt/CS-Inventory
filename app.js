@@ -1209,59 +1209,65 @@ function syncToGoogleSheets() {
   _gsTokenClient.requestAccessToken({ prompt: _gsAccessToken ? '' : 'consent' });
 }
 
+function gsDismissSyncingToast() {
+  document.querySelectorAll('.toast.t-info').forEach(t => {
+    if (t.querySelector('.toast-msg')?.textContent?.includes('Syncing')) dismissToast(t);
+  });
+}
+
 async function doGSSync(spreadsheetId) {
-  const syncToast = document.createElement('div');
   try {
-    showToast('Syncing to Google Sheets…', 'info', 30000);
+    showToast('Syncing to Google Sheets…', 'info', 60000);
     const base = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`;
 
-    // Build tab list
-    const intlRecords  = DB.filter(r => gsIsIntl(r.product));
-    const naRecords    = DB.filter(r => gsIsNANum(r));
-    const localProds   = [...new Set(DB.map(r => r.product).filter(p => p && !gsIsIntl(p)))].sort();
-    const tabs = [
-      { name: 'All Data',      records: DB },
-      ...(intlRecords.length  ? [{ name: 'International', records: intlRecords }] : []),
-      ...(naRecords.length    ? [{ name: 'NA Numbers',    records: naRecords    }] : []),
-      ...localProds.map(p => ({ name: p.slice(0, 100), records: DB.filter(r => r.product === p && !gsIsNANum(r)) })).filter(t => t.records.length)
-    ];
-
-    // Get existing sheets
-    const info = await gsAPI('GET', base);
-    const existing = new Map(info.sheets.map(s => [s.properties.title, s.properties.sheetId]));
-
-    // Create any missing tabs
-    const toCreate = tabs.filter(t => !existing.has(t.name));
-    if (toCreate.length) {
-      const created = await gsAPI('POST', `${base}:batchUpdate`, {
-        requests: toCreate.map(t => ({ addSheet: { properties: { title: t.name } } }))
-      });
-      created.replies.forEach((r, i) => {
-        if (r.addSheet) existing.set(toCreate[i].name, r.addSheet.properties.sheetId);
-      });
-    }
-
-    // Clear and write each tab
     const HEADERS = ['Client','Product','Number','Status','Remarks','Posted Status','Posted Date','Posted Time',
       'Client OSF','Client MRC','Client OTRF','Client Channel Fee','Client CPM',
       'Effective Date','Activated Date','Provider','Arrival Date','Provider Activation Date',
       'Provider OSF','Provider MRC','Provider OTRF','Provider CPM',
       'Type / Session','Route Request by','Deactivation Date','Previous Client'];
 
-    for (const tab of tabs) {
-      const rangeEnc = encodeURIComponent(`'${tab.name}'!A:Z`);
-      await gsAPI('POST', `${base}/values/${rangeEnc}:clear`, {});
-      const values = [HEADERS, ...tab.records.map(gsRecordToRow)];
-      await gsAPI('PUT', `${base}/values/${encodeURIComponent(`'${tab.name}'!A1`)}?valueInputOption=RAW`, { values });
+    // Build tab list
+    const intlRecords = DB.filter(r => gsIsIntl(r.product));
+    const naRecords   = DB.filter(r => gsIsNANum(r));
+    const localProds  = [...new Set(DB.map(r => r.product).filter(p => p && !gsIsIntl(p)))].sort();
+    const tabs = [
+      { name: 'All Data',      records: DB },
+      ...(intlRecords.length ? [{ name: 'International', records: intlRecords }] : []),
+      ...(naRecords.length   ? [{ name: 'NA Numbers',    records: naRecords    }] : []),
+      ...localProds.map(p => ({ name: p.slice(0,100), records: DB.filter(r => r.product===p && !gsIsNANum(r)) })).filter(t => t.records.length)
+    ];
+
+    // 1 — Get existing sheets
+    const info = await gsAPI('GET', base);
+    const existing = new Map(info.sheets.map(s => [s.properties.title, s.properties.sheetId]));
+
+    // 2 — Create missing tabs in one batch call
+    const toCreate = tabs.filter(t => !existing.has(t.name));
+    if (toCreate.length) {
+      await gsAPI('POST', `${base}:batchUpdate`, {
+        requests: toCreate.map(t => ({ addSheet: { properties: { title: t.name } } }))
+      });
     }
 
-    // Dismiss the in-progress toast and show success
-    document.querySelectorAll('.toast.t-info').forEach(t => { if (t.querySelector('.toast-msg')?.textContent?.includes('Syncing')) dismissToast(t); });
-    const tabCount = tabs.length;
-    showToast(`Synced — ${DB.length} records across ${tabCount} tabs`, 'success', 6000);
-    addLog('Exported', `Synced ${DB.length} records to Google Sheets (${tabCount} tabs)`);
+    // 3 — Batch clear all tab ranges (1 API call)
+    await gsAPI('POST', `${base}/values:batchClear`, {
+      ranges: tabs.map(t => `'${t.name}'!A:Z`)
+    });
+
+    // 4 — Batch write all tabs (1 API call)
+    await gsAPI('POST', `${base}/values:batchUpdate`, {
+      valueInputOption: 'RAW',
+      data: tabs.map(t => ({
+        range: `'${t.name}'!A1`,
+        values: [HEADERS, ...t.records.map(gsRecordToRow)]
+      }))
+    });
+
+    gsDismissSyncingToast();
+    showToast(`Synced — ${DB.length} records across ${tabs.length} tabs`, 'success', 6000);
+    addLog('Exported', `Synced ${DB.length} records to Google Sheets (${tabs.length} tabs)`);
   } catch(e) {
-    document.querySelectorAll('.toast.t-info').forEach(t => { if (t.querySelector('.toast-msg')?.textContent?.includes('Syncing')) dismissToast(t); });
+    gsDismissSyncingToast();
     showToast('Sync failed: ' + e.message, 'error', 8000);
     console.error('GS sync error:', e);
   }
