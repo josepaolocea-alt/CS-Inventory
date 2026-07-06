@@ -378,10 +378,10 @@
         </div>
         <div class="fg full"><label>Remarks</label><input class="fc" id="mRemarks" placeholder="Any remarks…"></div>
         <div class="fg"><label>Posted Status</label>
-          <select class="fc" id="mPosted"><option value="No">No</option><option value="Yes">Yes</option><option value="Not Yet">Not Yet</option></select>
+          <select class="fc" id="mPosted"><option value="No">No</option><option value="Posted">Posted</option><option value="For Posting">For Posting</option></select>
         </div>
         <div class="fg full">
-          <label>Posted Date &amp; Time <span style="color:var(--t3);font-weight:400;font-size:11px">(optional)</span></label>
+          <label>Posted Date &amp; Time <span style="color:var(--t3);font-weight:400;font-size:11px">(optional · time auto-fills when Posted Status is “For Posting”)</span></label>
           <div style="display:flex;gap:6px;align-items:center">
             <input type="date" class="fc" id="mPostedDate" style="flex:2;min-width:0">
             <select class="fc" id="mPostedHour" style="flex:1;min-width:0"><option value="">HH</option></select>
@@ -473,7 +473,7 @@
         </div>
         <div class="fg full"><label>Remarks</label><input class="fc" id="beRemarks" placeholder="Leave blank to keep"></div>
         <div class="fg"><label>Posted Status</label>
-          <select class="fc" id="bePosted"><option value="">— keep existing —</option><option value="Yes">Yes</option><option value="No">No</option><option value="Not Yet">Not Yet</option></select>
+          <select class="fc" id="bePosted"><option value="">— keep existing —</option><option value="Posted">Posted</option><option value="No">No</option><option value="For Posting">For Posting</option></select>
         </div>
         <div class="fg"><label>Posted Date</label><input type="date" class="fc" id="bePostedDate"></div>
         <div class="fg"><label>Client OSF</label>

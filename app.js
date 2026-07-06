@@ -85,11 +85,55 @@ function normalizePhone(n) {
   return digits;
 }
 function bclass(s) { return {Active:'b-active',Available:'b-available',Reserved:'b-reserved',Inactive:'b-inactive'}[s]||''; }
+// Canonicalize Posted Status to the current labels, migrating legacy values on the fly:
+//   "Yes" → "Posted", "Not Yet" → "For Posting". Blank/unknown values pass through unchanged.
+function canonPostedStatus(v) {
+  const raw = String(v == null ? '' : v).trim();
+  const s = raw.toLowerCase();
+  if (s === 'posted' || s === 'yes')          return 'Posted';
+  if (s === 'for posting' || s === 'not yet') return 'For Posting';
+  if (s === 'no')                             return 'No';
+  return raw;
+}
 function postedClass(s) {
-  const v = String(s || '').trim().toLowerCase();
-  if (v === 'yes') return 'b-posted-yes';
-  if (v === 'not yet') return 'b-posted-notyet';
-  return 'b-posted-no';
+  switch (canonPostedStatus(s)) {
+    case 'Posted':      return 'b-posted-yes';
+    case 'For Posting': return 'b-posted-notyet';
+    default:            return 'b-posted-no';
+  }
+}
+function pad2(n) { return String(n).padStart(2, '0'); }
+// Advance a {h,m} time by one minute, wrapping 23:59 → 00:00.
+function stepMinute(h, m) {
+  m += 1;
+  if (m > 59) { m = 0; h += 1; }
+  if (h > 23) { h = 0; }
+  return { h, m };
+}
+// Most recently assigned posted time across the inventory, as {h,m} (or null if none).
+// Recency is keyed on postedTimeAt (stamped whenever a posted time is written) so the
+// sequence continues correctly even after wrapping past midnight. `excludeId` skips one record.
+function latestPostedTime(excludeId) {
+  let best = null, bestKey = '';
+  for (const r of DB) {
+    if (excludeId && r.id === excludeId) continue;
+    if (r.postedHour === '' || r.postedHour == null) continue;
+    const key = r.postedTimeAt || r.updatedAt || r.createdAt || '';
+    if (best === null || key.localeCompare(bestKey) > 0) {
+      bestKey = key;
+      best = { h: parseInt(r.postedHour, 10) || 0, m: parseInt(r.postedMin || '0', 10) || 0 };
+    }
+  }
+  return best;
+}
+// Next posting slot for a single record: one minute after the latest posted time,
+// or the current clock time when nothing has been posted yet.
+function nextPostingSlot(excludeId) {
+  const a = latestPostedTime(excludeId);
+  let h, m;
+  if (a) ({ h, m } = stepMinute(a.h, a.m));
+  else { const n = new Date(); h = n.getHours(); m = n.getMinutes(); }
+  return { hour: pad2(h), min: pad2(m) };
 }
 function roleBadge(role) {
   const m = {admin:['rb-admin','Admin'],'semi-admin':['rb-semi','Semi-Admin'],viewer:['rb-viewer','Viewer']};
@@ -503,7 +547,7 @@ function renderTbl() {
       <td>${esc(r.product)}</td>
       <td class="num-cell" style="color:var(--accent);font-weight:500">${esc(r.number)}</td>
       <td><span class="badge ${bclass(r.status)}">${esc(r.status)}</span></td>
-      <td><span class="badge ${postedClass(r.postedStatus)}">${esc(r.postedStatus || 'No')}</span></td>
+      <td><span class="badge ${postedClass(r.postedStatus)}">${esc(canonPostedStatus(r.postedStatus) || 'No')}</span>${r.postedHour ? `<span class="posted-time">${esc(r.postedHour)}:${esc(r.postedMin || '00')}</span>` : ''}</td>
       <td>${esc(r.remarks)}</td>
       <td onclick="event.stopPropagation()">
         <div class="act-btns">
@@ -679,8 +723,8 @@ function openSP(id) {
     <div class="ds"><div class="ds-title">Client Information</div>
       ${dr('Client',r.client)}${dr('Product',r.product)}${dr('Number',r.number)}
       ${drHTML('Status',`<span class="badge ${bclass(r.status)}">${esc(r.status)}</span>`)}
-      ${dr('Remarks',r.remarks||'—')}${dr('Posted Status',r.postedStatus||'—')}
-      ${dr('Posted Date & Time', r.postedDate ? fmt(r.postedDate) + (r.postedHour ? ` ${r.postedHour}:${r.postedMin||'00'}` : '') : '—')}${dr('Client OSF','$'+(r.clientOSF||'—'))}
+      ${dr('Remarks',r.remarks||'—')}${dr('Posted Status',canonPostedStatus(r.postedStatus)||'—')}
+      ${dr('Posted Date & Time', (r.postedDate || r.postedHour) ? `${r.postedDate ? fmt(r.postedDate) : ''}${r.postedHour ? ` ${r.postedHour}:${r.postedMin||'00'}` : ''}`.trim() : '—')}${dr('Client OSF','$'+(r.clientOSF||'—'))}
       ${dr('Client MRC','$'+(r.clientMRC||'—'))}${dr('Client OTRF','$'+(r.clientOTRF||'—'))}
       ${dr('Client Channel Fee','$'+(r.clientCF||'—'))}${dr('Client CPM',r.clientCPM||'—')}
       ${dr('Effective Date',fmt(r.effDate))}${dr('Activated Date',fmt(r.actDate))}
@@ -829,7 +873,8 @@ function fillMo(r) {
   resetDateMirror('single');
   Object.entries(mMap).forEach(([id,key]) => {
     const el = document.getElementById(id); if (!el || r[key]===undefined) return;
-    const v = DATE_FIELDS.has(id) ? sanitizeDate(r[key]) : r[key];
+    let v = DATE_FIELDS.has(id) ? sanitizeDate(r[key]) : r[key];
+    if (id === 'mPosted') v = canonPostedStatus(v) || 'No';
     if (el.tagName==='SELECT') setSelectVal(el,v); else el.value=v;
   });
   FEE_FIELDS.forEach(([selId, inputId]) => {
@@ -915,13 +960,31 @@ async function saveRec() {
       deactivatedAt: nd.updatedAt
     };
     nd.client = ''; nd.status = 'Available'; nd.remarks = ''; nd.postedStatus = '';
-    nd.postedDate = ''; nd.clientOSF = ''; nd.clientMRC = ''; nd.clientOTRF = '';
+    nd.postedDate = ''; nd.postedHour = ''; nd.postedMin = ''; nd.postedTimeAt = '';
+    nd.clientOSF = ''; nd.clientMRC = ''; nd.clientOTRF = '';
     nd.clientCF = ''; nd.clientCPM = ''; nd.effDate = ''; nd.actDate = '';
     nd.deactDate = deactDateVal;
     nd.route = document.getElementById('dRoute').value;
     nd.prevClient = currentRec?.client || '';
     nd.deactivationHistory = [...(currentRec?.deactivationHistory || []), histEntry];
   }
+
+  // ── Auto-assign posting time ───
+  // Persist Posted Status in its canonical form, and when a record is marked "For Posting"
+  // without an explicit time, continue the posting-time sequence (latest posted time + 1 min).
+  nd.postedStatus = canonPostedStatus(nd.postedStatus);
+  let assignedTime = '';
+  if (nd.postedStatus === 'For Posting' && !nd.postedHour) {
+    const t = nextPostingSlot(editId);
+    nd.postedHour = t.hour;
+    nd.postedMin  = t.min;
+    assignedTime  = `${t.hour}:${t.min}`;
+  }
+  // Stamp when the posted time was set so the sequence anchors on the newest assignment
+  // (and isn't disturbed by unrelated edits to older records).
+  const _prevRec = editId ? DB.find(r => r.id === editId) : null;
+  const _timeChanged = !_prevRec || (_prevRec.postedHour || '') !== (nd.postedHour || '') || (_prevRec.postedMin || '') !== (nd.postedMin || '');
+  if (nd.postedHour && _timeChanged) nd.postedTimeAt = new Date().toISOString();
 
   try {
     if (editId) {
@@ -942,7 +1005,7 @@ async function saveRec() {
       refreshInventoryRecent(); closeMo();
       openSP(editId);
       if (oldRec) {
-        showUndoToast(`Updated ${nd.number}`, async () => {
+        showUndoToast(`Updated ${nd.number}${assignedTime ? ` · posting time ${assignedTime}` : ''}`, async () => {
           try {
             const {id:rid, ...oldData} = oldRec;
             await fdb.collection('inventory').doc(rid).update(oldData);
@@ -954,7 +1017,7 @@ async function saveRec() {
           } catch(e) { showToast('Revert failed: '+e.message, 'error'); }
         }, 6000, 'Updated');
       } else {
-        showToast(`Updated ${nd.number}`, 'success');
+        showToast(`Updated ${nd.number}${assignedTime ? ` · posting time ${assignedTime}` : ''}`, 'success');
       }
     } else {
       nd.createdBy = currentUser?.email || 'system';
@@ -963,7 +1026,7 @@ async function saveRec() {
       nd.id = ref.id; DB.push(nd);
       await addLog('Added', `Added number ${nd.number}`);
       refreshInventoryRecent(); closeMo();
-      showToast(`Added ${nd.number}`, 'success');
+      showToast(`Added ${nd.number}${assignedTime ? ` · posting time ${assignedTime}` : ''}`, 'success');
     }
   } catch(e) { showToast('Save error: '+e.message, 'error'); }
 }
@@ -1099,7 +1162,7 @@ function dlSample() {
 }
 
 function exportAll() {
-  const rows = DB.map(r => [r.client,r.product,r.number,r.status,r.remarks,r.postedStatus,r.postedDate,r.postedHour?(r.postedHour+':'+(r.postedMin||'00')):'',r.clientOSF,r.clientMRC,r.clientOTRF,r.clientCF,r.clientCPM,r.effDate,r.actDate,r.provider,r.arrDate,r.provActDate,r.provOSF,r.provMRC,r.provOTRF,r.provCPM,r.typeSession,r.route,r.deactDate,r.prevClient]);
+  const rows = DB.map(r => [r.client,r.product,r.number,r.status,r.remarks,canonPostedStatus(r.postedStatus),r.postedDate,r.postedHour?(r.postedHour+':'+(r.postedMin||'00')):'',r.clientOSF,r.clientMRC,r.clientOTRF,r.clientCF,r.clientCPM,r.effDate,r.actDate,r.provider,r.arrDate,r.provActDate,r.provOSF,r.provMRC,r.provOTRF,r.provCPM,r.typeSession,r.route,r.deactDate,r.prevClient]);
   dlCSV([CSV_HEADERS,...rows], 'inventory_export.csv');
   closeExportMenu();
   addLog('Exported', `Exported ${DB.length} records to CSV`);
@@ -1151,7 +1214,7 @@ function styleExcelSheet(ws) {
 
 function exportExcel() {
   if (typeof XLSX === 'undefined') { showToast('Excel library not loaded yet. Try again in a moment.','warning'); return; }
-  const rows = DB.map(r => ({'Client':r.client,'Product':r.product,'Number':r.number,'Status':r.status,'Remarks':r.remarks,'Posted Status':r.postedStatus,'Posted Date':r.postedDate,'Posted Time':r.postedHour?(r.postedHour+':'+(r.postedMin||'00')):'','Client OSF':r.clientOSF,'Client MRC':r.clientMRC,'Client OTRF':r.clientOTRF,'Client Channel Fee':r.clientCF,'Client CPM':r.clientCPM,'Effective Date':r.effDate,'Activated Date':r.actDate,'Provider':r.provider,'Arrival Date':r.arrDate,'Provider Activation Date':r.provActDate,'Provider OSF':r.provOSF,'Provider MRC':r.provMRC,'Provider OTRF':r.provOTRF,'Provider CPM':r.provCPM,'Type / Session':r.typeSession,'Route Request by':r.route,'Deactivation Date':r.deactDate,'Previous Client':r.prevClient}));
+  const rows = DB.map(r => ({'Client':r.client,'Product':r.product,'Number':r.number,'Status':r.status,'Remarks':r.remarks,'Posted Status':canonPostedStatus(r.postedStatus),'Posted Date':r.postedDate,'Posted Time':r.postedHour?(r.postedHour+':'+(r.postedMin||'00')):'','Client OSF':r.clientOSF,'Client MRC':r.clientMRC,'Client OTRF':r.clientOTRF,'Client Channel Fee':r.clientCF,'Client CPM':r.clientCPM,'Effective Date':r.effDate,'Activated Date':r.actDate,'Provider':r.provider,'Arrival Date':r.arrDate,'Provider Activation Date':r.provActDate,'Provider OSF':r.provOSF,'Provider MRC':r.provMRC,'Provider OTRF':r.provOTRF,'Provider CPM':r.provCPM,'Type / Session':r.typeSession,'Route Request by':r.route,'Deactivation Date':r.deactDate,'Previous Client':r.prevClient}));
   const ws = XLSX.utils.json_to_sheet(rows);
   styleExcelSheet(ws);
   const wb = XLSX.utils.book_new();
@@ -1177,7 +1240,7 @@ let _gsAccessToken = null;
 function gsRecordToRow(r) {
   return [
     r.client||'', r.product||'', r.number||'', r.status||'', r.remarks||'',
-    r.postedStatus||'', r.postedDate||'', r.postedHour?(r.postedHour+':'+(r.postedMin||'00')):'', r.clientOSF||'', r.clientMRC||'',
+    canonPostedStatus(r.postedStatus), r.postedDate||'', r.postedHour?(r.postedHour+':'+(r.postedMin||'00')):'', r.clientOSF||'', r.clientMRC||'',
     r.clientOTRF||'', r.clientCF||'', r.clientCPM||'', r.effDate||'', r.actDate||'',
     r.provider||'', r.arrDate||'', r.provActDate||'', r.provOSF||'', r.provMRC||'',
     r.provOTRF||'', r.provCPM||'', r.typeSession||'', r.route||'',
@@ -1377,7 +1440,7 @@ function exportGoogleSheets() {
   function recordToRow(r) {
     return {
       'Client': r.client||'', 'Product': r.product||'', 'Number': r.number||'',
-      'Status': r.status||'', 'Remarks': r.remarks||'', 'Posted Status': r.postedStatus||'',
+      'Status': r.status||'', 'Remarks': r.remarks||'', 'Posted Status': canonPostedStatus(r.postedStatus),
       'Posted Date': r.postedDate||'', 'Posted Time': r.postedHour?(r.postedHour+':'+(r.postedMin||'00')):'', 'Client OSF': r.clientOSF||'', 'Client MRC': r.clientMRC||'',
       'Client OTRF': r.clientOTRF||'', 'Client Channel Fee': r.clientCF||'', 'Client CPM': r.clientCPM||'',
       'Effective Date': r.effDate||'', 'Activated Date': r.actDate||'', 'Provider': r.provider||'',
@@ -1720,7 +1783,7 @@ function changeLPg(d) {
 function dlSelected() {
   const ids = getCheckedIds(); if (!ids.length) return;
   const rows = ids.map(id => DB.find(r => r.id===id)).filter(Boolean);
-  const data = rows.map(r => [r.client,r.product,r.number,r.status,r.remarks,r.postedStatus,r.postedDate,r.postedHour?(r.postedHour+':'+(r.postedMin||'00')):'',r.clientOSF,r.clientMRC,r.clientOTRF,r.clientCF,r.clientCPM,r.effDate,r.actDate,r.provider,r.arrDate,r.provActDate,r.provOSF,r.provMRC,r.provOTRF,r.provCPM,r.typeSession,r.route,r.deactDate,r.prevClient]);
+  const data = rows.map(r => [r.client,r.product,r.number,r.status,r.remarks,canonPostedStatus(r.postedStatus),r.postedDate,r.postedHour?(r.postedHour+':'+(r.postedMin||'00')):'',r.clientOSF,r.clientMRC,r.clientOTRF,r.clientCF,r.clientCPM,r.effDate,r.actDate,r.provider,r.arrDate,r.provActDate,r.provOSF,r.provMRC,r.provOTRF,r.provCPM,r.typeSession,r.route,r.deactDate,r.prevClient]);
   dlCSV([CSV_HEADERS,...data], `selected_${ids.length}_entries.csv`);
   addLog('Exported', `Downloaded ${ids.length} selected record${ids.length!==1?'s':''}`);
 }
@@ -1815,6 +1878,7 @@ async function saveBulkEdit() {
           const histEntry = { previousClient: rec?.client||'', activation: activationSnapshot(rec || {}), deactDate: deactDateVal, requestedBy, remarks: bdRemarks, deactivatedBy, deactivatedAt };
           b.update(fdb.collection('inventory').doc(id), {
             client:'', status:'Available', remarks:'', postedStatus:'', postedDate:'',
+            postedHour:'', postedMin:'', postedTimeAt:'',
             clientOSF:'', clientMRC:'', clientOTRF:'', clientCF:'', clientCPM:'',
             effDate:'', actDate:'', deactDate: deactDateVal, route: requestedBy,
             prevClient: rec?.client||'',
@@ -1829,7 +1893,7 @@ async function saveBulkEdit() {
         if (idx>-1) {
           const rec = DB[idx];
           const histEntry = { previousClient: rec.client||'', activation: activationSnapshot(rec), deactDate: deactDateVal, requestedBy, remarks: bdRemarks, deactivatedBy, deactivatedAt };
-          DB[idx] = {...rec, client:'', status:'Available', remarks:'', postedStatus:'', postedDate:'', clientOSF:'', clientMRC:'', clientOTRF:'', clientCF:'', clientCPM:'', effDate:'', actDate:'', deactDate: deactDateVal, route: requestedBy, prevClient: rec.client||'', deactivationHistory:[...(rec.deactivationHistory||[]),histEntry], updatedBy:deactivatedBy, updatedAt:deactivatedAt};
+          DB[idx] = {...rec, client:'', status:'Available', remarks:'', postedStatus:'', postedDate:'', postedHour:'', postedMin:'', postedTimeAt:'', clientOSF:'', clientMRC:'', clientOTRF:'', clientCF:'', clientCPM:'', effDate:'', actDate:'', deactDate: deactDateVal, route: requestedBy, prevClient: rec.client||'', deactivationHistory:[...(rec.deactivationHistory||[]),histEntry], updatedBy:deactivatedBy, updatedAt:deactivatedAt};
         }
       });
       refreshInventoryRecent();
@@ -1850,15 +1914,38 @@ async function saveBulkEdit() {
     if (v) updates[field] = v;
   });
   if (!Object.keys(updates).length) { closeBE(); return; }
+  if (updates.postedStatus) updates.postedStatus = canonPostedStatus(updates.postedStatus);
   updates.updatedBy = currentUser?.email||'system';
   updates.updatedAt = new Date().toISOString();
 
-  // Save original field values for undo
+  // When bulk-setting "For Posting", give each selected record that has no posted time yet a
+  // sequential time — earliest at the bottom row, increasing upward — continuing the sequence.
+  let perIdTime = null;
+  if (updates.postedStatus === 'For Posting') {
+    const pos = new Map(fd.map((r, i) => [r.id, i]));
+    const targets = ids
+      .map(id => DB.find(r => r.id === id))
+      .filter(r => r && !r.postedHour)
+      .sort((a, b) => (pos.has(b.id) ? pos.get(b.id) : -1) - (pos.has(a.id) ? pos.get(a.id) : -1));
+    if (targets.length) {
+      perIdTime = {};
+      const base = Date.now();
+      let cur = latestPostedTime(null);
+      targets.forEach((r, i) => {
+        if (cur) cur = stepMinute(cur.h, cur.m);
+        else { const n = new Date(); cur = { h: n.getHours(), m: n.getMinutes() }; }
+        perIdTime[r.id] = { postedHour: pad2(cur.h), postedMin: pad2(cur.m), postedTimeAt: new Date(base + i).toISOString() };
+      });
+    }
+  }
+
+  // Save original field values for undo (including posted-time fields when we assign them)
   const dataFields = Object.keys(updates).filter(k => k!=='updatedBy' && k!=='updatedAt');
+  const savedFields = perIdTime ? [...dataFields, 'postedHour', 'postedMin', 'postedTimeAt'] : dataFields;
   const savedRecs = ids.map(id => {
     const r = DB.find(x => x.id===id); if (!r) return null;
     const saved = {id};
-    dataFields.forEach(f => { saved[f] = r[f] !== undefined ? r[f] : ''; });
+    savedFields.forEach(f => { saved[f] = r[f] !== undefined ? r[f] : ''; });
     return saved;
   }).filter(Boolean);
   const affectedRecords = ids.map(id => DB.find(r => r.id===id)).filter(Boolean).map(r => bulkChangeSummary(r, dataFields, updates));
@@ -1867,10 +1954,10 @@ async function saveBulkEdit() {
     const CHUNK = 400;
     for (let i=0; i<ids.length; i+=CHUNK) {
       const b = fdb.batch();
-      ids.slice(i,i+CHUNK).forEach(id => b.update(fdb.collection('inventory').doc(id), updates));
+      ids.slice(i,i+CHUNK).forEach(id => b.update(fdb.collection('inventory').doc(id), perIdTime && perIdTime[id] ? {...updates, ...perIdTime[id]} : updates));
       await b.commit();
     }
-    ids.forEach(id => { const idx=DB.findIndex(r=>r.id===id); if(idx>-1) DB[idx]={...DB[idx],...updates}; });
+    ids.forEach(id => { const idx=DB.findIndex(r=>r.id===id); if(idx>-1) DB[idx]={...DB[idx],...updates,...(perIdTime && perIdTime[id] ? perIdTime[id] : {})}; });
     refreshInventoryRecent();
     await addLog('Updated', `Bulk edited ${ids.length} records: ${dataFields.join(', ')}`, {records: affectedRecords, fields:dataFields});
     closeBE();
