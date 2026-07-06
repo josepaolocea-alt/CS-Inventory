@@ -1105,10 +1105,55 @@ function exportAll() {
   addLog('Exported', `Exported ${DB.length} records to CSV`);
 }
 
+// ── SHARED EXCEL STYLING ──────────────────────────────
+// Black header w/ white bold text, sensible column widths, and a narrow wrapped Remarks column.
+// (Requires the xlsx-js-style build; the plain SheetJS build silently ignores the `.s` styles.)
+const XL_HEADER_STYLE = {
+  fill: { patternType: 'solid', fgColor: { rgb: '000000' } },
+  font: { color: { rgb: 'FFFFFF' }, bold: true },
+  alignment: { horizontal: 'center', vertical: 'center', wrapText: true }
+};
+// Column width (in characters) by header name — Remarks kept narrow and wrapped so it doesn't hog space.
+const XL_COL_WIDTHS = {
+  'Client': 16, 'Product': 18, 'Number': 16, 'Status': 12, 'Remarks': 32,
+  'Posted Status': 13, 'Posted Date': 13, 'Posted Time': 11,
+  'Client OSF': 11, 'Client MRC': 11, 'Client OTRF': 11, 'Client Channel Fee': 16, 'Client CPM': 11,
+  'Effective Date': 14, 'Activated Date': 14, 'Provider': 16, 'Arrival Date': 13,
+  'Provider Activation Date': 22, 'Provider OSF': 12, 'Provider MRC': 12, 'Provider OTRF': 12, 'Provider CPM': 12,
+  'Type / Session': 14, 'Route Request by': 18, 'Deactivation Date': 16, 'Previous Client': 16
+};
+function styleExcelSheet(ws) {
+  if (!ws || !ws['!ref']) return ws;
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  // Read header names from the first row to map columns
+  const headers = [];
+  for (let c = range.s.c; c <= range.e.c; c++) {
+    const addr = XLSX.utils.encode_cell({ r: range.s.r, c });
+    headers[c] = ws[addr] ? String(ws[addr].v) : '';
+  }
+  const remarksCol = headers.indexOf('Remarks');
+  // Column widths
+  ws['!cols'] = headers.map(h => ({ wch: XL_COL_WIDTHS[h] || 14 }));
+  // Style the header row (black background, white bold text)
+  for (let c = range.s.c; c <= range.e.c; c++) {
+    const addr = XLSX.utils.encode_cell({ r: range.s.r, c });
+    if (ws[addr]) ws[addr].s = XL_HEADER_STYLE;
+  }
+  // Wrap the Remarks column body cells
+  if (remarksCol !== -1) {
+    for (let r = range.s.r + 1; r <= range.e.r; r++) {
+      const addr = XLSX.utils.encode_cell({ r, c: remarksCol });
+      if (ws[addr]) ws[addr].s = { alignment: { wrapText: true, vertical: 'top' } };
+    }
+  }
+  return ws;
+}
+
 function exportExcel() {
   if (typeof XLSX === 'undefined') { showToast('Excel library not loaded yet. Try again in a moment.','warning'); return; }
   const rows = DB.map(r => ({'Client':r.client,'Product':r.product,'Number':r.number,'Status':r.status,'Remarks':r.remarks,'Posted Status':r.postedStatus,'Posted Date':r.postedDate,'Posted Time':r.postedHour?(r.postedHour+':'+(r.postedMin||'00')):'','Client OSF':r.clientOSF,'Client MRC':r.clientMRC,'Client OTRF':r.clientOTRF,'Client Channel Fee':r.clientCF,'Client CPM':r.clientCPM,'Effective Date':r.effDate,'Activated Date':r.actDate,'Provider':r.provider,'Arrival Date':r.arrDate,'Provider Activation Date':r.provActDate,'Provider OSF':r.provOSF,'Provider MRC':r.provMRC,'Provider OTRF':r.provOTRF,'Provider CPM':r.provCPM,'Type / Session':r.typeSession,'Route Request by':r.route,'Deactivation Date':r.deactDate,'Previous Client':r.prevClient}));
   const ws = XLSX.utils.json_to_sheet(rows);
+  styleExcelSheet(ws);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Inventory');
   XLSX.writeFile(wb, 'inventory_export.xlsx');
@@ -1244,8 +1289,12 @@ async function doGSSync(spreadsheetId) {
     // 2 — Create missing tabs in one batch call
     const toCreate = tabs.filter(t => !existing.has(t.name));
     if (toCreate.length) {
-      await gsAPI('POST', `${base}:batchUpdate`, {
+      const created = await gsAPI('POST', `${base}:batchUpdate`, {
         requests: toCreate.map(t => ({ addSheet: { properties: { title: t.name } } }))
+      });
+      (created.replies || []).forEach(rep => {
+        const p = rep.addSheet && rep.addSheet.properties;
+        if (p) existing.set(p.title, p.sheetId);
       });
     }
 
@@ -1262,6 +1311,55 @@ async function doGSSync(spreadsheetId) {
         values: [HEADERS, ...t.records.map(gsRecordToRow)]
       }))
     });
+
+    // 5 — Format every tab: black header w/ white text, auto-sized columns, narrow wrapped Remarks (1 API call)
+    const remarksCol = HEADERS.indexOf('Remarks');
+    const fmtRequests = [];
+    tabs.forEach(t => {
+      const sheetId = existing.get(t.name);
+      if (sheetId === undefined) return;
+      // Header row: black fill, white bold text, centered
+      fmtRequests.push({
+        repeatCell: {
+          range: { sheetId, startRowIndex: 0, endRowIndex: 1 },
+          cell: { userEnteredFormat: {
+            backgroundColor: { red: 0, green: 0, blue: 0 },
+            textFormat: { foregroundColor: { red: 1, green: 1, blue: 1 }, bold: true },
+            horizontalAlignment: 'CENTER', verticalAlignment: 'MIDDLE'
+          } },
+          fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)'
+        }
+      });
+      // Freeze the header row
+      fmtRequests.push({
+        updateSheetProperties: {
+          properties: { sheetId, gridProperties: { frozenRowCount: 1 } },
+          fields: 'gridProperties.frozenRowCount'
+        }
+      });
+      // Auto-size every column except Remarks so nothing looks compact
+      if (remarksCol > 0) {
+        fmtRequests.push({ autoResizeDimensions: { dimensions: { sheetId, dimension: 'COLUMNS', startIndex: 0, endIndex: remarksCol } } });
+      }
+      fmtRequests.push({ autoResizeDimensions: { dimensions: { sheetId, dimension: 'COLUMNS', startIndex: remarksCol + 1, endIndex: HEADERS.length } } });
+      // Remarks: fixed width + wrap
+      fmtRequests.push({
+        updateDimensionProperties: {
+          range: { sheetId, dimension: 'COLUMNS', startIndex: remarksCol, endIndex: remarksCol + 1 },
+          properties: { pixelSize: 260 }, fields: 'pixelSize'
+        }
+      });
+      fmtRequests.push({
+        repeatCell: {
+          range: { sheetId, startColumnIndex: remarksCol, endColumnIndex: remarksCol + 1 },
+          cell: { userEnteredFormat: { wrapStrategy: 'WRAP' } },
+          fields: 'userEnteredFormat.wrapStrategy'
+        }
+      });
+    });
+    if (fmtRequests.length) {
+      await gsAPI('POST', `${base}:batchUpdate`, { requests: fmtRequests });
+    }
 
     gsDismissSyncingToast();
     showToast(`Synced — ${DB.length} records across ${tabs.length} tabs`, 'success', 6000);
@@ -1315,7 +1413,7 @@ function exportGoogleSheets() {
 
   function makeSheet(records) {
     const rows = records.map(recordToRow);
-    return XLSX.utils.json_to_sheet(rows.length ? rows : [recordToRow({})]);
+    return styleExcelSheet(XLSX.utils.json_to_sheet(rows.length ? rows : [recordToRow({})]));
   }
 
   const wb = XLSX.utils.book_new();
