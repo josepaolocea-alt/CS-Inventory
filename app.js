@@ -807,6 +807,27 @@ function initPostedTimeSelects() {
   }
   hourSel.dataset.init = '1';
 }
+// Live preview of the auto-generated posting time in the Add/Edit modal: when the user picks
+// "For Posting" and no time is set yet, fill in the next slot immediately. Switching away
+// clears it again — but only while it's still our untouched preview (never a manual entry).
+function onPostedStatusChange() {
+  const sel = document.getElementById('mPosted');
+  const hourEl = document.getElementById('mPostedHour');
+  const minEl = document.getElementById('mPostedMin');
+  if (!sel || !hourEl || !minEl) return;
+  if (canonPostedStatus(sel.value) === 'For Posting') {
+    if (!hourEl.value) {
+      const t = nextPostingSlot(editId);
+      setSelectVal(hourEl, t.hour);
+      setSelectVal(minEl, t.min);
+      hourEl.dataset.autofill = `${t.hour}:${t.min}`;
+    }
+  } else if (hourEl.dataset.autofill && hourEl.dataset.autofill === `${hourEl.value}:${minEl.value}`) {
+    hourEl.value = '';
+    minEl.value = '';
+    delete hourEl.dataset.autofill;
+  }
+}
 function initDateMirrors() {
   bindDateMirror('mEffDate','mActDate',() => actDateTouched,v => { effDateTouched=v; },v => { actDateTouched=v; });
   bindDateMirror('beEffDate','beActDate',() => bulkActDateTouched,v => { bulkEffDateTouched=v; },v => { bulkActDateTouched=v; });
@@ -867,10 +888,12 @@ function clearMo() {
   });
   resetFeeSelects(FEE_FIELDS);
   document.getElementById('mNumber')?.classList.remove('err');
+  document.getElementById('mPostedHour')?.removeAttribute('data-autofill');
 }
 function fillMo(r) {
   _editUpdatedAt = r.updatedAt || null;
   resetDateMirror('single');
+  document.getElementById('mPostedHour')?.removeAttribute('data-autofill');
   Object.entries(mMap).forEach(([id,key]) => {
     const el = document.getElementById(id); if (!el) return;
     const raw = r[key];
