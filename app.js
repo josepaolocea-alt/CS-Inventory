@@ -872,8 +872,12 @@ function fillMo(r) {
   _editUpdatedAt = r.updatedAt || null;
   resetDateMirror('single');
   Object.entries(mMap).forEach(([id,key]) => {
-    const el = document.getElementById(id); if (!el || r[key]===undefined) return;
-    let v = DATE_FIELDS.has(id) ? sanitizeDate(r[key]) : r[key];
+    const el = document.getElementById(id); if (!el) return;
+    const raw = r[key];
+    // Reset (don't skip) fields the record doesn't define, so no stale value from a
+    // previously-opened entry lingers in the form — e.g. imported records with no posted time.
+    let v = (raw === undefined || raw === null) ? '' : (DATE_FIELDS.has(id) ? sanitizeDate(raw) : raw);
+    if (id === 'mStatus') v = v || 'Available';
     if (id === 'mPosted') v = canonPostedStatus(v) || 'No';
     if (el.tagName==='SELECT') setSelectVal(el,v); else el.value=v;
   });
