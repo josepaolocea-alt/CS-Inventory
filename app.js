@@ -512,7 +512,11 @@ function applyF() {
   fd = DB.filter(r => {
     if (sRe) {
       const SKIP = new Set(['id','createdBy','updatedBy','createdAt','updatedAt','clientOSF','clientMRC','clientOTRF','clientCF','clientCPM','prevClient']);
-      if (!Object.entries(r).some(([k,v]) => !SKIP.has(k) && v != null && sRe.test(String(v).toLowerCase()))) return false;
+      // Match against the canonical Posted Status label shown in the table (e.g. legacy
+      // "Not Yet"/"Yes" display as "For Posting"/"Posted"), not just the raw stored value.
+      const hit = Object.entries(r).some(([k,v]) => !SKIP.has(k) && v != null && sRe.test(String(v).toLowerCase()))
+                || sRe.test(canonPostedStatus(r.postedStatus).toLowerCase());
+      if (!hit) return false;
     }
     if (cl && r.client!==cl)   return false;
     if (st && r.status!==st)   return false;
@@ -1158,6 +1162,9 @@ async function handleCSV(e) {
         nd.status = '';
       }
     }
+    // Normalize Posted Status to a current label ("Not Yet" → "For Posting", "Yes" → "Posted")
+    // so imported rows store consistently and are searchable by the label shown in the table.
+    if (nd.postedStatus) nd.postedStatus = canonPostedStatus(nd.postedStatus);
     DATE_CSV_FIELDS.forEach(field => {
       if (nd[field]) {
         const clean = sanitizeDate(nd[field]);
@@ -1218,7 +1225,7 @@ async function handleCSV(e) {
 }
 
 function dlSample() {
-  const row = ['TOKU','DID Local','+15550001234','Active','Sample','No','','100.00','50.00','25.00','10.00','0.0050','2024-01-01','2024-01-15','Twilio','2023-12-15','2024-01-15','80.00','40.00','20.00','0.0040','SIP','Katherine Serrano','','DIDLOGIC'];
+  const row = ['TOKU','DID Local','+15550001234','Active','Sample','No','','','100.00','50.00','25.00','10.00','0.0050','2024-01-01','2024-01-15','Twilio','2023-12-15','2024-01-15','80.00','40.00','20.00','0.0040','SIP','Katherine Serrano','','DIDLOGIC'];
   dlCSV([CSV_HEADERS,row], 'sample_inventory.csv');
   addLog('Exported','Downloaded sample CSV template');
 }
