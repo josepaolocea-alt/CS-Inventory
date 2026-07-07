@@ -364,12 +364,10 @@ function refreshInventoryRecent(resetPage=true) {
 async function syncData() {
   const btn = document.getElementById('syncBtn');
   btn.classList.add('syncing');
-  try {
-    await Promise.all([loadInventory(), loadLogs()]);
-    // Manual Sync doubles as "force everyone to refresh now" — tell other open
-    // clients to do a full reload so any drift is reconciled.
-    await broadcastSync([], [], true);
-  }
+  // Refreshes THIS client only. Real changes already auto-broadcast to other open
+  // users, so the button intentionally does NOT force everyone to full-reload — at
+  // this inventory size that would cost ~8k reads per open user per click.
+  try { await Promise.all([loadInventory(), loadLogs()]); }
   finally { btn.classList.remove('syncing'); }
 }
 async function loadLogs() {
@@ -388,10 +386,15 @@ async function loadLogs() {
 // real-time listener on the whole inventory collection — only this single doc
 // is watched, so idle cost is ~zero and each change costs other clients only
 // the reads for the records that actually changed.
-const SYNC_LIMIT = 30;   // more affected ids than this → tell clients to full-reload instead
+// Adds/updates beyond SYNC_LIMIT → full reload (each changed row costs a read to fetch,
+// so past a few hundred it's cheaper to just reload all). Deletes are free for receivers
+// to apply (the ids ride inside the signal), so they get a much higher cap — bounded only
+// by the signal doc's size, not by read cost.
+const SYNC_LIMIT = 300;
+const DEL_LIMIT  = 1000;
 async function broadcastSync(ids = [], del = [], full = false) {
   if (!currentUser) return;
-  const tooBig = ids.length > SYNC_LIMIT || del.length > SYNC_LIMIT;
+  const tooBig = ids.length > SYNC_LIMIT || del.length > DEL_LIMIT;
   try {
     await fdb.collection('meta').doc('syncSignal').set({
       at:   new Date().toISOString(),
@@ -429,8 +432,9 @@ async function applyRemoteSync(sig) {
   try {
     if (sig.full) {
       const keepPg = pg;
-      await Promise.all([loadInventory(), loadLogs()]);
-      pg = keepPg; remoteRerender();   // keep the viewer's page/search instead of jumping to page 1
+      await loadInventory();            // full inventory reload (reconciles any drift)
+      await refreshLogsIncremental();   // pull only NEW logs, not a full 500-doc re-read
+      pg = keepPg; remoteRerender();    // keep the viewer's page/search instead of jumping to page 1
       return;
     }
     // Deletes: ids ride in the signal, so no reads needed to drop them locally.
@@ -439,12 +443,15 @@ async function applyRemoteSync(sig) {
       DB = DB.filter(r => !gone.has(r.id));
       sig.del.forEach(id => persistentSelIds.delete(id));
     }
-    // Adds/updates: fetch just the affected records (documentId 'in' → chunk by 10).
+    // Adds/updates: fetch just the affected records (documentId 'in' → chunk by 10, in parallel).
     const ids = (sig.ids || []).filter(Boolean);
-    for (let i = 0; i < ids.length; i += 10) {
-      const chunk = ids.slice(i, i + 10);
-      const qs = await fdb.collection('inventory')
-        .where(firebase.firestore.FieldPath.documentId(), 'in', chunk).get();
+    const chunks = [];
+    for (let i = 0; i < ids.length; i += 10) chunks.push(ids.slice(i, i + 10));
+    const results = await Promise.all(chunks.map(chunk =>
+      fdb.collection('inventory').where(firebase.firestore.FieldPath.documentId(), 'in', chunk).get()
+        .then(qs => ({ chunk, qs }))
+    ));
+    for (const { chunk, qs } of results) {
       const found = new Set();
       qs.forEach(d => {
         found.add(d.id);
@@ -1337,10 +1344,13 @@ async function handleCSV(e) {
     refreshInventoryRecent();
     // Uploaded "For Posting" rows arrive without a time — sequence the whole set now
     // (same as a modal save) so they get chronological HH:MM instead of staying blank.
-    await resequencePostingTimes();
+    const reseq = await resequencePostingTimes();
     renderTbl();
     await addLog('CSV Upload', `"${f.name}": ${added} added, ${updated} updated`);
-    broadcastSync([], [], true);
+    // Propagate only the rows this import actually touched; broadcastSync escalates
+    // to a full reload on its own if that set exceeds the incremental cap.
+    const csvIds = ops.map(o => o.type === 'update' ? o.id : o.data.id).filter(Boolean);
+    broadcastSync([...csvIds, ...reseq]);
     showToast(`Upload complete — ${added} added, ${updated} updated`, 'success');
   } catch(err) { showToast('Import error: '+err.message, 'error'); }
   e.target.value='';
