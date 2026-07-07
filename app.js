@@ -1207,6 +1207,10 @@ async function handleCSV(e) {
       else { DB.push(op.data); added++; }
     });
     refreshInventoryRecent();
+    // Uploaded "For Posting" rows arrive without a time — sequence the whole set now
+    // (same as a modal save) so they get chronological HH:MM instead of staying blank.
+    await resequencePostingTimes();
+    renderTbl();
     await addLog('CSV Upload', `"${f.name}": ${added} added, ${updated} updated`);
     showToast(`Upload complete — ${added} added, ${updated} updated`, 'success');
   } catch(err) { showToast('Import error: '+err.message, 'error'); }
