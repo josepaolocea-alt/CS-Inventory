@@ -586,7 +586,7 @@ function renderTbl() {
       <td class="row-num">${isPinned?'<span class="pin-ind" title="Pinned">📌</span>':s+i+1}</td>
       <td>${esc(r.client)}</td>
       <td>${esc(r.product)}</td>
-      <td class="num-cell" style="color:var(--accent);font-weight:500">${esc(r.number)}</td>
+      <td class="num-cell"><span class="num-val">${esc(r.number)}</span><button type="button" class="num-copy" title="Copy number" aria-label="Copy number" onclick="event.stopPropagation();copyNumber(this)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></td>
       <td><span class="badge ${bclass(r.status)}">${esc(r.status)}</span></td>
       <td><span class="badge ${postedClass(r.postedStatus)}">${esc(canonPostedStatus(r.postedStatus) || 'No')}</span>${r.postedHour ? `<span class="posted-time">${esc(r.postedHour)}:${esc(r.postedMin || '00')}</span>` : ''}</td>
       <td>${esc(r.remarks)}</td>
@@ -600,21 +600,19 @@ function renderTbl() {
   }).join('');
   updateSelBar();
 }
-// Copy the phone numbers currently shown in the inventory table (respects active filters + page).
-function copyVisibleNumbers() {
-  const sz = parseInt(EL.pgSize?.value || 50);
-  const s = (pg-1)*sz;
-  const nums = fd.slice(s, s+sz).map(r => r.number).filter(v => v && String(v).trim());
-  if (!nums.length) { showToast('No numbers to copy.', 'warning'); return; }
-  const text = nums.join('\n');
-  const done = () => showToast(`Copied ${nums.length} number${nums.length!==1?'s':''} to clipboard.`, 'success');
+// Copy a single phone number from its table cell to the clipboard.
+function copyNumber(btn) {
+  const cell = btn.closest('.num-cell');
+  const val = cell ? (cell.querySelector('.num-val')?.textContent || '').trim() : '';
+  if (!val) { showToast('No number to copy.', 'warning'); return; }
+  const done = () => showToast('Number copied to clipboard.', 'success');
   const fail = () => showToast('Could not copy to clipboard.', 'error');
   if (navigator.clipboard?.writeText) {
-    navigator.clipboard.writeText(text).then(done).catch(fail);
+    navigator.clipboard.writeText(val).then(done).catch(fail);
   } else {
     try {
       const ta = document.createElement('textarea');
-      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      ta.value = val; ta.style.position = 'fixed'; ta.style.opacity = '0';
       document.body.appendChild(ta); ta.select();
       document.execCommand('copy'); ta.remove(); done();
     } catch(e) { fail(); }
@@ -852,9 +850,9 @@ function bindDateMirror(effId, actId, isActTouched, setEffTouched, setActTouched
   act.addEventListener('change', () => setActTouched(true));
   eff.dataset.mirrorBound = '1';
 }
-function initPostedTimeSelects() {
-  const hourSel = document.getElementById('mPostedHour');
-  const minSel  = document.getElementById('mPostedMin');
+function fillTimeSelects(hourId, minId) {
+  const hourSel = document.getElementById(hourId);
+  const minSel  = document.getElementById(minId);
   if (!hourSel || !minSel || hourSel.dataset.init) return;
   for (let h = 0; h < 24; h++) {
     const o = document.createElement('option');
@@ -867,6 +865,10 @@ function initPostedTimeSelects() {
     minSel.appendChild(o);
   }
   hourSel.dataset.init = '1';
+}
+function initPostedTimeSelects() {
+  fillTimeSelects('mPostedHour', 'mPostedMin');
+  fillTimeSelects('bePostedHour', 'bePostedMin');
 }
 function initDateMirrors() {
   bindDateMirror('mEffDate','mActDate',() => actDateTouched,v => { effDateTouched=v; },v => { actDateTouched=v; });
@@ -1898,7 +1900,7 @@ const BE_FIELD_MAP = {
   beStatus:'status',bePosted:'postedStatus',beClient:'client',beProduct:'product',beProvider:'provider',
   beRoute:'route',bePrevClient:'prevClient',beRemarks:'remarks',
   beClientOSF:'clientOSF',beClientMRC:'clientMRC',beClientOTRF:'clientOTRF',beClientCF:'clientCF',beClientCPM:'clientCPM',
-  beEffDate:'effDate',beActDate:'actDate',bePostedDate:'postedDate',
+  beEffDate:'effDate',beActDate:'actDate',bePostedDate:'postedDate',bePostedHour:'postedHour',bePostedMin:'postedMin',
   beArrDate:'arrDate',beProvActDate:'provActDate',beProvOSF:'provOSF',beProvMRC:'provMRC',
   beProvOTRF:'provOTRF',beProvCPM:'provCPM',beTypeSession:'typeSession',beDeactDate:'deactDate'
 };

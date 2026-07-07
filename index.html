@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="app.css?v=4">
+<link rel="stylesheet" href="app.css?v=5">
 </head>
 <body>
 
@@ -151,7 +151,7 @@
             <th style="width:42px">#</th>
             <th class="sort" onclick="sortBy('client')">Client</th>
             <th class="sort" onclick="sortBy('product')">Product</th>
-            <th class="sort th-num" onclick="sortBy('number')">Number<button type="button" class="th-ico" title="Copy the numbers currently shown" aria-label="Copy the numbers currently shown" onclick="event.stopPropagation();copyVisibleNumbers()"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></th>
+            <th class="sort" onclick="sortBy('number')">Number</th>
             <th class="sort" onclick="sortBy('status')">Status</th>
             <th class="sort" onclick="sortBy('postedStatus')">Posted Status</th>
             <th class="sort" onclick="sortBy('remarks')">Remarks</th>
@@ -475,7 +475,13 @@
         <div class="fg"><label>Posted Status</label>
           <select class="fc" id="bePosted"><option value="">— keep existing —</option><option value="Posted">Posted</option><option value="No">No</option><option value="For Posting">For Posting</option></select>
         </div>
-        <div class="fg"><label>Posted Date</label><input type="date" class="fc" id="bePostedDate"></div>
+        <div class="fg full"><label>Posted Date &amp; Time <span style="color:var(--t3);font-weight:400;font-size:11px">(leave blank to keep · time auto-sequences when set to “For Posting”)</span></label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="date" class="fc" id="bePostedDate" style="flex:2;min-width:0">
+            <select class="fc" id="bePostedHour" style="flex:1;min-width:0"><option value="">HH</option></select>
+            <select class="fc" id="bePostedMin" style="flex:1;min-width:0"><option value="">MM</option></select>
+          </div>
+        </div>
         <div class="fg"><label>Client OSF</label>
           <select class="fc" id="beClientOSFSel" onchange="onFeeSel(this)"><option value="">— keep existing —</option><option>Waived</option><option>POC</option><option>NA</option><option value="__amt__">Enter amount…</option></select>
           <input class="fc" id="beClientOSF" placeholder="0.00" style="display:none">
@@ -754,7 +760,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
 <!-- App -->
-<script src="app.js?v=4"></script>
+<script src="app.js?v=6"></script>
 
 </body>
 </html>
