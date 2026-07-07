@@ -130,7 +130,7 @@ function latestPostedAnchor() {
 async function resequencePostingTimes() {
   // DB is in display order (top→bottom) after refreshInventoryRecent(); bottom = last row.
   const ordered = DB.filter(r => canonPostedStatus(r.postedStatus) === 'For Posting').reverse();
-  if (!ordered.length) return;
+  if (!ordered.length) return [];
 
   let cur;
   const anchor = latestPostedAnchor();
@@ -159,7 +159,7 @@ async function resequencePostingTimes() {
       changed.push(r);
     }
   }
-  if (!changed.length) return;
+  if (!changed.length) return [];
 
   try {
     const CHUNK = 400;
@@ -175,6 +175,7 @@ async function resequencePostingTimes() {
     console.error('resequencePostingTimes:', e);
     showToast('Could not update all posting times: ' + e.message, 'error');
   }
+  return changed.map(r => r.id);
 }
 function roleBadge(role) {
   const m = {admin:['rb-admin','Admin'],'semi-admin':['rb-semi','Semi-Admin'],viewer:['rb-viewer','Viewer']};
@@ -217,6 +218,7 @@ let persistentSelIds = new Set();
 let pinnedIds = new Set();
 let umEditUid=null, _secondApp=null;
 let effDateTouched=false, actDateTouched=false, bulkEffDateTouched=false, bulkActDateTouched=false;
+let _syncUnsub=null, _syncPrimed=false, _lastSyncAt='', _logCursor='';
 
 function updateThemeButton() {
   const btn = document.getElementById('themeBtn');
@@ -294,7 +296,9 @@ fauth.onAuthStateChanged(async user => {
     loadLogs();
     await loadSelections();
     if (currentRole === 'admin') loadUsers();
+    startSyncListener();
   } else {
+    stopSyncListener();
     currentUser = null; currentRole = 'viewer';
     DB=[]; LOGS=[]; fd=[]; fl=[]; recentViewed=[];
     USERS=[]; SELECTIONS={clients:[],products:[],providers:[],routes:[]};
@@ -360,15 +364,127 @@ function refreshInventoryRecent(resetPage=true) {
 async function syncData() {
   const btn = document.getElementById('syncBtn');
   btn.classList.add('syncing');
-  try { await Promise.all([loadInventory(), loadLogs()]); }
+  try {
+    await Promise.all([loadInventory(), loadLogs()]);
+    // Manual Sync doubles as "force everyone to refresh now" — tell other open
+    // clients to do a full reload so any drift is reconciled.
+    await broadcastSync([], [], true);
+  }
   finally { btn.classList.remove('syncing'); }
 }
 async function loadLogs() {
   try {
     const snap = await fdb.collection('logs').orderBy('datetime','desc').limit(500).get();
     LOGS = snap.docs.map(d => ({...d.data(), id:d.id}));
+    _logCursor = LOGS[0]?.datetime || '';
     fl = [...LOGS]; renderLogs();
   } catch(e) { console.error('loadLogs:', e); }
+}
+
+// ── LIVE SYNC (lightweight cross-client refresh) ──────────
+// Every open client watches ONE tiny doc (meta/syncSignal). When someone
+// changes inventory they write the affected record ids here; other clients
+// fetch just those docs and patch them in place. This is deliberately NOT a
+// real-time listener on the whole inventory collection — only this single doc
+// is watched, so idle cost is ~zero and each change costs other clients only
+// the reads for the records that actually changed.
+const SYNC_LIMIT = 30;   // more affected ids than this → tell clients to full-reload instead
+async function broadcastSync(ids = [], del = [], full = false) {
+  if (!currentUser) return;
+  const tooBig = ids.length > SYNC_LIMIT || del.length > SYNC_LIMIT;
+  try {
+    await fdb.collection('meta').doc('syncSignal').set({
+      at:   new Date().toISOString(),
+      by:   currentUser.uid || '',
+      ids:  (full || tooBig) ? [] : ids.filter(Boolean),
+      del:  (full || tooBig) ? [] : del.filter(Boolean),
+      full: full || tooBig
+    });
+  } catch(e) { console.error('broadcastSync:', e); }
+}
+function startSyncListener() {
+  if (_syncUnsub) return;
+  _syncPrimed = false;
+  _syncUnsub = fdb.collection('meta').doc('syncSignal').onSnapshot(snap => {
+    const sig = snap.data();
+    // First callback is the doc's current state at attach — just set a baseline.
+    if (!_syncPrimed) { _syncPrimed = true; _lastSyncAt = sig?.at || ''; return; }
+    if (!sig || !sig.at || sig.at === _lastSyncAt) return;
+    _lastSyncAt = sig.at;
+    if (sig.by && sig.by === currentUser?.uid) return;   // our own change, already applied locally
+    applyRemoteSync(sig);
+  }, err => console.error('sync listener:', err));
+}
+function stopSyncListener() {
+  if (_syncUnsub) { _syncUnsub(); _syncUnsub = null; }
+  _syncPrimed = false; _lastSyncAt = '';
+}
+function isInvFilterActive() {
+  return ['fSearch','fClient','fStatus','fProduct','fProvider','fDateFrom','fDateTo']
+    .some(id => document.getElementById(id)?.value) || showDupes;
+}
+async function applyRemoteSync(sig) {
+  const btn = document.getElementById('syncBtn');
+  btn?.classList.add('syncing');
+  try {
+    if (sig.full) {
+      const keepPg = pg;
+      await Promise.all([loadInventory(), loadLogs()]);
+      pg = keepPg; remoteRerender();   // keep the viewer's page/search instead of jumping to page 1
+      return;
+    }
+    // Deletes: ids ride in the signal, so no reads needed to drop them locally.
+    if (sig.del?.length) {
+      const gone = new Set(sig.del);
+      DB = DB.filter(r => !gone.has(r.id));
+      sig.del.forEach(id => persistentSelIds.delete(id));
+    }
+    // Adds/updates: fetch just the affected records (documentId 'in' → chunk by 10).
+    const ids = (sig.ids || []).filter(Boolean);
+    for (let i = 0; i < ids.length; i += 10) {
+      const chunk = ids.slice(i, i + 10);
+      const qs = await fdb.collection('inventory')
+        .where(firebase.firestore.FieldPath.documentId(), 'in', chunk).get();
+      const found = new Set();
+      qs.forEach(d => {
+        found.add(d.id);
+        const rec = {...d.data(), id:d.id};
+        const idx = DB.findIndex(r => r.id === d.id);
+        if (idx > -1) DB[idx] = rec; else DB.push(rec);
+      });
+      // Requested but not returned → deleted after the ping; drop it locally.
+      chunk.forEach(id => { if (!found.has(id)) { DB = DB.filter(r => r.id !== id); persistentSelIds.delete(id); } });
+    }
+    remoteRerender();
+    await refreshLogsIncremental();
+  } catch(e) { console.error('applyRemoteSync:', e); }
+  finally { btn?.classList.remove('syncing'); }
+}
+// Re-render after a remote patch without yanking the viewer around: keep their
+// active search/filter and their current page (clamped) instead of resetting.
+function remoteRerender() {
+  const keepPg = pg;
+  if (isInvFilterActive()) applyF();          // rebuilds fd from current filters (sets pg=1)
+  else refreshInventoryRecent(false);         // no filter: fd=DB, keep page
+  const sz = parseInt(EL?.pgSize?.value || 50);
+  const tp = Math.max(1, Math.ceil(fd.length / sz));
+  pg = Math.min(Math.max(1, keepPg), tp);
+  renderTbl();
+  renderDash();
+}
+async function refreshLogsIncremental() {
+  try {
+    if (!_logCursor) { _logCursor = LOGS[0]?.datetime || ''; return; }
+    const snap = await fdb.collection('logs')
+      .where('datetime', '>', _logCursor).orderBy('datetime', 'desc').get();
+    if (snap.empty) return;
+    const known = new Set(LOGS.map(l => l.id));
+    const add = snap.docs.map(d => ({...d.data(), id:d.id})).filter(l => !known.has(l.id));
+    if (!add.length) return;
+    LOGS = [...add, ...LOGS].slice(0, 500);
+    _logCursor = LOGS[0]?.datetime || _logCursor;
+    fl = [...LOGS]; renderLogs();
+  } catch(e) { console.error('refreshLogsIncremental:', e); }
 }
 
 // ── NAVIGATION ────────────────────────────────────────
@@ -1061,9 +1177,10 @@ async function saveRec() {
       if (idx>-1) DB[idx] = {...DB[idx], ...nd};
       await addLog('Updated', `Updated number ${nd.number}`);
       refreshInventoryRecent();
-      await resequencePostingTimes();
+      const reseq = await resequencePostingTimes();
       renderTbl(); closeMo();
       openSP(editId);
+      broadcastSync([editId, ...reseq]);
       if (oldRec) {
         showUndoToast(`Updated ${nd.number}`, async () => {
           try {
@@ -1072,6 +1189,7 @@ async function saveRec() {
             const i = DB.findIndex(r => r.id===rid);
             if (i>-1) DB[i] = {...oldRec};
             refreshInventoryRecent();
+            broadcastSync([rid]);
             await addLog('Updated', `Reverted ${oldRec.number} (undo edit)`);
             showToast(`Reverted ${oldRec.number}`, 'success');
           } catch(e) { showToast('Revert failed: '+e.message, 'error'); }
@@ -1086,8 +1204,9 @@ async function saveRec() {
       nd.id = ref.id; DB.push(nd);
       await addLog('Added', `Added number ${nd.number}`);
       refreshInventoryRecent();
-      await resequencePostingTimes();
+      const reseq = await resequencePostingTimes();
       renderTbl(); closeMo();
+      broadcastSync([ref.id, ...reseq]);
       showToast(`Added ${nd.number}`, 'success');
     }
   } catch(e) { showToast('Save error: '+e.message, 'error'); }
@@ -1115,6 +1234,7 @@ function delRec(id) {
       persistentSelIds.delete(id);
       if (r) await addLog('Deleted', `Deleted number ${r.number}`);
       renderTbl(); closeSP();
+      broadcastSync([], [id]);
       if (savedRec) {
         showUndoToast(`Deleted ${savedRec.number}`, async () => {
           try {
@@ -1122,6 +1242,7 @@ function delRec(id) {
             await fdb.collection('inventory').doc(rid).set({...data, id:rid});
             DB.push(savedRec);
             refreshInventoryRecent();
+            broadcastSync([rid]);
             await addLog('Added', `Restored ${savedRec.number} (undo delete)`);
             showToast(`Restored ${savedRec.number}`, 'success');
           } catch(e) { showToast('Restore failed: '+e.message, 'error'); }
@@ -1219,6 +1340,7 @@ async function handleCSV(e) {
     await resequencePostingTimes();
     renderTbl();
     await addLog('CSV Upload', `"${f.name}": ${added} added, ${updated} updated`);
+    broadcastSync([], [], true);
     showToast(`Upload complete — ${added} added, ${updated} updated`, 'success');
   } catch(err) { showToast('Import error: '+err.message, 'error'); }
   e.target.value='';
@@ -1885,6 +2007,7 @@ function delSelected() {
       ids.forEach(id => persistentSelIds.delete(id));
       await addLog('Deleted', `Bulk deleted ${ids.length} records`, {records: affectedRecords});
       renderTbl(); closeSP();
+      broadcastSync([], ids);
       showUndoToast(`Deleted ${ids.length} records`, async () => {
         try {
           const CHUNK = 400;
@@ -1898,6 +2021,7 @@ function delSelected() {
           }
           savedRecs.forEach(rec => { if (!DB.find(r => r.id===rec.id)) DB.push(rec); });
           refreshInventoryRecent();
+          broadcastSync(savedRecs.map(r => r.id));
           await addLog('Added', `Restored ${savedRecs.length} records (undo bulk delete)`, {records: affectedRecords});
           showToast(`Restored ${savedRecs.length} records`, 'success');
         } catch(e) { showToast('Restore failed: '+e.message, 'error'); }
@@ -1967,6 +2091,7 @@ async function saveBulkEdit() {
       });
       refreshInventoryRecent();
       await addLog('Updated', `Bulk deactivated ${ids.length} record${ids.length!==1?'s':''}`, {records:affectedRecords, fields:['client','status','deactDate','route']});
+      broadcastSync(ids);
       closeBE();
       showToast(`Deactivated ${ids.length} record${ids.length!==1?'s':''}`, 'success');
     } catch(err) { showToast('Bulk deactivation error: '+err.message, 'error'); }
@@ -2006,9 +2131,10 @@ async function saveBulkEdit() {
     }
     ids.forEach(id => { const idx=DB.findIndex(r=>r.id===id); if(idx>-1) DB[idx]={...DB[idx],...updates}; });
     refreshInventoryRecent();
-    await resequencePostingTimes();
+    const reseq = await resequencePostingTimes();
     renderTbl();
     await addLog('Updated', `Bulk edited ${ids.length} records: ${dataFields.join(', ')}`, {records: affectedRecords, fields:dataFields});
+    broadcastSync([...ids, ...reseq]);
     closeBE();
     showUndoToast(`Bulk updated ${ids.length} record${ids.length!==1?'s':''}`, async () => {
       try {
@@ -2030,6 +2156,7 @@ async function saveBulkEdit() {
           if (idx>-1) DB[idx] = {...DB[idx], ...rec};
         });
         refreshInventoryRecent();
+        broadcastSync(savedRecs.map(r => r.id));
         await addLog('Updated', `Reverted bulk edit of ${savedRecs.length} records (undo)`, {records: reverseBulkChanges(affectedRecords), fields:dataFields});
         showToast(`Reverted ${savedRecs.length} record${savedRecs.length!==1?'s':''}`, 'success');
       } catch(e) { showToast('Revert failed: '+e.message, 'error'); }
