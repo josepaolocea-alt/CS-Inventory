@@ -219,6 +219,7 @@ let pinnedIds = new Set();
 let umEditUid=null, _secondApp=null;
 let effDateTouched=false, actDateTouched=false, bulkEffDateTouched=false, bulkActDateTouched=false;
 let _syncUnsub=null, _syncPrimed=false, _lastSyncAt='', _logCursor='';
+let _invLoading=false;   // guards against a live-sync ping racing an in-flight inventory load
 
 function updateThemeButton() {
   const btn = document.getElementById('themeBtn');
@@ -323,13 +324,162 @@ async function doSignIn() {
 function doSignOut() { document.getElementById('soOv').classList.add('on'); }
 function confirmSignOut() { document.getElementById('soOv').classList.remove('on'); fauth.signOut(); }
 
+// ── LOCAL CACHE + DELTA SYNC ──────────────────────────────
+// The inventory is large (thousands of docs), so re-reading the whole collection
+// on every login / reload / Sync is the dominant Firebase read cost. Instead we keep
+// a local IndexedDB copy and, after one cold load, fetch only the records that changed
+// since last time (updatedAt > cursor). A cheap count() catches remote deletions; a
+// daily full reload is the ultimate safety net. Everything degrades gracefully to a
+// full read if IndexedDB or the delta path ever fails, so the app can't get stuck.
+const IDB_NAME = 'cs-inv-cache', IDB_VER = 1;
+const DELTA_REWIND_MS = 2 * 60 * 1000;        // re-fetch a 2-min overlap to tolerate clock skew
+const FULL_REFRESH_MS = 24 * 60 * 60 * 1000;  // force a full reconcile at least once a day
+let _idb = null;
+
+function idbOpen() {
+  if (_idb) return Promise.resolve(_idb);
+  if (!('indexedDB' in window)) return Promise.reject(new Error('no indexedDB'));
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, IDB_VER);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains('inventory')) db.createObjectStore('inventory', { keyPath: 'id' });
+      if (!db.objectStoreNames.contains('kv')) db.createObjectStore('kv');
+    };
+    req.onsuccess = () => { _idb = req.result; resolve(_idb); };
+    req.onerror = () => reject(req.error);
+  });
+}
+function _idbDone(tx) { return new Promise((res, rej) => { tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error); }); }
+function _idbReq(r)   { return new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
+
+async function cacheGetAllInv() {
+  try { const db = await idbOpen(); return (await _idbReq(db.transaction('inventory','readonly').objectStore('inventory').getAll())) || []; }
+  catch(e) { return []; }
+}
+async function cacheReplaceInv(recs) {
+  try { const db = await idbOpen(); const tx = db.transaction('inventory','readwrite'); const os = tx.objectStore('inventory');
+        os.clear(); recs.forEach(r => os.put(r)); await _idbDone(tx); }
+  catch(e) { console.error('cacheReplaceInv:', e); }
+}
+async function cachePutInv(recs) {
+  if (!recs || !recs.length) return;
+  try { const db = await idbOpen(); const tx = db.transaction('inventory','readwrite'); const os = tx.objectStore('inventory');
+        recs.forEach(r => os.put(r)); await _idbDone(tx); }
+  catch(e) { console.error('cachePutInv:', e); }
+}
+async function cacheDelInv(ids) {
+  if (!ids || !ids.length) return;
+  try { const db = await idbOpen(); const tx = db.transaction('inventory','readwrite'); const os = tx.objectStore('inventory');
+        ids.forEach(id => os.delete(id)); await _idbDone(tx); }
+  catch(e) { console.error('cacheDelInv:', e); }
+}
+async function kvGet(key) {
+  try { const db = await idbOpen(); return await _idbReq(db.transaction('kv','readonly').objectStore('kv').get(key)); }
+  catch(e) { return undefined; }
+}
+async function kvSet(key, val) {
+  try { const db = await idbOpen(); const tx = db.transaction('kv','readwrite'); tx.objectStore('kv').put(val, key); await _idbDone(tx); }
+  catch(e) { console.error('kvSet:', e); }
+}
+function maxUpdatedAt(arr) {
+  let m = '';
+  for (const r of arr) { const u = r.updatedAt || r.createdAt || ''; if (u > m) m = u; }
+  return m;
+}
+function rewindIso(iso, ms) {
+  const t = Date.parse(iso); if (isNaN(t)) return '';
+  return new Date(t - ms).toISOString();
+}
+async function serverInvCount() {
+  try {
+    const col = fdb.collection('inventory');
+    if (typeof col.count !== 'function') return null;   // aggregate count unsupported → caller falls back
+    const agg = await col.count().get();
+    return agg.data().count;
+  } catch(e) { console.error('serverInvCount:', e); return null; }
+}
+// Mirror a local change into the cache AND notify other open clients (one call per write path).
+function propagateChange(ids = [], del = [], full = false) {
+  cachePutInv(ids.map(id => DB.find(r => r.id === id)).filter(Boolean));
+  cacheDelInv(del);
+  if (del.length) recordDeletions(del);   // persistent tombstone so closed clients catch the delete
+  broadcastSync(ids, del, full);
+}
+// Deletions don't show up in an `updatedAt >` delta query, so we also append a small
+// tombstone. A client that was closed when a record was deleted reads this on its next
+// load and drops the record locally — no full re-read needed. (count() isn't available
+// in this Firestore build, so this is how remote deletes reach reopened clients.)
+async function recordDeletions(ids) {
+  const clean = (ids || []).filter(Boolean);
+  if (!clean.length) return;
+  try {
+    await fdb.collection('meta').doc('deletions').set({
+      items: firebase.firestore.FieldValue.arrayUnion({ ids: clean, at: new Date().toISOString() })
+    }, { merge: true });
+  } catch(e) { console.error('recordDeletions:', e); }
+}
+async function applyRemoteDeletions(sinceIso) {
+  try {
+    const snap = await fdb.collection('meta').doc('deletions').get();
+    if (!snap.exists) return;
+    const items = snap.data().items || [];
+    const goneIds = [];
+    for (const it of items) if (it && it.at && it.at > sinceIso && Array.isArray(it.ids)) goneIds.push(...it.ids);
+    if (goneIds.length) {
+      const gone = new Set(goneIds);
+      DB = DB.filter(r => !gone.has(r.id));
+      goneIds.forEach(id => persistentSelIds.delete(id));
+      await cacheDelInv(goneIds);
+    }
+    // Keep the tombstone doc bounded — trim oldest once it grows large (best effort).
+    if (items.length > 1500) {
+      const trimmed = items.slice().sort((a,b) => (a.at||'').localeCompare(b.at||'')).slice(-1000);
+      await fdb.collection('meta').doc('deletions').set({ items: trimmed });
+    }
+  } catch(e) { console.error('applyRemoteDeletions:', e); }
+}
+
 // ── FIRESTORE LOAD ────────────────────────────────────
 async function loadInventory() {
+  _invLoading = true;
   try {
-    const snap = await fdb.collection('inventory').orderBy('client').get();
-    DB = snap.docs.map(d => ({...d.data(), id:d.id}));
+    const cached  = await cacheGetAllInv();
+    const cursor  = await kvGet('invCursor');
+    const lastFull= await kvGet('invFullAt');
+    const stale   = !lastFull || (Date.now() - Date.parse(lastFull) > FULL_REFRESH_MS);
+    if (!cached.length || !cursor || stale) { await fullLoadInventory(); return; }
+
+    // Warm path: pull only records changed since last sync.
+    DB = cached;
+    const since = rewindIso(cursor, DELTA_REWIND_MS) || cursor;
+    // Apply remote deletions FIRST, so an undo-restore in this same window (which arrives
+    // as an add/update below) wins over its own tombstone.
+    await applyRemoteDeletions(since);
+    const snap  = await fdb.collection('inventory').where('updatedAt', '>', since).get();
+    const changed = snap.docs.map(d => ({...d.data(), id:d.id}));
+    if (changed.length) {
+      changed.forEach(rec => { const i = DB.findIndex(r => r.id===rec.id); if (i>-1) DB[i]=rec; else DB.push(rec); });
+      await cachePutInv(changed);
+    }
+    // Secondary net (only fires if this Firestore build ever gains count()): totals disagree → full reconcile.
+    const cnt = await serverInvCount();
+    if (cnt != null && cnt !== DB.length) { await fullLoadInventory(); return; }
+    await kvSet('invCursor', maxUpdatedAt(DB) || cursor);
     refreshInventoryRecent();
-  } catch(e) { console.error('loadInventory:', e); }
+  } catch(e) {
+    console.error('loadInventory (delta):', e);
+    try { await fullLoadInventory(); }                 // any delta failure → safe full reload
+    catch(e2) { console.error('loadInventory (full fallback):', e2); if (DB.length) refreshInventoryRecent(); }
+  } finally { _invLoading = false; }
+}
+async function fullLoadInventory() {
+  const snap = await fdb.collection('inventory').orderBy('client').get();
+  DB = snap.docs.map(d => ({...d.data(), id:d.id}));
+  await cacheReplaceInv(DB);
+  await kvSet('invCursor', maxUpdatedAt(DB));
+  await kvSet('invFullAt', new Date().toISOString());
+  refreshInventoryRecent();
 }
 function activityStamp(r) {
   return r?.updatedAt || r?.createdAt || '';
@@ -372,11 +522,35 @@ async function syncData() {
 }
 async function loadLogs() {
   try {
-    const snap = await fdb.collection('logs').orderBy('datetime','desc').limit(500).get();
-    LOGS = snap.docs.map(d => ({...d.data(), id:d.id}));
+    const cachedLogs = await kvGet('logsCache');
+    const cursor     = await kvGet('logsCursor');
+    const lastFull   = await kvGet('logsFullAt');
+    const stale      = !lastFull || (Date.now() - Date.parse(lastFull) > FULL_REFRESH_MS);
+    if (!cachedLogs || !cachedLogs.length || !cursor || stale) {
+      const snap = await fdb.collection('logs').orderBy('datetime','desc').limit(500).get();
+      LOGS = snap.docs.map(d => ({...d.data(), id:d.id}));
+      await kvSet('logsFullAt', new Date().toISOString());
+    } else {
+      LOGS = cachedLogs;
+      const snap = await fdb.collection('logs').where('datetime','>', cursor).orderBy('datetime','desc').get();
+      const fresh = snap.docs.map(d => ({...d.data(), id:d.id}));
+      if (fresh.length) {
+        const known = new Set(LOGS.map(l => l.id));
+        const add = fresh.filter(l => !known.has(l.id));
+        if (add.length) LOGS = [...add, ...LOGS].slice(0, 500);
+      }
+    }
     _logCursor = LOGS[0]?.datetime || '';
+    kvSet('logsCache', LOGS); kvSet('logsCursor', _logCursor);
     fl = [...LOGS]; renderLogs();
-  } catch(e) { console.error('loadLogs:', e); }
+  } catch(e) {
+    console.error('loadLogs:', e);
+    if (!LOGS.length) {
+      try { const snap = await fdb.collection('logs').orderBy('datetime','desc').limit(500).get();
+            LOGS = snap.docs.map(d => ({...d.data(), id:d.id})); _logCursor = LOGS[0]?.datetime||''; fl=[...LOGS]; renderLogs(); }
+      catch(e2) { console.error('loadLogs (fallback):', e2); }
+    }
+  }
 }
 
 // ── LIVE SYNC (lightweight cross-client refresh) ──────────
@@ -427,17 +601,19 @@ function isInvFilterActive() {
     .some(id => document.getElementById(id)?.value) || showDupes;
 }
 async function applyRemoteSync(sig) {
+  if (_invLoading) return;   // an initial/explicit load is in flight and will capture this change
   const btn = document.getElementById('syncBtn');
   btn?.classList.add('syncing');
   try {
     if (sig.full) {
       const keepPg = pg;
-      await loadInventory();            // full inventory reload (reconciles any drift)
+      await loadInventory();            // delta reload (picks up the changed rows cheaply)
       await refreshLogsIncremental();   // pull only NEW logs, not a full 500-doc re-read
       pg = keepPg; remoteRerender();    // keep the viewer's page/search instead of jumping to page 1
       return;
     }
     // Deletes: ids ride in the signal, so no reads needed to drop them locally.
+    const goneIds = [...(sig.del || [])];
     if (sig.del?.length) {
       const gone = new Set(sig.del);
       DB = DB.filter(r => !gone.has(r.id));
@@ -451,17 +627,21 @@ async function applyRemoteSync(sig) {
       fdb.collection('inventory').where(firebase.firestore.FieldPath.documentId(), 'in', chunk).get()
         .then(qs => ({ chunk, qs }))
     ));
+    const fetched = [];
     for (const { chunk, qs } of results) {
       const found = new Set();
       qs.forEach(d => {
         found.add(d.id);
         const rec = {...d.data(), id:d.id};
+        fetched.push(rec);
         const idx = DB.findIndex(r => r.id === d.id);
         if (idx > -1) DB[idx] = rec; else DB.push(rec);
       });
       // Requested but not returned → deleted after the ping; drop it locally.
-      chunk.forEach(id => { if (!found.has(id)) { DB = DB.filter(r => r.id !== id); persistentSelIds.delete(id); } });
+      chunk.forEach(id => { if (!found.has(id)) { goneIds.push(id); DB = DB.filter(r => r.id !== id); persistentSelIds.delete(id); } });
     }
+    cachePutInv(fetched);            // keep the local cache in step with the remote change
+    cacheDelInv(goneIds);
     remoteRerender();
     await refreshLogsIncremental();
   } catch(e) { console.error('applyRemoteSync:', e); }
@@ -490,6 +670,7 @@ async function refreshLogsIncremental() {
     if (!add.length) return;
     LOGS = [...add, ...LOGS].slice(0, 500);
     _logCursor = LOGS[0]?.datetime || _logCursor;
+    kvSet('logsCache', LOGS); kvSet('logsCursor', _logCursor);
     fl = [...LOGS]; renderLogs();
   } catch(e) { console.error('refreshLogsIncremental:', e); }
 }
@@ -1187,7 +1368,7 @@ async function saveRec() {
       const reseq = await resequencePostingTimes();
       renderTbl(); closeMo();
       openSP(editId);
-      broadcastSync([editId, ...reseq]);
+      propagateChange([editId, ...reseq]);
       if (oldRec) {
         showUndoToast(`Updated ${nd.number}`, async () => {
           try {
@@ -1196,7 +1377,7 @@ async function saveRec() {
             const i = DB.findIndex(r => r.id===rid);
             if (i>-1) DB[i] = {...oldRec};
             refreshInventoryRecent();
-            broadcastSync([rid]);
+            propagateChange([rid]);
             await addLog('Updated', `Reverted ${oldRec.number} (undo edit)`);
             showToast(`Reverted ${oldRec.number}`, 'success');
           } catch(e) { showToast('Revert failed: '+e.message, 'error'); }
@@ -1213,7 +1394,7 @@ async function saveRec() {
       refreshInventoryRecent();
       const reseq = await resequencePostingTimes();
       renderTbl(); closeMo();
-      broadcastSync([ref.id, ...reseq]);
+      propagateChange([ref.id, ...reseq]);
       showToast(`Added ${nd.number}`, 'success');
     }
   } catch(e) { showToast('Save error: '+e.message, 'error'); }
@@ -1241,7 +1422,7 @@ function delRec(id) {
       persistentSelIds.delete(id);
       if (r) await addLog('Deleted', `Deleted number ${r.number}`);
       renderTbl(); closeSP();
-      broadcastSync([], [id]);
+      propagateChange([], [id]);
       if (savedRec) {
         showUndoToast(`Deleted ${savedRec.number}`, async () => {
           try {
@@ -1249,7 +1430,7 @@ function delRec(id) {
             await fdb.collection('inventory').doc(rid).set({...data, id:rid});
             DB.push(savedRec);
             refreshInventoryRecent();
-            broadcastSync([rid]);
+            propagateChange([rid]);
             await addLog('Added', `Restored ${savedRec.number} (undo delete)`);
             showToast(`Restored ${savedRec.number}`, 'success');
           } catch(e) { showToast('Restore failed: '+e.message, 'error'); }
@@ -1350,7 +1531,7 @@ async function handleCSV(e) {
     // Propagate only the rows this import actually touched; broadcastSync escalates
     // to a full reload on its own if that set exceeds the incremental cap.
     const csvIds = ops.map(o => o.type === 'update' ? o.id : o.data.id).filter(Boolean);
-    broadcastSync([...csvIds, ...reseq]);
+    propagateChange([...csvIds, ...reseq]);
     showToast(`Upload complete — ${added} added, ${updated} updated`, 'success');
   } catch(err) { showToast('Import error: '+err.message, 'error'); }
   e.target.value='';
@@ -1746,6 +1927,8 @@ async function addLog(action, details, extra={}) {
   try {
     const ref = await fdb.collection('logs').add(log);
     log.id = ref.id; LOGS.unshift(log); fl=[...LOGS]; renderLogs();
+    _logCursor = LOGS[0]?.datetime || _logCursor;
+    kvSet('logsCache', LOGS.slice(0, 500)); kvSet('logsCursor', _logCursor);   // keep cache in step
   } catch(e) { console.error('addLog:', e); }
 }
 function toggleLF() {
@@ -2017,7 +2200,7 @@ function delSelected() {
       ids.forEach(id => persistentSelIds.delete(id));
       await addLog('Deleted', `Bulk deleted ${ids.length} records`, {records: affectedRecords});
       renderTbl(); closeSP();
-      broadcastSync([], ids);
+      propagateChange([], ids);
       showUndoToast(`Deleted ${ids.length} records`, async () => {
         try {
           const CHUNK = 400;
@@ -2031,7 +2214,7 @@ function delSelected() {
           }
           savedRecs.forEach(rec => { if (!DB.find(r => r.id===rec.id)) DB.push(rec); });
           refreshInventoryRecent();
-          broadcastSync(savedRecs.map(r => r.id));
+          propagateChange(savedRecs.map(r => r.id));
           await addLog('Added', `Restored ${savedRecs.length} records (undo bulk delete)`, {records: affectedRecords});
           showToast(`Restored ${savedRecs.length} records`, 'success');
         } catch(e) { showToast('Restore failed: '+e.message, 'error'); }
@@ -2101,7 +2284,7 @@ async function saveBulkEdit() {
       });
       refreshInventoryRecent();
       await addLog('Updated', `Bulk deactivated ${ids.length} record${ids.length!==1?'s':''}`, {records:affectedRecords, fields:['client','status','deactDate','route']});
-      broadcastSync(ids);
+      propagateChange(ids);
       closeBE();
       showToast(`Deactivated ${ids.length} record${ids.length!==1?'s':''}`, 'success');
     } catch(err) { showToast('Bulk deactivation error: '+err.message, 'error'); }
@@ -2144,7 +2327,7 @@ async function saveBulkEdit() {
     const reseq = await resequencePostingTimes();
     renderTbl();
     await addLog('Updated', `Bulk edited ${ids.length} records: ${dataFields.join(', ')}`, {records: affectedRecords, fields:dataFields});
-    broadcastSync([...ids, ...reseq]);
+    propagateChange([...ids, ...reseq]);
     closeBE();
     showUndoToast(`Bulk updated ${ids.length} record${ids.length!==1?'s':''}`, async () => {
       try {
@@ -2166,7 +2349,7 @@ async function saveBulkEdit() {
           if (idx>-1) DB[idx] = {...DB[idx], ...rec};
         });
         refreshInventoryRecent();
-        broadcastSync(savedRecs.map(r => r.id));
+        propagateChange(savedRecs.map(r => r.id));
         await addLog('Updated', `Reverted bulk edit of ${savedRecs.length} records (undo)`, {records: reverseBulkChanges(affectedRecords), fields:dataFields});
         showToast(`Reverted ${savedRecs.length} record${savedRecs.length!==1?'s':''}`, 'success');
       } catch(e) { showToast('Revert failed: '+e.message, 'error'); }
