@@ -600,6 +600,26 @@ function renderTbl() {
   }).join('');
   updateSelBar();
 }
+// Copy the phone numbers currently shown in the inventory table (respects active filters + page).
+function copyVisibleNumbers() {
+  const sz = parseInt(EL.pgSize?.value || 50);
+  const s = (pg-1)*sz;
+  const nums = fd.slice(s, s+sz).map(r => r.number).filter(v => v && String(v).trim());
+  if (!nums.length) { showToast('No numbers to copy.', 'warning'); return; }
+  const text = nums.join('\n');
+  const done = () => showToast(`Copied ${nums.length} number${nums.length!==1?'s':''} to clipboard.`, 'success');
+  const fail = () => showToast('Could not copy to clipboard.', 'error');
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(fail);
+  } else {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); ta.remove(); done();
+    } catch(e) { fail(); }
+  }
+}
 function changePg(d) {
   const sz = parseInt(EL.pgSize?.value || 50);
   const tp = Math.ceil(fd.length/sz)||1;
