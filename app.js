@@ -110,30 +110,71 @@ function stepMinute(h, m) {
   if (h > 23) { h = 0; }
   return { h, m };
 }
-// Most recently assigned posted time across the inventory, as {h,m} (or null if none).
-// Recency is keyed on postedTimeAt (stamped whenever a posted time is written) so the
-// sequence continues correctly even after wrapping past midnight. `excludeId` skips one record.
-function latestPostedTime(excludeId) {
-  let best = null, bestKey = '';
+// Highest time among entries marked "Posted", as {h,m} (or null if none). This is the point
+// the "For Posting" run continues from (+1 minute).
+function latestPostedAnchor() {
+  let best = null; // minutes-of-day
   for (const r of DB) {
-    if (excludeId && r.id === excludeId) continue;
+    if (canonPostedStatus(r.postedStatus) !== 'Posted') continue;
     if (r.postedHour === '' || r.postedHour == null) continue;
-    const key = r.postedTimeAt || r.updatedAt || r.createdAt || '';
-    if (best === null || key.localeCompare(bestKey) > 0) {
-      bestKey = key;
-      best = { h: parseInt(r.postedHour, 10) || 0, m: parseInt(r.postedMin || '0', 10) || 0 };
+    const mins = (parseInt(r.postedHour, 10) || 0) * 60 + (parseInt(r.postedMin || '0', 10) || 0);
+    if (best === null || mins > best) best = mins;
+  }
+  return best === null ? null : { h: Math.floor(best / 60), m: best % 60 };
+}
+// Renumber every "For Posting" entry into one chronological run based on table position:
+// the bottom row is earliest and each row above is +1 minute (wrapping 23:59 → 00:00). The
+// bottom row continues from the latest "Posted" time (+1); if nothing is posted yet it keeps
+// its own current time, otherwise it seeds at the current clock time. "Posted" entries are
+// never touched, and only records whose time actually changes are written to Firestore.
+async function resequencePostingTimes() {
+  // DB is in display order (top→bottom) after refreshInventoryRecent(); bottom = last row.
+  const ordered = DB.filter(r => canonPostedStatus(r.postedStatus) === 'For Posting').reverse();
+  if (!ordered.length) return;
+
+  let cur;
+  const anchor = latestPostedAnchor();
+  if (anchor) {
+    cur = stepMinute(anchor.h, anchor.m);                       // bottom = latest Posted + 1
+  } else {
+    const bottom = ordered[0];
+    if (bottom.postedHour !== '' && bottom.postedHour != null) {
+      cur = { h: parseInt(bottom.postedHour, 10) || 0, m: parseInt(bottom.postedMin || '0', 10) || 0 };
+    } else {
+      const n = new Date();
+      cur = { h: n.getHours(), m: n.getMinutes() };             // seed at the current clock time
     }
   }
-  return best;
-}
-// Next posting slot for a single record: one minute after the latest posted time,
-// or the current clock time when nothing has been posted yet.
-function nextPostingSlot(excludeId) {
-  const a = latestPostedTime(excludeId);
-  let h, m;
-  if (a) ({ h, m } = stepMinute(a.h, a.m));
-  else { const n = new Date(); h = n.getHours(); m = n.getMinutes(); }
-  return { hour: pad2(h), min: pad2(m) };
+
+  const base = Date.now();
+  const changed = [];
+  for (let i = 0; i < ordered.length; i++) {
+    if (i > 0) cur = stepMinute(cur.h, cur.m);
+    const r = ordered[i];
+    const hh = pad2(cur.h), mm = pad2(cur.m);
+    if ((r.postedHour || '') !== hh || (r.postedMin || '') !== mm) {
+      r.postedHour = hh;
+      r.postedMin = mm;
+      r.postedTimeAt = new Date(base + i).toISOString();
+      changed.push(r);
+    }
+  }
+  if (!changed.length) return;
+
+  try {
+    const CHUNK = 400;
+    for (let i = 0; i < changed.length; i += CHUNK) {
+      const b = fdb.batch();
+      changed.slice(i, i + CHUNK).forEach(r =>
+        b.update(fdb.collection('inventory').doc(r.id), {
+          postedHour: r.postedHour, postedMin: r.postedMin, postedTimeAt: r.postedTimeAt
+        }));
+      await b.commit();
+    }
+  } catch (e) {
+    console.error('resequencePostingTimes:', e);
+    showToast('Could not update all posting times: ' + e.message, 'error');
+  }
 }
 function roleBadge(role) {
   const m = {admin:['rb-admin','Admin'],'semi-admin':['rb-semi','Semi-Admin'],viewer:['rb-viewer','Viewer']};
@@ -807,27 +848,6 @@ function initPostedTimeSelects() {
   }
   hourSel.dataset.init = '1';
 }
-// Live preview of the auto-generated posting time in the Add/Edit modal: when the user picks
-// "For Posting" and no time is set yet, fill in the next slot immediately. Switching away
-// clears it again — but only while it's still our untouched preview (never a manual entry).
-function onPostedStatusChange() {
-  const sel = document.getElementById('mPosted');
-  const hourEl = document.getElementById('mPostedHour');
-  const minEl = document.getElementById('mPostedMin');
-  if (!sel || !hourEl || !minEl) return;
-  if (canonPostedStatus(sel.value) === 'For Posting') {
-    if (!hourEl.value) {
-      const t = nextPostingSlot(editId);
-      setSelectVal(hourEl, t.hour);
-      setSelectVal(minEl, t.min);
-      hourEl.dataset.autofill = `${t.hour}:${t.min}`;
-    }
-  } else if (hourEl.dataset.autofill && hourEl.dataset.autofill === `${hourEl.value}:${minEl.value}`) {
-    hourEl.value = '';
-    minEl.value = '';
-    delete hourEl.dataset.autofill;
-  }
-}
 function initDateMirrors() {
   bindDateMirror('mEffDate','mActDate',() => actDateTouched,v => { effDateTouched=v; },v => { actDateTouched=v; });
   bindDateMirror('beEffDate','beActDate',() => bulkActDateTouched,v => { bulkEffDateTouched=v; },v => { bulkActDateTouched=v; });
@@ -888,12 +908,10 @@ function clearMo() {
   });
   resetFeeSelects(FEE_FIELDS);
   document.getElementById('mNumber')?.classList.remove('err');
-  document.getElementById('mPostedHour')?.removeAttribute('data-autofill');
 }
 function fillMo(r) {
   _editUpdatedAt = r.updatedAt || null;
   resetDateMirror('single');
-  document.getElementById('mPostedHour')?.removeAttribute('data-autofill');
   Object.entries(mMap).forEach(([id,key]) => {
     const el = document.getElementById(id); if (!el) return;
     const raw = r[key];
@@ -996,22 +1014,9 @@ async function saveRec() {
     nd.deactivationHistory = [...(currentRec?.deactivationHistory || []), histEntry];
   }
 
-  // ── Auto-assign posting time ───
-  // Persist Posted Status in its canonical form, and when a record is marked "For Posting"
-  // without an explicit time, continue the posting-time sequence (latest posted time + 1 min).
+  // Persist Posted Status in canonical form. Posting times for the whole "For Posting" set
+  // are (re)generated together by resequencePostingTimes() after the save succeeds below.
   nd.postedStatus = canonPostedStatus(nd.postedStatus);
-  let assignedTime = '';
-  if (nd.postedStatus === 'For Posting' && !nd.postedHour) {
-    const t = nextPostingSlot(editId);
-    nd.postedHour = t.hour;
-    nd.postedMin  = t.min;
-    assignedTime  = `${t.hour}:${t.min}`;
-  }
-  // Stamp when the posted time was set so the sequence anchors on the newest assignment
-  // (and isn't disturbed by unrelated edits to older records).
-  const _prevRec = editId ? DB.find(r => r.id === editId) : null;
-  const _timeChanged = !_prevRec || (_prevRec.postedHour || '') !== (nd.postedHour || '') || (_prevRec.postedMin || '') !== (nd.postedMin || '');
-  if (nd.postedHour && _timeChanged) nd.postedTimeAt = new Date().toISOString();
 
   try {
     if (editId) {
@@ -1029,10 +1034,12 @@ async function saveRec() {
       await fdb.collection('inventory').doc(editId).update(nd);
       if (idx>-1) DB[idx] = {...DB[idx], ...nd};
       await addLog('Updated', `Updated number ${nd.number}`);
-      refreshInventoryRecent(); closeMo();
+      refreshInventoryRecent();
+      await resequencePostingTimes();
+      renderTbl(); closeMo();
       openSP(editId);
       if (oldRec) {
-        showUndoToast(`Updated ${nd.number}${assignedTime ? ` · posting time ${assignedTime}` : ''}`, async () => {
+        showUndoToast(`Updated ${nd.number}`, async () => {
           try {
             const {id:rid, ...oldData} = oldRec;
             await fdb.collection('inventory').doc(rid).update(oldData);
@@ -1044,7 +1051,7 @@ async function saveRec() {
           } catch(e) { showToast('Revert failed: '+e.message, 'error'); }
         }, 6000, 'Updated');
       } else {
-        showToast(`Updated ${nd.number}${assignedTime ? ` · posting time ${assignedTime}` : ''}`, 'success');
+        showToast(`Updated ${nd.number}`, 'success');
       }
     } else {
       nd.createdBy = currentUser?.email || 'system';
@@ -1052,8 +1059,10 @@ async function saveRec() {
       const ref = await fdb.collection('inventory').add(nd);
       nd.id = ref.id; DB.push(nd);
       await addLog('Added', `Added number ${nd.number}`);
-      refreshInventoryRecent(); closeMo();
-      showToast(`Added ${nd.number}${assignedTime ? ` · posting time ${assignedTime}` : ''}`, 'success');
+      refreshInventoryRecent();
+      await resequencePostingTimes();
+      renderTbl(); closeMo();
+      showToast(`Added ${nd.number}`, 'success');
     }
   } catch(e) { showToast('Save error: '+e.message, 'error'); }
 }
@@ -1945,34 +1954,12 @@ async function saveBulkEdit() {
   updates.updatedBy = currentUser?.email||'system';
   updates.updatedAt = new Date().toISOString();
 
-  // When bulk-setting "For Posting", give each selected record that has no posted time yet a
-  // sequential time — earliest at the bottom row, increasing upward — continuing the sequence.
-  let perIdTime = null;
-  if (updates.postedStatus === 'For Posting') {
-    const pos = new Map(fd.map((r, i) => [r.id, i]));
-    const targets = ids
-      .map(id => DB.find(r => r.id === id))
-      .filter(r => r && !r.postedHour)
-      .sort((a, b) => (pos.has(b.id) ? pos.get(b.id) : -1) - (pos.has(a.id) ? pos.get(a.id) : -1));
-    if (targets.length) {
-      perIdTime = {};
-      const base = Date.now();
-      let cur = latestPostedTime(null);
-      targets.forEach((r, i) => {
-        if (cur) cur = stepMinute(cur.h, cur.m);
-        else { const n = new Date(); cur = { h: n.getHours(), m: n.getMinutes() }; }
-        perIdTime[r.id] = { postedHour: pad2(cur.h), postedMin: pad2(cur.m), postedTimeAt: new Date(base + i).toISOString() };
-      });
-    }
-  }
-
-  // Save original field values for undo (including posted-time fields when we assign them)
+  // Save original field values for undo
   const dataFields = Object.keys(updates).filter(k => k!=='updatedBy' && k!=='updatedAt');
-  const savedFields = perIdTime ? [...dataFields, 'postedHour', 'postedMin', 'postedTimeAt'] : dataFields;
   const savedRecs = ids.map(id => {
     const r = DB.find(x => x.id===id); if (!r) return null;
     const saved = {id};
-    savedFields.forEach(f => { saved[f] = r[f] !== undefined ? r[f] : ''; });
+    dataFields.forEach(f => { saved[f] = r[f] !== undefined ? r[f] : ''; });
     return saved;
   }).filter(Boolean);
   const affectedRecords = ids.map(id => DB.find(r => r.id===id)).filter(Boolean).map(r => bulkChangeSummary(r, dataFields, updates));
@@ -1981,11 +1968,13 @@ async function saveBulkEdit() {
     const CHUNK = 400;
     for (let i=0; i<ids.length; i+=CHUNK) {
       const b = fdb.batch();
-      ids.slice(i,i+CHUNK).forEach(id => b.update(fdb.collection('inventory').doc(id), perIdTime && perIdTime[id] ? {...updates, ...perIdTime[id]} : updates));
+      ids.slice(i,i+CHUNK).forEach(id => b.update(fdb.collection('inventory').doc(id), updates));
       await b.commit();
     }
-    ids.forEach(id => { const idx=DB.findIndex(r=>r.id===id); if(idx>-1) DB[idx]={...DB[idx],...updates,...(perIdTime && perIdTime[id] ? perIdTime[id] : {})}; });
+    ids.forEach(id => { const idx=DB.findIndex(r=>r.id===id); if(idx>-1) DB[idx]={...DB[idx],...updates}; });
     refreshInventoryRecent();
+    await resequencePostingTimes();
+    renderTbl();
     await addLog('Updated', `Bulk edited ${ids.length} records: ${dataFields.join(', ')}`, {records: affectedRecords, fields:dataFields});
     closeBE();
     showUndoToast(`Bulk updated ${ids.length} record${ids.length!==1?'s':''}`, async () => {

@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="app.css?v=2">
+<link rel="stylesheet" href="app.css?v=3">
 </head>
 <body>
 
@@ -378,10 +378,10 @@
         </div>
         <div class="fg full"><label>Remarks</label><input class="fc" id="mRemarks" placeholder="Any remarks…"></div>
         <div class="fg"><label>Posted Status</label>
-          <select class="fc" id="mPosted" onchange="onPostedStatusChange()"><option value="No">No</option><option value="Posted">Posted</option><option value="For Posting">For Posting</option></select>
+          <select class="fc" id="mPosted"><option value="No">No</option><option value="Posted">Posted</option><option value="For Posting">For Posting</option></select>
         </div>
         <div class="fg full">
-          <label>Posted Date &amp; Time <span style="color:var(--t3);font-weight:400;font-size:11px">(optional · time auto-fills when Posted Status is “For Posting”)</span></label>
+          <label>Posted Date &amp; Time <span style="color:var(--t3);font-weight:400;font-size:11px">(optional · time is auto-generated in sequence when saved as “For Posting”)</span></label>
           <div style="display:flex;gap:6px;align-items:center">
             <input type="date" class="fc" id="mPostedDate" style="flex:2;min-width:0">
             <select class="fc" id="mPostedHour" style="flex:1;min-width:0"><option value="">HH</option></select>
@@ -754,7 +754,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
 <!-- App -->
-<script src="app.js?v=2"></script>
+<script src="app.js?v=3"></script>
 
 </body>
 </html>
