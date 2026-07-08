@@ -29,8 +29,8 @@ const DATE_CSV_FIELDS = ['postedDate','effDate','actDate','arrDate','provActDate
 // Mail is delivered by a tiny Google Apps Script web app (see setup notes) that
 // sends the file as a real attachment from your own Gmail — no third-party, no
 // Firebase billing. Paste your deployment URL + shared secret below.
-const BACKUP_MAILER_URL = '';   // e.g. https://script.google.com/macros/s/AKfy.../exec
-const BACKUP_MAILER_KEY = '';   // shared secret — must equal SECRET in the Apps Script
+const BACKUP_MAILER_URL = 'https://script.google.com/macros/s/AKfycbyGdK5FJIR5-XZoKifgqeUvXBX28SJ5pb_akszkjh7Qtlc1xZ7kAEqm2gG-EIYq-MrJ/exec';
+const BACKUP_MAILER_KEY = '';   // ⚠ PASTE your Apps Script SECRET here (the var SECRET='...' value) — must match it EXACTLY
 let   AB = null;                 // cached meta/autoBackup config { enabled, recipient, lastSentWeek, lastSentAt }
 let   _abTimer = null, _abDeferT = null, _abSending = false;
 // ── UTILITIES ─────────────────────────────────────────
@@ -2015,7 +2015,7 @@ async function runWeeklyBackup(opts = {}) {
   const test = !!opts.test;
   const recipient = (AB && AB.recipient) || currentUser?.email || '';
   if (!recipient)        { if (test) showToast('No recipient email found.', 'warning'); return; }
-  if (!BACKUP_MAILER_URL){ showToast('Backup email isn\u2019t set up yet \u2014 see setup steps.', 'warning'); return; }
+  if (!BACKUP_MAILER_URL || !BACKUP_MAILER_KEY){ showToast('Backup email isn\u2019t set up yet \u2014 paste your SECRET into BACKUP_MAILER_KEY.', 'warning'); return; }
   if (!DB.length)        { if (test) showToast('No inventory loaded yet.', 'warning'); return; }
 
   _abSending = true;
@@ -2127,7 +2127,7 @@ function renderAutoBackupCard() {
     st.innerHTML = `${esc(head)}<br>Last sent: ${esc(last)}`;
   }
   const warn = document.getElementById('abWarn');
-  if (warn) warn.style.display = BACKUP_MAILER_URL ? 'none' : '';
+  if (warn) warn.style.display = (BACKUP_MAILER_URL && BACKUP_MAILER_KEY) ? 'none' : '';
 }
 
 function toggleExportMenu(e) {
