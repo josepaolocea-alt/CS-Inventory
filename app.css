@@ -199,6 +199,15 @@ tr.tr-pinned:hover td{background:var(--accent-bg)}
 .pin-modal-btn{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,var(--border))}
 input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:pointer}
 
+/* TOGGLE SWITCH */
+.switch{position:relative;display:inline-block;width:44px;height:24px;flex:0 0 auto;cursor:pointer}
+.switch input{position:absolute;opacity:0;width:0;height:0;margin:0}
+.switch-track{position:absolute;inset:0;background:var(--border);border-radius:999px;transition:background-color .18s ease}
+.switch-thumb{position:absolute;top:3px;left:3px;width:18px;height:18px;background:#fff;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.35);transition:transform .18s ease}
+.switch input:checked + .switch-track{background:var(--accent)}
+.switch input:checked + .switch-track .switch-thumb{transform:translateX(20px)}
+.switch input:focus-visible + .switch-track{box-shadow:0 0 0 3px var(--accent-bg)}
+
 /* SIDE PANEL */
 .sp-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.25);z-index:200}
 .sp-ov.on{display:block;animation:fade-in .2s ease}

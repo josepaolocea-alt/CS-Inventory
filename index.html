@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="app.css?v=5">
+<link rel="stylesheet" href="app.css?v=6">
 </head>
 <body>
 
@@ -192,6 +192,7 @@
         <option value="">All Actions</option>
         <option>Added</option><option>Updated</option><option>Deleted</option>
         <option>CSV Upload</option><option>Exported</option><option>Login</option>
+        <option>Backup</option>
       </select>
       <input type="date" class="finp" id="lFrom" onchange="applyLF()" style="width:140px">
       <span style="font-size:12px;color:var(--t3)">to</span>
@@ -256,6 +257,29 @@
           <tbody id="umBody"><tr><td colspan="7" style="text-align:center;color:var(--t3);padding:20px">Loading users…</td></tr></tbody>
         </table>
       </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="ctitle">Automatic Backup</div>
+    <p style="font-size:12px;color:var(--t2);margin:2px 0 14px;line-height:1.55">
+      When on, a full CSV backup of your inventory is emailed <b>once a week</b> to the address below.
+      It goes out the first time the app is opened on <b>Friday</b> (or over the weekend if no one opened it Friday).
+    </p>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+      <div style="display:flex;flex-direction:column;gap:3px;min-width:0">
+        <span style="font-weight:600;font-size:13px">Weekly email backup</span>
+        <span style="font-size:12px;color:var(--t2)">Sends to: <b id="abRecipient">—</b></span>
+        <span style="font-size:11px;color:var(--t3)" id="abStatus">Off — no automatic backups.</span>
+      </div>
+      <label class="switch" title="Turn automatic weekly backup on or off">
+        <input type="checkbox" id="abToggle" onchange="setAutoBackupEnabled(this.checked)">
+        <span class="switch-track"><span class="switch-thumb"></span></span>
+      </label>
+    </div>
+    <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-sm" onclick="sendTestBackup()">Send test backup now</button>
+      <span id="abWarn" style="display:none;font-size:11px;color:var(--warn)">⚠ Email sending isn’t set up yet — see setup steps.</span>
     </div>
   </div>
 
@@ -760,7 +784,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
 <!-- App -->
-<script src="app.js?v=12"></script>
+<script src="app.js?v=13"></script>
 
 </body>
 </html>

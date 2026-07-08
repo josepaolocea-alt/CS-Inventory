@@ -13,13 +13,26 @@ const fauth = firebase.auth();
 
 // ── CONSTANTS ─────────────────────────────────────────
 const STATUSES    = ['Active','Available','Reserved','Inactive'];
-const ACT_LABELS  = {Added:'b-active',Updated:'b-reserved',Deleted:'b-inactive','CSV Upload':'b-available',Exported:'b-available',Login:'b-available'};
+const ACT_LABELS  = {Added:'b-active',Updated:'b-reserved',Deleted:'b-inactive','CSV Upload':'b-available',Exported:'b-available',Login:'b-available',Backup:'b-active'};
 const CSV_HEADERS = ['Client','Product','Number','Status','Remarks','Posted Status','Posted Date','Posted Time','Client OSF','Client MRC','Client OTRF','Client Channel Fee','Client CPM','Effective Date','Activated Date','Provider','Arrival Date','Provider Activation Date','Provider OSF','Provider MRC','Provider OTRF','Provider CPM','Type / Session','Route Request by','Deactivation Date','Previous Client'];
 const CSV_FIELD_MAP = {'Client':'client','Product':'product','Number':'number','Status':'status','Remarks':'remarks','Posted Status':'postedStatus','Posted Date':'postedDate','Client OSF':'clientOSF','Client MRC':'clientMRC','Client OTRF':'clientOTRF','Client Channel Fee':'clientCF','Client CPM':'clientCPM','Effective Date':'effDate','Activated Date':'actDate','Provider':'provider','Arrival Date':'arrDate','Provider Activation Date':'provActDate','Provider OSF':'provOSF','Provider MRC':'provMRC','Provider OTRF':'provOTRF','Provider CPM':'provCPM','Type / Session':'typeSession','Route Request by':'route','Deactivation Date':'deactDate','Previous Client':'prevClient'};
 const FIELD_LABELS = {client:'Client',product:'Product',number:'Number',status:'Status',remarks:'Remarks',postedStatus:'Posted Status',postedDate:'Posted Date',postedHour:'Posted Hour',postedMin:'Posted Minute',clientOSF:'Client OSF',clientMRC:'Client MRC',clientOTRF:'Client OTRF',clientCF:'Client Channel Fee',clientCPM:'Client CPM',effDate:'Effective Date',actDate:'Activated Date',provider:'Provider',arrDate:'Arrival Date',provActDate:'Provider Activation Date',provOSF:'Provider OSF',provMRC:'Provider MRC',provOTRF:'Provider OTRF',provCPM:'Provider CPM',typeSession:'Type / Session',route:'Route Request by',deactDate:'Deactivation Date',prevClient:'Previous Client'};
 const DATE_FIELDS = new Set(['mPostedDate','mEffDate','mActDate','mArrDate','mProvActDate','mDeactDate']);
 const VALID_STATUSES = new Set(['Active','Available','Reserved','Inactive','']);
 const DATE_CSV_FIELDS = ['postedDate','effDate','actDate','arrDate','provActDate','deactDate'];
+
+// ── AUTO BACKUP (weekly email) ────────────────────────
+// A full CSV of the inventory is emailed once a week (Friday) to the logged-in
+// address. Because this is a pure client-side app, "every Friday" means: the
+// first time an editor opens the app on Friday/Sat/Sun of a week it hasn't sent
+// yet, it sends once (a Firestore transaction ensures only ONE client sends).
+// Mail is delivered by a tiny Google Apps Script web app (see setup notes) that
+// sends the file as a real attachment from your own Gmail — no third-party, no
+// Firebase billing. Paste your deployment URL + shared secret below.
+const BACKUP_MAILER_URL = '';   // e.g. https://script.google.com/macros/s/AKfy.../exec
+const BACKUP_MAILER_KEY = '';   // shared secret — must equal SECRET in the Apps Script
+let   AB = null;                 // cached meta/autoBackup config { enabled, recipient, lastSentWeek, lastSentAt }
+let   _abTimer = null, _abDeferT = null, _abSending = false;
 // ── UTILITIES ─────────────────────────────────────────
 function esc(s) {
   return String(s == null ? '' : s)
@@ -298,8 +311,11 @@ fauth.onAuthStateChanged(async user => {
     await loadSelections();
     if (currentRole === 'admin') loadUsers();
     startSyncListener();
+    initAutoBackup();
   } else {
     stopSyncListener();
+    if (_abTimer) clearInterval(_abTimer);
+    _abTimer = null; clearTimeout(_abDeferT); AB = null;
     currentUser = null; currentRole = 'viewer';
     DB=[]; LOGS=[]; fd=[]; fl=[]; recentViewed=[];
     USERS=[]; SELECTIONS={clients:[],products:[],providers:[],routes:[]};
@@ -704,7 +720,7 @@ function go(tab, btn) {
   if (tab==='dashboard') renderDash();
   if (tab==='inventory') renderTbl();
   if (tab==='logs')      renderLogs();
-  if (tab==='admin')     loadUsers();
+  if (tab==='admin')     { loadUsers(); renderAutoBackupCard(); }
 }
 
 // ── DASHBOARD ─────────────────────────────────────────
@@ -1924,11 +1940,194 @@ function exportPDF() {
   addLog('Exported', `Exported ${DB.length} records to PDF`);
 }
 
+// Turn a 2-D array of rows into a UTF-8 CSV string (BOM + quoted/escaped cells).
+function csvString(rows) {
+  return '\uFEFF' + rows.map(r => r.map(c => `"${String(c==null?'':c).replace(/"/g,'""')}"`).join(',')).join('\n');
+}
 function dlCSV(rows, name) {
   const a = document.createElement('a');
-  const text = '\uFEFF' + rows.map(r => r.map(c => `"${String(c||'').replace(/"/g,'""')}"`).join(',')).join('\n');
-  a.href = URL.createObjectURL(new Blob([text],{type:'text/csv;charset=utf-8'}));
+  a.href = URL.createObjectURL(new Blob([csvString(rows)],{type:'text/csv;charset=utf-8'}));
   a.download = name; a.click();
+}
+
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+// AUTO BACKUP \u2014 weekly inventory CSV emailed to the logged-in address
+// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+
+// ISO-8601 week key, e.g. "2026-W28". Fri/Sat/Sun all share one week's key.
+function isoWeekKey(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const day = d.getUTCDay() || 7;                 // Mon=1 \u2026 Sun=7
+  d.setUTCDate(d.getUTCDate() + 4 - day);         // shift to the week's Thursday
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const week = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  return d.getUTCFullYear() + '-W' + String(week).padStart(2, '0');
+}
+
+// Due only on Friday, Saturday or Sunday of a week we haven't emailed yet.
+function isBackupDue() {
+  if (!AB || !AB.enabled) return false;
+  const now = new Date();
+  const dow = now.getDay();                        // 0 Sun \u2026 5 Fri \u2026 6 Sat
+  if (!(dow === 5 || dow === 6 || dow === 0)) return false;   // Mon\u2013Thu: not yet
+  return AB.lastSentWeek !== isoWeekKey(now);
+}
+
+// Whole-inventory CSV (same columns/order as the manual "Export to CSV").
+function buildBackupCSV() {
+  const rows = DB.map(r => [r.client,r.product,r.number,r.status,r.remarks,canonPostedStatus(r.postedStatus),r.postedDate,r.postedHour?(r.postedHour+':'+(r.postedMin||'00')):'',r.clientOSF,r.clientMRC,r.clientOTRF,r.clientCF,r.clientCPM,r.effDate,r.actDate,r.provider,r.arrDate,r.provActDate,r.provOSF,r.provMRC,r.provOTRF,r.provCPM,r.typeSession,r.route,r.deactDate,r.prevClient]);
+  return csvString([CSV_HEADERS, ...rows]);
+}
+
+// UTF-8-safe base64 (handles the BOM and any non-Latin1 characters).
+function toB64Utf8(str) {
+  const bytes = new TextEncoder().encode(str);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+
+// Read config once at sign-in, refresh the Admin card, and arm the checks.
+async function initAutoBackup() {
+  try {
+    const snap = await fdb.collection('meta').doc('autoBackup').get();
+    AB = snap.exists ? (snap.data() || {}) : { enabled:false, recipient:'', lastSentWeek:'', lastSentAt:'' };
+  } catch (e) { console.error('initAutoBackup:', e); AB = { enabled:false }; }
+  if (!AB.recipient && currentUser?.email) AB.recipient = currentUser.email;
+  renderAutoBackupCard();
+  if (_abTimer) clearInterval(_abTimer);
+  _abTimer = setInterval(maybeRunAutoBackup, 60 * 60 * 1000);   // re-check hourly for long-open sessions
+  maybeRunAutoBackup();
+}
+
+// Gate everything, then wait until the inventory is actually loaded before sending.
+function maybeRunAutoBackup() {
+  if (!AB || !AB.enabled) return;
+  if (!(currentRole === 'admin' || currentRole === 'semi-admin')) return;  // only editors can write meta / send
+  if (!isBackupDue()) return;
+  if (_invLoading || !DB.length) { clearTimeout(_abDeferT); _abDeferT = setTimeout(maybeRunAutoBackup, 5000); return; }
+  runWeeklyBackup();
+}
+
+// Claim the week (transaction \u2192 one sender), build the file, email it, log it.
+async function runWeeklyBackup(opts = {}) {
+  if (_abSending) return;
+  const test = !!opts.test;
+  const recipient = (AB && AB.recipient) || currentUser?.email || '';
+  if (!recipient)        { if (test) showToast('No recipient email found.', 'warning'); return; }
+  if (!BACKUP_MAILER_URL){ showToast('Backup email isn\u2019t set up yet \u2014 see setup steps.', 'warning'); return; }
+  if (!DB.length)        { if (test) showToast('No inventory loaded yet.', 'warning'); return; }
+
+  _abSending = true;
+  const ref = fdb.collection('meta').doc('autoBackup');
+  const wk  = isoWeekKey(new Date());
+  let prevWeek = (AB && AB.lastSentWeek) || '';
+  try {
+    if (!test) {
+      // Atomically claim this week so a second open tab / device won't double-send.
+      let claimed = false;
+      await fdb.runTransaction(async tx => {
+        const snap = await tx.get(ref);
+        const d = snap.exists ? (snap.data() || {}) : {};
+        if (!d.enabled) return;
+        if (d.lastSentWeek === wk) return;         // someone already sent this week
+        prevWeek = d.lastSentWeek || '';
+        tx.set(ref, { lastSentWeek: wk }, { merge:true });
+        claimed = true;
+      });
+      if (!claimed) { _abSending = false; return; }
+      AB.lastSentWeek = wk;
+    }
+
+    const csv   = buildBackupCSV();
+    const fname = `CS-Inventory-Backup-${new Date().toISOString().slice(0,10)}.csv`;
+    await deliverBackupEmail(recipient, fname, csv, DB.length, test);
+
+    const stamp = new Date().toISOString();
+    if (!test) {
+      try { await ref.set({ lastSentAt: stamp, lastSentBy: currentUser?.email || '' }, { merge:true }); } catch(_){}
+      AB.lastSentAt = stamp;
+    }
+    await addLog('Backup', `${test ? 'Test' : 'Weekly'} backup emailed to ${recipient} (${DB.length} records)`);
+    showToast(`Backup emailed to ${recipient} \u2713`, 'success');
+    renderAutoBackupCard();
+  } catch (err) {
+    console.error('runWeeklyBackup:', err);
+    if (!test) {                                    // network failure \u2192 release the claim so it retries next open
+      try { await ref.set({ lastSentWeek: prevWeek }, { merge:true }); } catch(_){}
+      AB.lastSentWeek = prevWeek;
+    }
+    showToast('Backup could not be sent \u2014 will retry.', 'error');
+    renderAutoBackupCard();
+  } finally { _abSending = false; }
+}
+
+// Fire-and-forget POST to the Apps Script mailer. `no-cors` keeps it a "simple"
+// cross-origin request (no preflight); it resolves unless the network truly fails.
+async function deliverBackupEmail(to, filename, csvText, count, test) {
+  const today = new Date();
+  const payload = {
+    token: BACKUP_MAILER_KEY,
+    to,
+    subject: `CS Inventory \u2014 ${test ? 'Test ' : ''}Weekly Backup (${today.toISOString().slice(0,10)})`,
+    body: `Automated ${test ? 'test ' : ''}weekly backup of CS Inventory.\n\n`
+        + `Records: ${count}\nGenerated: ${today.toLocaleString()}\n\n`
+        + `The full inventory is attached as a CSV file.`,
+    filename,
+    mimeType: 'text/csv',
+    dataB64: toB64Utf8(csvText)
+  };
+  await fetch(BACKUP_MAILER_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // avoids CORS preflight
+    body: JSON.stringify(payload)
+  });
+}
+
+// Admin toggle handler.
+async function setAutoBackupEnabled(on) {
+  if (currentRole !== 'admin') { showToast('Only admins can change this.', 'warning'); renderAutoBackupCard(); return; }
+  try {
+    await fdb.collection('meta').doc('autoBackup').set({
+      enabled: !!on,
+      recipient: (AB && AB.recipient) || currentUser?.email || '',
+      updatedAt: new Date().toISOString(),
+      updatedBy: currentUser?.email || ''
+    }, { merge:true });
+    AB = AB || {}; AB.enabled = !!on; if (!AB.recipient) AB.recipient = currentUser?.email || '';
+    await addLog('Backup', `Automatic weekly backup turned ${on ? 'ON' : 'OFF'}`);
+    showToast(`Automatic backup ${on ? 'enabled' : 'disabled'}.`, 'success');
+    renderAutoBackupCard();
+    if (on) maybeRunAutoBackup();
+  } catch (e) {
+    console.error('setAutoBackupEnabled:', e);
+    showToast('Could not update the setting.', 'error');
+    renderAutoBackupCard();
+  }
+}
+
+// Manual "Send test backup now" button.
+function sendTestBackup() {
+  if (currentRole !== 'admin') { showToast('Only admins can do this.', 'warning'); return; }
+  runWeeklyBackup({ test:true });
+}
+
+// Paint the Admin \u25B8 Automatic Backup card from current state.
+function renderAutoBackupCard() {
+  const t = document.getElementById('abToggle');
+  if (!t) return;                                   // card not on screen yet
+  t.checked = !!(AB && AB.enabled);
+  const rec = document.getElementById('abRecipient');
+  if (rec) rec.textContent = (AB && AB.recipient) || currentUser?.email || '\u2014';
+  const st = document.getElementById('abStatus');
+  if (st) {
+    const last = (AB && AB.lastSentAt) ? new Date(AB.lastSentAt).toLocaleString() : 'Never';
+    const head = (AB && AB.enabled) ? 'On \u2014 a backup is emailed every Friday.' : 'Off \u2014 no automatic backups.';
+    st.innerHTML = `${esc(head)}<br>Last sent: ${esc(last)}`;
+  }
+  const warn = document.getElementById('abWarn');
+  if (warn) warn.style.display = BACKUP_MAILER_URL ? 'none' : '';
 }
 
 function toggleExportMenu(e) {
