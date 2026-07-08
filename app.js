@@ -218,7 +218,7 @@ let persistentSelIds = new Set();
 let pinnedIds = new Set();
 let umEditUid=null, _secondApp=null;
 let effDateTouched=false, actDateTouched=false, bulkEffDateTouched=false, bulkActDateTouched=false;
-let _syncUnsub=null, _syncPrimed=false, _lastSyncAt='', _logCursor='';
+let _syncUnsub=null, _syncPrimed=false, _lastSyncAt='', _logCursor='', _syncRetry=0;
 let _invLoading=false;   // guards against a live-sync ping racing an in-flight inventory load
 
 function updateThemeButton() {
@@ -566,6 +566,12 @@ async function loadLogs() {
 // by the signal doc's size, not by read cost.
 const SYNC_LIMIT = 300;
 const DEL_LIMIT  = 1000;
+// If the ONE watched doc's listener dies by ERROR (not a normal network blip — the SDK
+// auto-recovers those for free), re-arm it with bounded exponential backoff so live sync
+// heals itself instead of silently staying dead until someone reloads. Terminal auth errors
+// are NOT retried (they'd loop forever, burning reads); a healthy re-attach resets the count.
+const SYNC_RETRY_MAX     = 5;
+const SYNC_RETRY_BASE_MS = 2000;
 async function broadcastSync(ids = [], del = [], full = false) {
   if (!currentUser) return;
   const tooBig = ids.length > SYNC_LIMIT || del.length > DEL_LIMIT;
@@ -584,17 +590,29 @@ function startSyncListener() {
   _syncPrimed = false;
   _syncUnsub = fdb.collection('meta').doc('syncSignal').onSnapshot(snap => {
     const sig = snap.data();
-    // First callback is the doc's current state at attach — just set a baseline.
-    if (!_syncPrimed) { _syncPrimed = true; _lastSyncAt = sig?.at || ''; return; }
+    // First callback is the doc's current state at attach — baseline only; a healthy attach
+    // also means we're connected, so clear any backoff left over from a prior failure.
+    if (!_syncPrimed) { _syncPrimed = true; _syncRetry = 0; _lastSyncAt = sig?.at || ''; return; }
     if (!sig || !sig.at || sig.at === _lastSyncAt) return;
     _lastSyncAt = sig.at;
     if (sig.by && sig.by === currentUser?.uid) return;   // our own change, already applied locally
     applyRemoteSync(sig);
-  }, err => console.error('sync listener:', err));
+  }, err => {
+    console.error('sync listener:', err);
+    // The listener is dead now. Clear the handle so startSyncListener() can re-arm — its
+    // `if (_syncUnsub) return` guard would otherwise refuse forever. Then retry with backoff,
+    // unless the error is terminal (auth) or we've signed out / exhausted attempts.
+    _syncUnsub = null; _syncPrimed = false;
+    if (err?.code === 'permission-denied' || err?.code === 'unauthenticated') return;
+    if (!currentUser || _syncRetry >= SYNC_RETRY_MAX) return;
+    const delay = Math.min(SYNC_RETRY_BASE_MS * 2 ** _syncRetry, 30000);
+    _syncRetry++;
+    setTimeout(() => { if (currentUser && !_syncUnsub) startSyncListener(); }, delay);
+  });
 }
 function stopSyncListener() {
   if (_syncUnsub) { _syncUnsub(); _syncUnsub = null; }
-  _syncPrimed = false; _lastSyncAt = '';
+  _syncPrimed = false; _lastSyncAt = ''; _syncRetry = 0;
 }
 function isInvFilterActive() {
   return ['fSearch','fClient','fStatus','fProduct','fProvider','fDateFrom','fDateTo']
