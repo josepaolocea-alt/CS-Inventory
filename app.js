@@ -30,7 +30,7 @@ const DATE_CSV_FIELDS = ['postedDate','effDate','actDate','arrDate','provActDate
 // sends the file as a real attachment from your own Gmail — no third-party, no
 // Firebase billing. Paste your deployment URL + shared secret below.
 const BACKUP_MAILER_URL = 'https://script.google.com/macros/s/AKfycbyGdK5FJIR5-XZoKifgqeUvXBX28SJ5pb_akszkjh7Qtlc1xZ7kAEqm2gG-EIYq-MrJ/exec';
-const BACKUP_MAILER_KEY = '';   // ⚠ PASTE your Apps Script SECRET here (the var SECRET='...' value) — must match it EXACTLY
+const BACKUP_MAILER_KEY = 'cs-inv-9f3k2p7q-backup-2026';   // ⚠ PASTE your Apps Script SECRET here (the var SECRET='...' value) — must match it EXACTLY
 let   AB = null;                 // cached meta/autoBackup config { enabled, recipient, lastSentWeek, lastSentAt }
 let   _abTimer = null, _abDeferT = null, _abSending = false;
 // ── UTILITIES ─────────────────────────────────────────
