@@ -135,6 +135,39 @@ function latestPostedAnchor() {
   }
   return best === null ? null : { h: Math.floor(best / 60), m: best % 60 };
 }
+// The "Posted" entry with the highest time-of-day, for the at-a-glance readout above the
+// table. Returns { time:'HH:MM', rec } (raw stored time, so it matches the table exactly) or
+// null when nothing is marked Posted yet.
+function latestPostedInfo() {
+  let best = -1, bestRec = null;
+  for (const r of DB) {
+    if (canonPostedStatus(r.postedStatus) !== 'Posted') continue;
+    if (r.postedHour === '' || r.postedHour == null) continue;
+    const mins = (parseInt(r.postedHour, 10) || 0) * 60 + (parseInt(r.postedMin || '0', 10) || 0);
+    if (mins > best) { best = mins; bestRec = r; }
+  }
+  if (!bestRec) return null;
+  return { time: `${bestRec.postedHour}:${bestRec.postedMin || '00'}`, rec: bestRec };
+}
+// Refresh the "Last posted" chip beside the inventory Clear button. Called from renderTbl()
+// so it tracks every data / filter / edit / sync change.
+function updateLastPosted() {
+  const el = document.getElementById('lastPostedTime');
+  if (!el) return;
+  const wrap = document.getElementById('lastPostedInd');
+  const info = latestPostedInfo();
+  if (info) {
+    el.textContent = info.time;
+    if (wrap) {
+      wrap.classList.remove('empty');
+      const ctx = [info.rec.number, info.rec.client].filter(Boolean).join(' · ');
+      wrap.title = ctx ? `Latest posted time — ${info.time}  (${ctx})` : `Latest posted time — ${info.time}`;
+    }
+  } else {
+    el.textContent = '—';
+    if (wrap) { wrap.classList.add('empty'); wrap.title = 'No numbers marked Posted yet'; }
+  }
+}
 // Renumber every "For Posting" entry into one chronological run based on table position:
 // the bottom row is earliest and each row above is +1 minute (wrapping 23:59 → 00:00). The
 // bottom row continues from the latest "Posted" time (+1); if nothing is posted yet it keeps
@@ -941,6 +974,7 @@ function renderTbl() {
     </tr>`;
   }).join('');
   updateSelBar();
+  updateLastPosted();
 }
 // Copy a single phone number from its table cell to the clipboard.
 function copyNumber(btn) {

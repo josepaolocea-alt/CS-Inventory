@@ -104,6 +104,11 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg2);color:var(
 [data-dark] .b-posted-yes{background:#14532d;color:#6ee7b7}
 [data-dark] .b-posted-notyet{background:#450a0a;color:#fca5a5}
 .posted-time{margin-left:6px;font-size:11px;color:var(--t3);font-family:'DM Mono',ui-monospace,monospace}
+.last-posted{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 12px;border:1px solid color-mix(in srgb,var(--accent) 30%,var(--border));border-radius:var(--r);background:var(--accent-bg);white-space:nowrap;margin-left:4px}
+.last-posted .lp-label{font-size:10px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.5px}
+.last-posted .lp-time{font-family:'DM Mono',ui-monospace,monospace;font-size:13.5px;font-weight:600;color:var(--accent);letter-spacing:.3px}
+.last-posted.empty{background:var(--bg3);border-color:var(--border)}
+.last-posted.empty .lp-time{color:var(--t3);font-weight:500}
 
 /* STATUS BAR */
 .sbar{margin-bottom:12px}
