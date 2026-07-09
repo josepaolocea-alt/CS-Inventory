@@ -135,13 +135,13 @@ function latestPostedAnchor() {
   }
   return best === null ? null : { h: Math.floor(best / 60), m: best % 60 };
 }
-// The "Posted" entry with the highest time-of-day, for the at-a-glance readout above the
-// table. Returns { time:'HH:MM', rec } (raw stored time, so it matches the table exactly) or
-// null when nothing is marked Posted yet.
+// The number with the highest posted time-of-day — across ALL entries that have a posted time
+// set, regardless of Posted Status ("Posted" / "For Posting" / "No") — for the at-a-glance
+// readout above the table. Returns { time:'HH:MM', rec } (raw stored time, so it matches the
+// table exactly) or null when no entry has a posted time yet.
 function latestPostedInfo() {
   let best = -1, bestRec = null;
   for (const r of DB) {
-    if (canonPostedStatus(r.postedStatus) !== 'Posted') continue;
     if (r.postedHour === '' || r.postedHour == null) continue;
     const mins = (parseInt(r.postedHour, 10) || 0) * 60 + (parseInt(r.postedMin || '0', 10) || 0);
     if (mins > best) { best = mins; bestRec = r; }
@@ -165,7 +165,7 @@ function updateLastPosted() {
     }
   } else {
     el.textContent = '—';
-    if (wrap) { wrap.classList.add('empty'); wrap.title = 'No numbers marked Posted yet'; }
+    if (wrap) { wrap.classList.add('empty'); wrap.title = 'No posted times set yet'; }
   }
 }
 // Renumber every "For Posting" entry into one chronological run based on table position:
