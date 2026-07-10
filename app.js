@@ -13,7 +13,7 @@ const fauth = firebase.auth();
 
 // ── CONSTANTS ─────────────────────────────────────────
 const STATUSES    = ['Active','Available','Reserved','Inactive'];
-const ACT_LABELS  = {Added:'b-active',Updated:'b-reserved',Deleted:'b-inactive','CSV Upload':'b-available',Exported:'b-available',Login:'b-available',Backup:'b-active'};
+const ACT_LABELS  = {Added:'b-active',Updated:'b-reserved',Deleted:'b-inactive','CSV Upload':'b-available',Exported:'b-available',Login:'b-available',Refresh:'b-neutral',Backup:'b-active'};
 const CSV_HEADERS = ['Client','Product','Number','Status','Remarks','Posted Status','Posted Date','Posted Time','Client OSF','Client MRC','Client OTRF','Client Channel Fee','Client CPM','Effective Date','Activated Date','Provider','Arrival Date','Provider Activation Date','Provider OSF','Provider MRC','Provider OTRF','Provider CPM','Type / Session','Route Request by','Deactivation Date','Previous Client'];
 const CSV_FIELD_MAP = {'Client':'client','Product':'product','Number':'number','Status':'status','Remarks':'remarks','Posted Status':'postedStatus','Posted Date':'postedDate','Client OSF':'clientOSF','Client MRC':'clientMRC','Client OTRF':'clientOTRF','Client Channel Fee':'clientCF','Client CPM':'clientCPM','Effective Date':'effDate','Activated Date':'actDate','Provider':'provider','Arrival Date':'arrDate','Provider Activation Date':'provActDate','Provider OSF':'provOSF','Provider MRC':'provMRC','Provider OTRF':'provOTRF','Provider CPM':'provCPM','Type / Session':'typeSession','Route Request by':'route','Deactivation Date':'deactDate','Previous Client':'prevClient'};
 const FIELD_LABELS = {client:'Client',product:'Product',number:'Number',status:'Status',remarks:'Remarks',postedStatus:'Posted Status',postedDate:'Posted Date',postedHour:'Posted Hour',postedMin:'Posted Minute',clientOSF:'Client OSF',clientMRC:'Client MRC',clientOTRF:'Client OTRF',clientCF:'Client Channel Fee',clientCPM:'Client CPM',effDate:'Effective Date',actDate:'Activated Date',provider:'Provider',arrDate:'Arrival Date',provActDate:'Provider Activation Date',provOSF:'Provider OSF',provMRC:'Provider MRC',provOTRF:'Provider OTRF',provCPM:'Provider CPM',typeSession:'Type / Session',route:'Route Request by',deactDate:'Deactivation Date',prevClient:'Previous Client'};
@@ -329,11 +329,27 @@ function toggleTheme() {
 }
 
 // ── AUTH ──────────────────────────────────────────────
+// onAuthStateChanged fires both on an explicit sign-in and when Firebase restores a
+// persisted session on page load. doSignIn() sets _explicitLogin so we can tell a real
+// Login apart from a page Refresh (F5 / reload) and log each as its own action.
+let _explicitLogin = false;
+function isPageReload() {
+  try { const nav = performance.getEntriesByType('navigation')[0]; if (nav) return nav.type === 'reload'; } catch (e) {}
+  try { return !!(performance.navigation && performance.navigation.type === 1); } catch (e) {}
+  return false;
+}
 fauth.onAuthStateChanged(async user => {
   if (user) {
     currentUser = user;
     await loadUserRole(user);
-    await addLog('Login', `Signed in as ${user.email}`);
+    if (_explicitLogin) {
+      _explicitLogin = false;
+      await addLog('Login', `Signed in as ${user.email}`);
+    } else if (isPageReload()) {
+      await addLog('Refresh', `Refreshed the app`);
+    } else {
+      await addLog('Login', `Signed in as ${user.email}`);
+    }
     document.getElementById('authOv').style.display = 'none';
     document.getElementById('appNav').style.display = '';
     document.getElementById('appMain').style.display = '';
@@ -367,8 +383,8 @@ async function doSignIn() {
   const err   = document.getElementById('authErr');
   if (!email || !pass) { err.textContent = 'Enter email and password.'; return; }
   err.textContent = 'Signing in…';
-  try { await fauth.signInWithEmailAndPassword(email, pass); }
-  catch(e) { err.textContent = e.message; }
+  try { _explicitLogin = true; await fauth.signInWithEmailAndPassword(email, pass); }
+  catch(e) { _explicitLogin = false; err.textContent = e.message; }
 }
 function doSignOut() { document.getElementById('soOv').classList.add('on'); }
 function confirmSignOut() { document.getElementById('soOv').classList.remove('on'); fauth.signOut(); }

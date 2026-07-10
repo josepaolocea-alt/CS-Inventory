@@ -94,6 +94,7 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg2);color:var(
 .b-available{background:#cfe2ff;color:#084298}
 .b-reserved{background:#fff3cd;color:#664d03}
 .b-inactive{background:#f8d7da;color:#721c24}
+.b-neutral{background:var(--bg3);color:var(--t2);border:1px solid var(--border)}
 .b-posted-yes{background:#d4edda;color:#155724}
 .b-posted-no{background:var(--bg3);color:var(--t2);border:1px solid var(--border)}
 .b-posted-notyet{background:#f8d7da;color:#721c24}
