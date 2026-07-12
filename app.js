@@ -40,6 +40,56 @@ function esc(s) {
     .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 const fmt = iso => iso ? iso.replace(/(\d{4})-(\d{2})-(\d{2})/,'$2/$3/$1') : '—';
+
+// ── DEVICE IDENTITY ───────────────────────────────────
+// Several people share one login (e.g. customersupport@…), each on their own
+// laptop/browser. A browser can't read the real machine, so we mint a stable
+// per-browser id (localStorage, like pins) plus a friendly name the person can
+// set, and stamp both on every log so you can tell who did what. All local —
+// no Firestore reads/writes, survives reloads, resets only if they clear the
+// browser or use a different one/Incognito.
+const DEVICE_ID_KEY = 'cs-inv-device-id', DEVICE_NAME_KEY = 'cs-inv-device-name';
+function _mkDeviceId() {
+  try { const a = new Uint8Array(2); crypto.getRandomValues(a);
+    return Array.from(a, b => b.toString(16).padStart(2,'0')).join(''); }   // 4 hex chars e.g. "a3f9"
+  catch(e) { return Math.random().toString(16).slice(2,6).padEnd(4,'0'); }
+}
+function deviceId() {
+  let id = ''; try { id = localStorage.getItem(DEVICE_ID_KEY) || ''; } catch(e) {}
+  if (!id) { id = _mkDeviceId(); try { localStorage.setItem(DEVICE_ID_KEY, id); } catch(e) {} }
+  return id;
+}
+function deviceName() { try { return (localStorage.getItem(DEVICE_NAME_KEY) || '').trim(); } catch(e) { return ''; } }
+function setDeviceName(name) {
+  const v = String(name || '').trim().slice(0, 40);
+  try { if (v) localStorage.setItem(DEVICE_NAME_KEY, v); else localStorage.removeItem(DEVICE_NAME_KEY); } catch(e) {}
+  return v;
+}
+function devicePlatform() {
+  const ua = navigator.userAgent || '';
+  let os = 'Unknown OS';
+  if (/Windows/i.test(ua)) os = 'Windows';
+  else if (/Mac OS X|Macintosh/i.test(ua)) os = 'macOS';
+  else if (/Android/i.test(ua)) os = 'Android';
+  else if (/iPhone|iPad|iPod/i.test(ua)) os = 'iOS';
+  else if (/Linux/i.test(ua)) os = 'Linux';
+  let br = 'Unknown browser';
+  if (/Edg\//i.test(ua)) br = 'Edge';
+  else if (/OPR\/|Opera/i.test(ua)) br = 'Opera';
+  else if (/Chrome\//i.test(ua)) br = 'Chrome';
+  else if (/Firefox\//i.test(ua)) br = 'Firefox';
+  else if (/Safari\//i.test(ua)) br = 'Safari';
+  return { os, browser: br };
+}
+// Human-readable tag stamped on each log, e.g. "Paolo — Dell · Chrome · Windows · #a3f9"
+function deviceLabel() {
+  const p = devicePlatform(), parts = [];
+  const name = deviceName();
+  if (name) parts.push(name);
+  parts.push(p.browser, p.os, '#' + deviceId());
+  return parts.join(' · ');
+}
+
 function sanitizeDate(v) {
   if (!v) return '';
   const s = String(v).trim();
@@ -353,7 +403,7 @@ fauth.onAuthStateChanged(async user => {
     document.getElementById('authOv').style.display = 'none';
     document.getElementById('appNav').style.display = '';
     document.getElementById('appMain').style.display = '';
-    document.getElementById('navUser').textContent = user.email;
+    updateNavUser();
     applyRoleRestrictions();
     loadInventory();
     loadLogs();
@@ -388,6 +438,32 @@ async function doSignIn() {
 }
 function doSignOut() { document.getElementById('soOv').classList.add('on'); }
 function confirmSignOut() { document.getElementById('soOv').classList.remove('on'); fauth.signOut(); }
+
+// The nav chip shows the device name once set (the useful identity when everyone
+// shares one login), else the email. Full email + hint live in the tooltip.
+function updateNavUser() {
+  const el = document.getElementById('navUser'); if (!el) return;
+  const email = currentUser?.email || '—';
+  const name  = deviceName();
+  el.textContent = name ? `🖥 ${name}` : email;
+  el.title = name ? `Signed in as ${email}\nThis device: ${name} — click to rename`
+                  : `Signed in as ${email}\nClick to name this device`;
+}
+function openDeviceModal() {
+  const p = devicePlatform();
+  document.getElementById('devNameInp').value   = deviceName();
+  document.getElementById('devDetected').textContent = `${p.browser} · ${p.os}`;
+  document.getElementById('devIdShow').textContent   = '#' + deviceId();
+  document.getElementById('devOv').classList.add('on');
+  setTimeout(() => document.getElementById('devNameInp').focus(), 50);
+}
+function closeDeviceModal() { document.getElementById('devOv').classList.remove('on'); }
+function saveDeviceName() {
+  const v = setDeviceName(document.getElementById('devNameInp').value);
+  updateNavUser();
+  closeDeviceModal();
+  showToast(v ? `This device is now named “${v}”.` : 'Device name cleared.', 'success');
+}
 
 // ── LOCAL CACHE + DELTA SYNC ──────────────────────────────
 // The inventory is large (thousands of docs), so re-reading the whole collection
@@ -2190,7 +2266,8 @@ function closeExportMenu() {
 
 // ── LOGS ──────────────────────────────────────────────
 async function addLog(action, details, extra={}) {
-  const log = {datetime:new Date().toISOString(), user:currentUser?.email||'system', action, details, ...extra};
+  const log = {datetime:new Date().toISOString(), user:currentUser?.email||'system', action, details,
+               device:deviceLabel(), deviceId:deviceId(), ...extra};
   try {
     const ref = await fdb.collection('logs').add(log);
     log.id = ref.id; LOGS.unshift(log); fl=[...LOGS]; renderLogs();
@@ -2220,7 +2297,7 @@ function clearLF() {
   fl=[...LOGS]; lpg=1; renderLogs();
 }
 function exportLogs() {
-  dlCSV([['#','Date & Time','User','Action','Details'],...fl.map((r,i) => [i+1,r.datetime,r.user,r.action,r.details])], 'logs_export.csv');
+  dlCSV([['#','Date & Time','User','Action','Details','Device'],...fl.map((r,i) => [i+1,r.datetime,r.user,r.action,r.details,r.device||''])], 'logs_export.csv');
 }
 function getLogFilterState() {
   const act = document.getElementById('lAction').value;
@@ -2354,8 +2431,11 @@ function renderLogDetails(log) {
   const details = String(log.details || '');
   const records = logRecordList(log);
   const m = details.match(/^(.*?)(\d+\s+records?)(.*)$/i);
-  if (!records.length || !m || !log.id) return esc(details);
-  return `${esc(m[1])}<button type="button" class="log-rec-link" onclick="event.stopPropagation();openLogRecords('${esc(log.id)}')">${esc(m[2])}</button>${esc(m[3])}`;
+  const main = (!records.length || !m || !log.id)
+    ? esc(details)
+    : `${esc(m[1])}<button type="button" class="log-rec-link" onclick="event.stopPropagation();openLogRecords('${esc(log.id)}')">${esc(m[2])}</button>${esc(m[3])}`;
+  const dev = log.device ? `<div class="log-device" title="Device that performed this action">🖥 ${esc(log.device)}</div>` : '';
+  return main + dev;
 }
 function openLogRecords(logId) {
   const log = LOGS.find(r => r.id === logId) || fl.find(r => r.id === logId);

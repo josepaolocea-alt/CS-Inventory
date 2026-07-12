@@ -34,7 +34,7 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg2);color:var(
 .nav-btn:hover{background:var(--nav-h);color:#fff;transform:translateY(-1px)}
 .nav-btn.on{background:rgba(255,255,255,.11);color:#fff;box-shadow:inset 0 -2px 0 var(--accent)}
 .nav-right{display:flex;align-items:center;gap:6px;margin-left:auto}
-.nav-user{background:rgba(255,255,255,.09);border:none;color:#d1dae6;cursor:pointer;padding:4px 10px;border-radius:var(--r);font-size:12px;font-weight:500;transition:background-color .16s ease,transform .16s ease;white-space:nowrap}
+.nav-user{background:rgba(255,255,255,.09);border:none;color:#d1dae6;cursor:pointer;padding:4px 10px;border-radius:var(--r);font-size:12px;font-weight:500;transition:background-color .16s ease,transform .16s ease;white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis}
 .nav-user:hover{background:rgba(255,255,255,.17)}
 .nav-ico{background:none;border:none;color:var(--nav-t);cursor:pointer;width:30px;height:30px;border-radius:var(--r);display:flex;align-items:center;justify-content:center;line-height:1;transition:background-color .16s ease,color .16s ease,transform .16s ease}
 .nav-ico svg{width:18px;height:18px;display:block;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
@@ -258,6 +258,7 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
 .lf-head:hover{background:var(--border)}
 .log-rec-link{background:none;border:none;padding:0;color:var(--accent);font:inherit;font-weight:700;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
 .log-rec-link:hover{color:var(--accent-h)}
+.log-device{margin-top:3px;font-size:11px;color:var(--t3);font-family:'DM Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .log-records-wrap{box-shadow:none}
 .log-records-wrap td:last-child{white-space:normal;max-width:320px;line-height:1.45}
 .lf-label{font-size:12.5px;font-weight:600;color:var(--t2)}

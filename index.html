@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="app.css?v=8">
+<link rel="stylesheet" href="app.css?v=9">
 </head>
 <body>
 
@@ -31,7 +31,7 @@
     <button class="nav-btn" id="navAdmin" onclick="go('admin',this)">Admin</button>
   </div>
   <div class="nav-right">
-    <button class="nav-user" id="navUser" title="Signed in">—</button>
+    <button class="nav-user" id="navUser" title="Click to name this device" onclick="openDeviceModal()">—</button>
     <button class="nav-ico" id="syncBtn" title="Sync - pull latest data from server" aria-label="Sync data" onclick="syncData()">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 0 1-14.7 7"/><path d="M3 12A9 9 0 0 1 17.7 5"/><path d="M7 19H3v4"/><path d="M17 5h4V1"/></svg>
     </button>
@@ -724,6 +724,38 @@
   </div>
 </div>
 
+<!-- THIS DEVICE MODAL -->
+<div class="mo-ov" id="devOv" style="z-index:600" onclick="if(event.target===this)closeDeviceModal()">
+  <div class="mo" style="width:400px;max-width:94vw">
+    <div class="mo-head">
+      <span class="mo-title">This Device</span>
+      <button class="act-btn" onclick="closeDeviceModal()" style="font-size:17px;color:var(--t2)">✕</button>
+    </div>
+    <div class="mo-body" style="padding:16px 20px 8px;display:flex;flex-direction:column;gap:14px">
+      <p style="font-size:12.5px;color:var(--t2);line-height:1.55;margin:0">
+        Several people share this login, so give <b>this computer</b> a name. It's shown next to
+        every entry this computer makes in the activity log, so it's clear who did what.
+      </p>
+      <div>
+        <label style="display:block;font-size:12px;font-weight:600;color:var(--t2);margin-bottom:5px">Device name</label>
+        <input class="finp" id="devNameInp" maxlength="40" placeholder="e.g. Paolo — Dell laptop" style="width:100%" onkeydown="if(event.key==='Enter')saveDeviceName()">
+      </div>
+      <div style="background:var(--bg2);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--t2);line-height:1.7">
+        Detected: <b id="devDetected">—</b><br>
+        Device ID: <b id="devIdShow">—</b>
+      </div>
+      <p style="font-size:11px;color:var(--t3);margin:0;line-height:1.5">
+        Saved on this browser only. Clearing browser data or using a different browser / Incognito
+        creates a new device (you'd name it again).
+      </p>
+    </div>
+    <div class="mo-foot" style="justify-content:flex-end;gap:10px;padding:12px 17px 16px">
+      <button class="btn" onclick="closeDeviceModal()">Cancel</button>
+      <button class="btn btn-p" onclick="saveDeviceName()">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- GOOGLE SHEETS SETTINGS MODAL -->
 <div class="mo-ov" id="gsSettingsOv" style="z-index:600" onclick="if(event.target===this)closeGSSettings()">
   <div class="mo" style="width:500px;max-width:95vw">
@@ -788,7 +820,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
 <!-- App -->
-<script src="app.js?v=17"></script>
+<script src="app.js?v=18"></script>
 
 </body>
 </html>
