@@ -732,6 +732,10 @@
       <button class="act-btn" onclick="closeDeviceModal()" style="font-size:17px;color:var(--t2)">✕</button>
     </div>
     <div class="mo-body" style="padding:16px 20px 8px;display:flex;flex-direction:column;gap:14px">
+      <div id="devFirstRunHint" style="display:none;background:var(--bg2);border-left:3px solid var(--accent);border-radius:6px;padding:10px 12px;font-size:12.5px;color:var(--t2);line-height:1.55">
+        👋 First time on this computer. Name it so your entries in the activity log are identifiable.
+        You can skip and set it later anytime from your name in the top-right.
+      </div>
       <p style="font-size:12.5px;color:var(--t2);line-height:1.55;margin:0">
         Several people share this login, so give <b>this computer</b> a name. It's shown next to
         every entry this computer makes in the activity log, so it's clear who did what.
@@ -750,7 +754,7 @@
       </p>
     </div>
     <div class="mo-foot" style="justify-content:flex-end;gap:10px;padding:12px 17px 16px">
-      <button class="btn" onclick="closeDeviceModal()">Cancel</button>
+      <button class="btn" id="devCancelBtn" onclick="closeDeviceModal()">Cancel</button>
       <button class="btn btn-p" onclick="saveDeviceName()">Save</button>
     </div>
   </div>
@@ -820,7 +824,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
 <!-- App -->
-<script src="app.js?v=18"></script>
+<script src="app.js?v=19"></script>
 
 </body>
 </html>

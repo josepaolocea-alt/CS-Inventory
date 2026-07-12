@@ -48,7 +48,7 @@ const fmt = iso => iso ? iso.replace(/(\d{4})-(\d{2})-(\d{2})/,'$2/$3/$1') : '�
 // set, and stamp both on every log so you can tell who did what. All local —
 // no Firestore reads/writes, survives reloads, resets only if they clear the
 // browser or use a different one/Incognito.
-const DEVICE_ID_KEY = 'cs-inv-device-id', DEVICE_NAME_KEY = 'cs-inv-device-name';
+const DEVICE_ID_KEY = 'cs-inv-device-id', DEVICE_NAME_KEY = 'cs-inv-device-name', DEVICE_PROMPTED_KEY = 'cs-inv-device-prompted';
 function _mkDeviceId() {
   try { const a = new Uint8Array(2); crypto.getRandomValues(a);
     return Array.from(a, b => b.toString(16).padStart(2,'0')).join(''); }   // 4 hex chars e.g. "a3f9"
@@ -411,6 +411,7 @@ fauth.onAuthStateChanged(async user => {
     if (currentRole === 'admin') loadUsers();
     startSyncListener();
     initAutoBackup();
+    setTimeout(maybePromptDeviceName, 500);   // one-time nudge to name this device
   } else {
     stopSyncListener();
     if (_abTimer) clearInterval(_abTimer);
@@ -449,15 +450,30 @@ function updateNavUser() {
   el.title = name ? `Signed in as ${email}\nThis device: ${name} — click to rename`
                   : `Signed in as ${email}\nClick to name this device`;
 }
-function openDeviceModal() {
+function openDeviceModal(firstRun=false) {
   const p = devicePlatform();
   document.getElementById('devNameInp').value   = deviceName();
   document.getElementById('devDetected').textContent = `${p.browser} · ${p.os}`;
   document.getElementById('devIdShow').textContent   = '#' + deviceId();
+  const hint = document.getElementById('devFirstRunHint');
+  if (hint) hint.style.display = firstRun ? '' : 'none';
+  const cancel = document.getElementById('devCancelBtn');
+  if (cancel) cancel.textContent = firstRun ? 'Skip for now' : 'Cancel';
   document.getElementById('devOv').classList.add('on');
   setTimeout(() => document.getElementById('devNameInp').focus(), 50);
 }
 function closeDeviceModal() { document.getElementById('devOv').classList.remove('on'); }
+// One-time nudge: the first time the app runs on a browser with no device name,
+// auto-open the dialog so people name their computer without being told. The flag
+// is set as soon as we ask, so it never nags again — dismiss (Skip/✕) or Save, it
+// won't reappear, and they can still name it later from the nav chip.
+function maybePromptDeviceName() {
+  if (deviceName()) return;
+  let asked = ''; try { asked = localStorage.getItem(DEVICE_PROMPTED_KEY) || ''; } catch(e) {}
+  if (asked) return;
+  try { localStorage.setItem(DEVICE_PROMPTED_KEY, '1'); } catch(e) {}
+  openDeviceModal(true);
+}
 function saveDeviceName() {
   const v = setDeviceName(document.getElementById('devNameInp').value);
   updateNavUser();
