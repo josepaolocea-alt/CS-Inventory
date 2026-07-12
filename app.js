@@ -316,6 +316,7 @@ let umEditUid=null, _secondApp=null;
 let effDateTouched=false, actDateTouched=false, bulkEffDateTouched=false, bulkActDateTouched=false;
 let _syncUnsub=null, _syncPrimed=false, _lastSyncAt='', _logCursor='', _syncRetry=0;
 let _invLoading=false;   // guards against a live-sync ping racing an in-flight inventory load
+let _logsReady=false;    // true once loadLogs() has populated LOGS; until then addLog must not overwrite the cached history
 
 function updateThemeButton() {
   const btn = document.getElementById('themeBtn');
@@ -392,6 +393,18 @@ fauth.onAuthStateChanged(async user => {
   if (user) {
     currentUser = user;
     await loadUserRole(user);
+    document.getElementById('authOv').style.display = 'none';
+    document.getElementById('appNav').style.display = '';
+    document.getElementById('appMain').style.display = '';
+    updateNavUser();
+    applyRoleRestrictions();
+    loadInventory();
+    // Load the full log history BEFORE recording this session's Login/Refresh.
+    // addLog() persists the in-memory LOGS array as the cache; if it runs while
+    // LOGS is still empty (pre-load) it clobbers the cached history down to that
+    // one new entry AND advances the saved cursor past everything — so the next
+    // loadLogs() sees a "fresh" 1-entry cache and only the newest log survives.
+    await loadLogs();
     if (_explicitLogin) {
       _explicitLogin = false;
       await addLog('Login', `Signed in as ${user.email}`);
@@ -400,13 +413,6 @@ fauth.onAuthStateChanged(async user => {
     } else {
       await addLog('Login', `Signed in as ${user.email}`);
     }
-    document.getElementById('authOv').style.display = 'none';
-    document.getElementById('appNav').style.display = '';
-    document.getElementById('appMain').style.display = '';
-    updateNavUser();
-    applyRoleRestrictions();
-    loadInventory();
-    loadLogs();
     await loadSelections();
     if (currentRole === 'admin') loadUsers();
     startSyncListener();
@@ -417,7 +423,7 @@ fauth.onAuthStateChanged(async user => {
     if (_abTimer) clearInterval(_abTimer);
     _abTimer = null; clearTimeout(_abDeferT); AB = null;
     currentUser = null; currentRole = 'viewer';
-    DB=[]; LOGS=[]; fd=[]; fl=[]; recentViewed=[];
+    DB=[]; LOGS=[]; fd=[]; fl=[]; recentViewed=[]; _logsReady=false;
     USERS=[]; SELECTIONS={clients:[],products:[],providers:[],routes:[]};
     persistentSelIds = new Set();
     document.getElementById('authOv').style.display = 'flex';
@@ -491,6 +497,11 @@ function saveDeviceName() {
 const IDB_NAME = 'cs-inv-cache', IDB_VER = 1;
 const DELTA_REWIND_MS = 2 * 60 * 1000;        // re-fetch a 2-min overlap to tolerate clock skew
 const FULL_REFRESH_MS = 24 * 60 * 60 * 1000;  // force a full reconcile at least once a day
+// Bump when a shipped bug could have written a corrupt logs cache. A client whose stored
+// logsCacheVer differs (older clients have none) does ONE forced full log reload on next
+// load, discarding the bad cache, then resumes normal incremental sync. v2: recover the
+// clients poisoned by the pre-fix addLog-before-loadLogs 1-entry cache bug.
+const LOGS_CACHE_VERSION = 2;
 let _idb = null;
 
 function idbOpen() {
@@ -682,11 +693,14 @@ async function loadLogs() {
     const cachedLogs = await kvGet('logsCache');
     const cursor     = await kvGet('logsCursor');
     const lastFull   = await kvGet('logsFullAt');
+    const cacheVer   = await kvGet('logsCacheVer');
     const stale      = !lastFull || (Date.now() - Date.parse(lastFull) > FULL_REFRESH_MS);
-    if (!cachedLogs || !cachedLogs.length || !cursor || stale) {
+    const upgraded   = cacheVer !== LOGS_CACHE_VERSION;   // first load after a fix that may have left a bad cache → force one full reload
+    if (upgraded || !cachedLogs || !cachedLogs.length || !cursor || stale) {
       const snap = await fdb.collection('logs').orderBy('datetime','desc').limit(500).get();
       LOGS = snap.docs.map(d => ({...d.data(), id:d.id}));
       await kvSet('logsFullAt', new Date().toISOString());
+      await kvSet('logsCacheVer', LOGS_CACHE_VERSION);
     } else {
       LOGS = cachedLogs;
       const snap = await fdb.collection('logs').where('datetime','>', cursor).orderBy('datetime','desc').get();
@@ -700,11 +714,12 @@ async function loadLogs() {
     _logCursor = LOGS[0]?.datetime || '';
     kvSet('logsCache', LOGS); kvSet('logsCursor', _logCursor);
     fl = [...LOGS]; renderLogs();
+    _logsReady = true;   // safe for addLog to persist the cache from here on
   } catch(e) {
     console.error('loadLogs:', e);
     if (!LOGS.length) {
       try { const snap = await fdb.collection('logs').orderBy('datetime','desc').limit(500).get();
-            LOGS = snap.docs.map(d => ({...d.data(), id:d.id})); _logCursor = LOGS[0]?.datetime||''; fl=[...LOGS]; renderLogs(); }
+            LOGS = snap.docs.map(d => ({...d.data(), id:d.id})); _logCursor = LOGS[0]?.datetime||''; fl=[...LOGS]; renderLogs(); _logsReady = true; }
       catch(e2) { console.error('loadLogs (fallback):', e2); }
     }
   }
@@ -2288,7 +2303,9 @@ async function addLog(action, details, extra={}) {
     const ref = await fdb.collection('logs').add(log);
     log.id = ref.id; LOGS.unshift(log); fl=[...LOGS]; renderLogs();
     _logCursor = LOGS[0]?.datetime || _logCursor;
-    kvSet('logsCache', LOGS.slice(0, 500)); kvSet('logsCursor', _logCursor);   // keep cache in step
+    // Only persist once loadLogs() has filled LOGS. Writing before that would save a
+    // partial (often 1-entry) list over the real cached history — see onAuthStateChanged.
+    if (_logsReady) { kvSet('logsCache', LOGS.slice(0, 500)); kvSet('logsCursor', _logCursor); }
   } catch(e) { console.error('addLog:', e); }
 }
 function toggleLF() {
