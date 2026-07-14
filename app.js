@@ -1230,7 +1230,7 @@ function activationRowsHTML(a={}) {
   if (!hasActivationSnapshot(a)) return '';
   return `
     ${a.product ? `<div class="deact-hist-row"><span style="color:var(--t3)">Product</span> ${esc(a.product)}</div>` : ''}
-    ${a.status ? `<div class="deact-hist-row"><span style="color:var(--t3)">Status</span> ${esc(a.status)}</div>` : ''}
+    <div class="deact-hist-row"><span style="color:var(--t3)">Status</span> <span style="color:var(--ok);font-weight:600">Active</span></div>
     ${a.effDate ? `<div class="deact-hist-row"><span style="color:var(--t3)">Effective Date</span> ${fmt(a.effDate)}</div>` : ''}
     ${a.actDate ? `<div class="deact-hist-row"><span style="color:var(--t3)">Activated Date</span> ${fmt(a.actDate)}</div>` : ''}
     ${a.provider ? `<div class="deact-hist-row"><span style="color:var(--t3)">Provider</span> ${esc(a.provider)}</div>` : ''}
@@ -1259,14 +1259,23 @@ function historySectionHTML(r) {
   const current = currentActivationHTML(r);
   const deact = (r.deactivationHistory?.length) ? [...r.deactivationHistory].reverse().map(h => {
     const activation = h.activation || {};
+    // Posted state captured at deactivation time (absent on entries recorded before this was tracked).
+    const postedCaptured = ('postedStatus' in h) || ('postedDate' in h) || ('postedHour' in h);
+    const postedLabel = canonPostedStatus(h.postedStatus) || 'No';
+    const postedDT = (h.postedDate || h.postedHour)
+      ? `${h.postedDate ? fmt(h.postedDate) : ''}${h.postedHour ? ` ${h.postedHour}:${h.postedMin||'00'}` : ''}`.trim()
+      : '';
     return `
       <div class="deact-hist-entry">
         <div class="deact-hist-top">
           <span class="deact-hist-client">${esc(h.previousClient||'—')}</span>
           <span class="deact-hist-date">${fmt(h.deactDate)}</span>
         </div>
-        ${hasActivationSnapshot(activation) ? `<div class="hist-subtitle">Activation Details</div>${activationRowsHTML(activation)}<div class="hist-subtitle">Deactivation Details</div>` : ''}
+        ${hasActivationSnapshot(activation) ? `<div class="hist-subtitle">Activation Details</div>${activationRowsHTML(activation)}` : ''}
+        <div class="hist-subtitle">Deactivation Details</div>
+        <div class="deact-hist-row"><span style="color:var(--t3)">Status</span> <span style="color:var(--err);font-weight:600">Inactive</span></div>
         ${h.requestedBy ? `<div class="deact-hist-row"><span style="color:var(--t3)">Requested by</span> ${esc(h.requestedBy)}</div>` : ''}
+        ${postedCaptured ? `<div class="deact-hist-row"><span style="color:var(--t3)">Previously Posted</span> ${esc(postedLabel)}</div>${postedDT ? `<div class="deact-hist-row"><span style="color:var(--t3)">Posted Date &amp; Time</span> ${esc(postedDT)}</div>` : ''}` : ''}
         ${h.remarks ? `<div class="deact-hist-row">${esc(h.remarks)}</div>` : ''}
         <div class="deact-hist-meta">by ${esc(h.deactivatedBy||'—')} · ${metaDate(h.deactivatedAt)}</div>
       </div>`;
@@ -1522,6 +1531,10 @@ async function saveRec() {
       deactDate: deactDateVal,
       requestedBy: document.getElementById('dRoute').value,
       remarks: document.getElementById('dRemarks').value,
+      postedStatus: currentRec?.postedStatus || '',
+      postedDate: currentRec?.postedDate || '',
+      postedHour: currentRec?.postedHour || '',
+      postedMin: currentRec?.postedMin || '',
       deactivatedBy: currentUser?.email || 'system',
       deactivatedAt: nd.updatedAt
     };
@@ -2641,7 +2654,7 @@ async function saveBulkEdit() {
         const b = fdb.batch();
         ids.slice(i,i+CHUNK).forEach(id => {
           const rec = DB.find(r => r.id===id);
-          const histEntry = { previousClient: rec?.client||'', activation: activationSnapshot(rec || {}), deactDate: deactDateVal, requestedBy, remarks: bdRemarks, deactivatedBy, deactivatedAt };
+          const histEntry = { previousClient: rec?.client||'', activation: activationSnapshot(rec || {}), deactDate: deactDateVal, requestedBy, remarks: bdRemarks, postedStatus: rec?.postedStatus||'', postedDate: rec?.postedDate||'', postedHour: rec?.postedHour||'', postedMin: rec?.postedMin||'', deactivatedBy, deactivatedAt };
           b.update(fdb.collection('inventory').doc(id), {
             client:'', status:'Available', remarks:'', postedStatus:'', postedDate:'',
             postedHour:'', postedMin:'', postedTimeAt:'',
@@ -2658,7 +2671,7 @@ async function saveBulkEdit() {
         const idx = DB.findIndex(r => r.id===id);
         if (idx>-1) {
           const rec = DB[idx];
-          const histEntry = { previousClient: rec.client||'', activation: activationSnapshot(rec), deactDate: deactDateVal, requestedBy, remarks: bdRemarks, deactivatedBy, deactivatedAt };
+          const histEntry = { previousClient: rec.client||'', activation: activationSnapshot(rec), deactDate: deactDateVal, requestedBy, remarks: bdRemarks, postedStatus: rec.postedStatus||'', postedDate: rec.postedDate||'', postedHour: rec.postedHour||'', postedMin: rec.postedMin||'', deactivatedBy, deactivatedAt };
           DB[idx] = {...rec, client:'', status:'Available', remarks:'', postedStatus:'', postedDate:'', postedHour:'', postedMin:'', postedTimeAt:'', clientOSF:'', clientMRC:'', clientOTRF:'', clientCF:'', clientCPM:'', effDate:'', actDate:'', deactDate: deactDateVal, route: requestedBy, prevClient: rec.client||'', deactivationHistory:[...(rec.deactivationHistory||[]),histEntry], updatedBy:deactivatedBy, updatedAt:deactivatedAt};
         }
       });
