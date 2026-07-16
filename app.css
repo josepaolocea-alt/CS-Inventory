@@ -1,6 +1,6 @@
 :root {
   --bg: #ffffff; --bg2: #f8f9fa; --bg3: #f1f3f4;
-  --border: #e0e0e0; --t1: #1a1a1a; --t2: #5f6368; --t3: #999;
+  --border: #e0e0e0; --t1: #1a1a1a; --t2: #5f6368; --t3: #6b7280;
   --accent: #1a73e8; --accent-h: #1557b0; --accent-bg: #e8f0fe;
   --ok: #188038; --warn: #b06000; --err: #c5221f;
   --nav: #1e2a3a; --nav-t: #9aa5b4; --nav-h: #2d3f52;
@@ -9,7 +9,7 @@
 }
 [data-dark] {
   --bg: #0f172a; --bg2: #1e293b; --bg3: #253347;
-  --border: #2d3f52; --t1: #e2e8f0; --t2: #94a3b8; --t3: #64748b;
+  --border: #2d3f52; --t1: #e2e8f0; --t2: #94a3b8; --t3: #8496ad;
   --accent: #4f8ef7; --accent-h: #3b7de0; --accent-bg: #1a2f50;
   --ok: #34d399; --warn: #fbbf24; --err: #f87171;
   --nav: #0f172a; --nav-t: #7b8ea4; --nav-h: #1e293b;
@@ -162,8 +162,10 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg2);color:var(
 .tbl-wrap{background:var(--bg);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden;box-shadow:var(--sh)}
 .tbl-scroll{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:12.5px}
-thead{background:var(--bg3);border-bottom:2px solid var(--border)}
-th{padding:7px 9px;text-align:left;font-weight:600;color:var(--t2);font-size:11px;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap;user-select:none;position:relative}
+thead{background:var(--bg3)}
+/* Header sticks to the top of .tbl-scroll. The bottom rule is an inset shadow, not a
+   border: border-collapse drops borders on sticky cells once they detach. */
+th{padding:7px 9px;text-align:left;font-weight:600;color:var(--t2);font-size:11px;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap;user-select:none;position:sticky;top:0;z-index:5;background:var(--bg3);box-shadow:inset 0 -2px 0 var(--border)}
 th.sort{cursor:pointer}
 th.sort:hover{background:var(--border);color:var(--t1)}
 th.asc::after{content:' ↑';color:var(--accent)}
@@ -174,6 +176,28 @@ tbody tr{animation:row-in .22s ease both;animation-delay:calc(var(--row-i,0) * 1
 tr:hover td{background:var(--accent-bg);cursor:pointer}
 .tbl-foot{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-top:1px solid var(--border);background:var(--bg3)}
 .tbl-info{font-size:11.5px;color:var(--t2)}
+
+/* FULL-HEIGHT DATA PAGES
+   Inventory and Logs fill the viewport so the table body is the only thing that
+   scrolls. Sticky th needs a scrollport that actually scrolls, and it keeps the
+   filters, selection bar and pagination on screen at all times.
+   90px = nav (50) + .main vertical padding (2×20). */
+#page-inventory.on,#page-logs.on{display:flex;flex-direction:column;height:calc(100vh - 90px)}
+#page-inventory > .ph,#page-inventory > .inv-top,#page-inventory > .sel-bar.on,
+#page-logs > .ph,#page-logs > .lf-panel{flex:0 0 auto}
+#page-inventory > .tbl-wrap,#page-logs > .tbl-wrap{flex:1 1 auto;min-height:240px;display:flex;flex-direction:column}
+#page-inventory > .tbl-wrap > .tbl-scroll,#page-logs > .tbl-wrap > .tbl-scroll{flex:1 1 auto;min-height:0;overflow:auto}
+#page-inventory > .tbl-wrap > .tbl-foot,#page-logs > .tbl-wrap > .tbl-foot{flex:0 0 auto}
+/* Below ~440px tall there is no room left for the table once the filters are in;
+   drop back to normal page scrolling rather than crushing it. */
+@media(max-height:440px){#page-inventory.on,#page-logs.on{height:auto}}
+
+/* EMPTY STATE */
+.tbl-empty td{text-align:center;padding:34px 16px;white-space:normal;max-width:none;cursor:default}
+.tbl-empty:hover td{background:transparent;cursor:default}
+.te-icon{font-size:26px;line-height:1;margin-bottom:9px;opacity:.5}
+.te-title{font-size:13.5px;font-weight:600;color:var(--t1);margin-bottom:3px}
+.te-sub{font-size:12px;color:var(--t2);margin-bottom:13px}
 .pgn{display:flex;align-items:center;gap:6px}
 .pgsel{height:26px;padding:0 5px;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--t1);font-size:12px;cursor:pointer}
 .row-num{color:var(--t3);font-size:11.5px;font-family:'DM Mono',monospace}
@@ -203,7 +227,10 @@ tr.tr-pinned td:first-child{border-left:3px solid var(--accent)}
 tr.tr-pinned:hover td{background:var(--accent-bg)}
 .pin-ind{font-size:10px;line-height:1;display:block;text-align:center}
 .pin-modal-btn{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,var(--border))}
-input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:pointer}
+input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px;cursor:pointer}
+/* Bulk select is a primary workflow — give the checkbox the whole cell as a hit area. */
+.cb-cell{padding:0}
+.cb-cell label{display:flex;align-items:center;justify-content:center;min-height:30px;padding:6.5px 9px;cursor:pointer}
 
 /* TOGGLE SWITCH */
 .switch{position:relative;display:inline-block;width:44px;height:24px;flex:0 0 auto;cursor:pointer}
@@ -234,10 +261,12 @@ input[type=checkbox]{accent-color:var(--accent);width:13px;height:13px;cursor:po
 .mo-ov.on{display:flex;animation:fade-in .2s ease}
 .mo{background:var(--bg);border:1px solid var(--border);border-radius:var(--r3);box-shadow:var(--sh2);width:620px;max-width:96vw;max-height:92vh;overflow-y:auto;display:flex;flex-direction:column}
 .mo-ov.on .mo{animation:soft-pop .24s cubic-bezier(.2,.8,.2,1)}
-.mo-head{display:flex;align-items:center;justify-content:space-between;padding:13px 17px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg);z-index:1}
+/* z-index outranks the sticky table header (th, z-index:5) so a scrolled table
+   inside a modal cannot bleed over the modal's own chrome. */
+.mo-head{display:flex;align-items:center;justify-content:space-between;padding:13px 17px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg);z-index:10}
 .mo-title{font-size:15px;font-weight:700}
 .mo-body{padding:17px;flex:1}
-.mo-foot{display:flex;align-items:center;justify-content:flex-end;gap:7px;padding:11px 17px;border-top:1px solid var(--border);background:var(--bg3);position:sticky;bottom:0}
+.mo-foot{display:flex;align-items:center;justify-content:flex-end;gap:7px;padding:11px 17px;border-top:1px solid var(--border);background:var(--bg3);position:sticky;bottom:0;z-index:10}
 .fg{display:flex;flex-direction:column;gap:3px}
 .fg label{font-size:11px;font-weight:700;color:var(--t2);text-transform:uppercase;letter-spacing:.3px}
 .fc{height:30px;padding:0 9px;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--t1);font-size:12.5px;outline:none;width:100%;transition:.15s}

@@ -1067,6 +1067,26 @@ function sortBy(col) {
 }
 
 // ── RENDER TABLE ──────────────────────────────────────
+// True when anything is narrowing the inventory list, so the empty state can tell
+// "nothing matches your filters" apart from "there's no data at all".
+function invFiltersActive() {
+  return showDupes || ['fSearch','fClient','fStatus','fProduct','fProvider','fDateFrom','fDateTo']
+    .some(id => (document.getElementById(id)?.value || '') !== '');
+}
+function invEmptyState() {
+  if (invFiltersActive()) return `<tr class="tbl-empty"><td colspan="9">
+      <div class="te-icon">🔍</div>
+      <div class="te-title">No records match these filters</div>
+      <div class="te-sub">${DB.length.toLocaleString()} record${DB.length===1?'':'s'} in total — try widening or clearing your filters.</div>
+      <button class="btn btn-sm" onclick="clearF()">Clear filters</button>
+    </td></tr>`;
+  return `<tr class="tbl-empty"><td colspan="9">
+      <div class="te-icon">📋</div>
+      <div class="te-title">No numbers yet</div>
+      <div class="te-sub">${currentRole==='viewer' ? 'Nothing has been added to the inventory yet.' : 'Add a number or upload a CSV to get started.'}</div>
+      ${currentRole==='viewer' ? '' : '<button class="btn btn-sm btn-p" onclick="openAdd()">+ Add Number</button>'}
+    </td></tr>`;
+}
 function renderTbl() {
   const sz = parseInt(EL.pgSize?.value || 50);
   const s = (pg-1)*sz, e = s+sz, total = fd.length, tp = Math.ceil(total/sz)||1;
@@ -1076,11 +1096,12 @@ function renderTbl() {
   if (EL.pgPrev)   EL.pgPrev.disabled      = pg<=1;
   if (EL.pgNext)   EL.pgNext.disabled      = pg>=tp;
   if (EL.pgLast)   EL.pgLast.disabled      = pg>=tp;
+  if (EL.invBody && !total) { EL.invBody.innerHTML = invEmptyState(); updateSelBar(); updateLastPosted(); return; }
   if (EL.invBody)  EL.invBody.innerHTML    = fd.slice(s,e).map((r,i) => {
     const isPinned = pinnedIds.has(r.id);
     return `
     <tr style="--row-i:${i}" class="${isPinned?'tr-pinned':''}" onclick="rowClick(event,'${esc(r.id)}')">
-      <td onclick="event.stopPropagation()"><input type="checkbox" class="rcb" data-id="${esc(r.id)}" ${persistentSelIds.has(r.id)?'checked':''} onchange="toggleRowSel(this)"></td>
+      <td class="cb-cell" onclick="event.stopPropagation()"><label><input type="checkbox" class="rcb" data-id="${esc(r.id)}" ${persistentSelIds.has(r.id)?'checked':''} onchange="toggleRowSel(this)"></label></td>
       <td class="row-num">${isPinned?'<span class="pin-ind" title="Pinned">📌</span>':s+i+1}</td>
       <td>${esc(r.client)}</td>
       <td>${esc(r.product)}</td>
@@ -1462,7 +1483,8 @@ function openAdd() {
   clearMo(); resetDeactSection('single');
   const btn = document.getElementById('mDeactBtn'); if (btn) btn.style.display = 'none';
   updatePinBtnState(null);
-  document.getElementById('moOv').classList.add('on');
+  openMoOverlay();
+  document.getElementById('mNumber').focus();
 }
 function openEdit() { if (curRec) openEditById(curRec.id); }
 function openEditById(id) {
@@ -1471,7 +1493,17 @@ function openEditById(id) {
   fillMo(r); resetDeactSection('single');
   const btn = document.getElementById('mDeactBtn'); if (btn) btn.style.display = '';
   updatePinBtnState(id);
-  document.getElementById('moOv').classList.add('on');
+  openMoOverlay();
+}
+// The modal keeps its scroll position between opens; always start at the top.
+// The offsetHeight read flushes the display:none -> flex change from .on, so callers
+// can focus a field straight after: focus() is a silent no-op while it is still hidden.
+function openMoOverlay() {
+  const ov = document.getElementById('moOv');
+  ov.classList.add('on');
+  void ov.offsetHeight;
+  const mo = ov.querySelector('.mo');
+  if (mo) mo.scrollTop = 0;
 }
 function closeMo() { document.getElementById('moOv').classList.remove('on'); }
 function resetDeactSection(mode) {
@@ -2532,12 +2564,26 @@ function sortL(col) {
   fl.sort((a,b) => (a[col]||'').localeCompare(b[col]||'')*lSortDir);
   renderLogs();
 }
+function logEmptyState() {
+  if (getLogFilterState().summary) return `<tr class="tbl-empty"><td colspan="5">
+      <div class="te-icon">🔍</div>
+      <div class="te-title">No logs match these filters</div>
+      <div class="te-sub">${LOGS.length.toLocaleString()} log entr${LOGS.length===1?'y':'ies'} in total — try widening or clearing your filters.</div>
+      <button class="btn btn-sm" onclick="clearLF()">Clear filters</button>
+    </td></tr>`;
+  return `<tr class="tbl-empty"><td colspan="5">
+      <div class="te-icon">🗒️</div>
+      <div class="te-title">No activity logged yet</div>
+      <div class="te-sub">Activity will appear here as changes are made.</div>
+    </td></tr>`;
+}
 function renderLogs() {
   const sz = parseInt(EL.lPgSize?.value || 25);
   const total = fl.length, tp = Math.ceil(total/sz)||1;
   lpg = Math.max(1, Math.min(lpg, tp));
   const s=(lpg-1)*sz, e=s+sz;
-  if (EL.logBody) EL.logBody.innerHTML = fl.slice(s,e).map((r,i) => `
+  if (EL.logBody && !total) EL.logBody.innerHTML = logEmptyState();
+  else if (EL.logBody) EL.logBody.innerHTML = fl.slice(s,e).map((r,i) => `
     <tr>
       <td class="row-num">${s+i+1}</td>
       <td>${new Date(r.datetime).toLocaleString()}</td>
