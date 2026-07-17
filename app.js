@@ -309,6 +309,7 @@ let curRec=null, editId=null, moreOpen=false, showDupes=false;
 let _editUpdatedAt=null;
 let currentUser=null, currentRole='viewer';
 let USERS=[];
+let _umSig='';
 let SELECTIONS={clients:[],products:[],providers:[],routes:[]};
 let persistentSelIds = new Set();
 let pinnedIds = new Set();
@@ -424,7 +425,7 @@ fauth.onAuthStateChanged(async user => {
     _abTimer = null; clearTimeout(_abDeferT); AB = null;
     currentUser = null; currentRole = 'viewer';
     DB=[]; LOGS=[]; fd=[]; fl=[]; recentViewed=[]; _logsReady=false;
-    USERS=[]; SELECTIONS={clients:[],products:[],providers:[],routes:[]};
+    USERS=[]; _umSig=''; SELECTIONS={clients:[],products:[],providers:[],routes:[]};
     persistentSelIds = new Set();
     document.getElementById('authOv').style.display = 'flex';
     document.getElementById('appNav').style.display = 'none';
@@ -2851,9 +2852,10 @@ async function loadUsers() {
 }
 function renderUsers() {
   const tbody = document.getElementById('umBody'); if (!tbody) return;
-  if (!USERS.length) { tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--t3);padding:20px">No users found.</td></tr>'; return; }
   const self = currentUser?.uid;
-  tbody.innerHTML = USERS.map((u,i) => `
+  const html = !USERS.length
+    ? '<tr><td colspan="7" style="text-align:center;color:var(--t3);padding:20px">No users found.</td></tr>'
+    : USERS.map((u,i) => `
     <tr>
       <td class="row-num">${i+1}</td>
       <td>${esc(u.email||'—')}</td>
@@ -2868,6 +2870,12 @@ function renderUsers() {
         </div>
       </td>
     </tr>`).join('');
+  // Rebuilding the rows restarts their row-in animation. loadUsers() refetches on every
+  // Admin tab click, so an unchanged result would re-animate rows that are already on
+  // screen — a visible flash. Only touch the DOM when the markup actually differs.
+  if (html === _umSig) return;
+  _umSig = html;
+  tbody.innerHTML = html;
 }
 function openAddUser() {
   umEditUid=null;
