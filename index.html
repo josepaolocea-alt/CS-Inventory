@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="app.css?v=10">
+<link rel="stylesheet" href="app.css?v=11">
 </head>
 <body>
 
@@ -645,6 +645,25 @@
   </div>
 </div>
 
+<!-- REVERT LOG CONFIRM -->
+<div class="mo-ov" id="revertLogOv" style="z-index:620">
+  <div class="mo" style="width:500px;max-width:95vw">
+    <div class="mo-head">
+      <span class="mo-title" id="revertLogTitle">Revert Change</span>
+      <button class="act-btn" onclick="closeRevertLog()" style="font-size:17px;color:var(--t2)">✕</button>
+    </div>
+    <div class="mo-body">
+      <p id="revertLogMeta" style="font-size:12px;color:var(--t2);margin-bottom:10px"></p>
+      <div id="revertLogList" class="revert-list"></div>
+      <p style="font-size:12px;color:var(--t2);margin-top:12px">Restores the values on the left back to the value on the right. A new log entry will record this revert.</p>
+    </div>
+    <div class="mo-foot" style="gap:10px">
+      <button class="btn" onclick="closeRevertLog()">Cancel</button>
+      <button class="btn btn-p" id="revertLogConfirmBtn" style="min-width:100px">Revert</button>
+    </div>
+  </div>
+</div>
+
 <!-- CLEAR ALL LOGS CONFIRM -->
 <div class="mo-ov" id="clearLogsOv" style="z-index:600">
   <div class="mo" style="width:360px;max-width:94vw">
@@ -824,7 +843,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
 <!-- App -->
-<script src="app.js?v=23"></script>
+<script src="app.js?v=24"></script>
 
 </body>
 </html>

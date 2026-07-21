@@ -1600,7 +1600,11 @@ async function saveRec() {
       } catch(e) { /* proceed on check failure */ }
       await fdb.collection('inventory').doc(editId).update(nd);
       if (idx>-1) DB[idx] = {...DB[idx], ...nd};
-      await addLog('Updated', `Updated number ${nd.number}`);
+      // Record the field-level before/after so this edit can be reverted later from the Logs
+      // page (not just from the transient toast below). Matches the bulk-edit log shape.
+      const upFields = diffRecordChanges(oldRec, nd);
+      await addLog('Updated', `Updated number ${nd.number}`,
+        upFields.length ? {records:[updateChangeSummary(oldRec, nd, upFields)], fields:upFields} : {});
       refreshInventoryRecent();
       const reseq = await resequencePostingTimes();
       renderTbl(); closeMo();
@@ -2514,7 +2518,7 @@ function renderLogDetails(log) {
     ? esc(details)
     : `${esc(m[1])}<button type="button" class="log-rec-link" onclick="event.stopPropagation();openLogRecords('${esc(log.id)}')">${esc(m[2])}</button>${esc(m[3])}`;
   const dev = log.device ? `<div class="log-device" title="Device that performed this action">🖥 ${esc(log.device)}</div>` : '';
-  return main + dev;
+  return main + dev + logRevertControl(log);
 }
 function openLogRecords(logId) {
   const log = LOGS.find(r => r.id === logId) || fl.find(r => r.id === logId);
@@ -2559,6 +2563,132 @@ function reverseBulkChanges(records) {
     ...r,
     changes: (r.changes || []).map(c => ({...c, from:c.to, to:c.from}))
   }));
+}
+
+// ── REVERT FROM LOGS ──────────────────────────────────
+// An "Updated" log carries a `records` array whose entries hold `changes:[{field,from,to}]`.
+// That's enough to undo the edit at any time from the Logs page (the toast Undo only lives a
+// few seconds). We restore each field to its `from` value, write a NEW log for the revert, and
+// flag the original as reverted. Available to any editor (admin + semi-admin), never viewers.
+
+// Which business fields actually changed between the old record and the new data being written.
+function diffRecordChanges(oldRec, newData) {
+  const out = [];
+  Object.keys(FIELD_LABELS).forEach(f => {
+    if (!(f in newData)) return;                        // field wasn't part of this write
+    const from = oldRec?.[f] ?? '', to = newData[f] ?? '';
+    if (String(from) !== String(to)) out.push(f);
+  });
+  return out;
+}
+// Build one affected-record summary for a single-record update: identity from the new values,
+// change rows carrying the real from (old) → to (new) per changed field.
+function updateChangeSummary(oldRec, newData, fields) {
+  return {
+    id:      oldRec?.id || '',
+    number:  (newData.number  ?? oldRec?.number)  || '',
+    client:  (newData.client  ?? oldRec?.client)  || '',
+    product: (newData.product ?? oldRec?.product) || '',
+    status:  (newData.status  ?? oldRec?.status)  || '',
+    changes: fields.map(f => ({field:f, label:FIELD_LABELS[f]||f, from: oldRec?.[f] ?? '', to: newData[f] ?? ''}))
+  };
+}
+function canRevertLog(log) {
+  if (!log || currentRole === 'viewer') return false;   // editors only; viewers never reach logs anyway
+  if (log.reverted) return false;                        // already undone
+  if (log.action !== 'Updated') return false;            // only edits carry restorable field values
+  return Array.isArray(log.records) && log.records.some(r => Array.isArray(r.changes) && r.changes.length);
+}
+function logRevertControl(log) {
+  if (!log) return '';
+  if (log.reverted) {
+    const t = 'Reverted' + (log.revertedBy ? ' by ' + log.revertedBy : '') +
+              (log.revertedAt ? ' · ' + new Date(log.revertedAt).toLocaleString() : '');
+    return `<div class="log-revert-wrap"><span class="log-reverted-tag" title="${esc(t)}">↩ Reverted</span></div>`;
+  }
+  if (!canRevertLog(log)) return '';
+  return `<div class="log-revert-wrap"><button type="button" class="log-revert-btn" title="Restore the values this change replaced" onclick="event.stopPropagation();revertLog('${esc(log.id)}')">↩ Revert</button></div>`;
+}
+// The record still present for a logged change (by id first, then number if it was recreated).
+function findRevertTarget(rec) {
+  return (rec.id && DB.find(r => r.id === rec.id)) ||
+         (rec.number && DB.find(r => r.number === rec.number)) || null;
+}
+function revertLog(logId) {
+  const log = LOGS.find(l => l.id === logId) || fl.find(l => l.id === logId);
+  if (!log) return;
+  if (!canRevertLog(log)) { showToast('This entry can’t be reverted.', 'warning'); return; }
+  const recs = (log.records || []).filter(r => Array.isArray(r.changes) && r.changes.length);
+  const title = document.getElementById('revertLogTitle');
+  const meta  = document.getElementById('revertLogMeta');
+  const list  = document.getElementById('revertLogList');
+  if (!title || !meta || !list) return;
+  title.textContent = `Revert ${recs.length} record${recs.length!==1?'s':''}?`;
+  meta.textContent  = `${log.action} · ${new Date(log.datetime).toLocaleString()} · ${log.user || ''}`;
+  list.innerHTML = recs.map(rec => {
+    const cur  = findRevertTarget(rec);
+    const rows = rec.changes.map(c => {
+      const now = cur ? (cur[c.field] ?? '') : c.to;    // value as it stands right now
+      return `<div class="rv-row"><span class="rv-field">${esc(c.label||FIELD_LABELS[c.field]||c.field)}</span>` +
+             `<span class="rv-now">${esc(formatLogValue(now))}</span><span class="rv-arrow">→</span>` +
+             `<span class="rv-to">${esc(formatLogValue(c.from))}</span></div>`;
+    }).join('');
+    const gone = cur ? '' : `<span class="rv-gone">no longer exists — will be skipped</span>`;
+    return `<div class="rv-rec"><div class="rv-rec-head">${esc(rec.number||'—')} ${gone}</div>${rows}</div>`;
+  }).join('');
+  const btn = document.getElementById('revertLogConfirmBtn');
+  const fresh = btn.cloneNode(true); btn.replaceWith(fresh);
+  fresh.textContent = 'Revert';
+  fresh.onclick = () => performLogRevert(logId);
+  document.getElementById('revertLogOv').classList.add('on');
+}
+function closeRevertLog() { document.getElementById('revertLogOv')?.classList.remove('on'); }
+async function performLogRevert(logId) {
+  const log = LOGS.find(l => l.id === logId) || fl.find(l => l.id === logId);
+  if (!log || !canRevertLog(log)) { closeRevertLog(); return; }
+  const recs = (log.records || []).filter(r => Array.isArray(r.changes) && r.changes.length);
+  const now = new Date().toISOString();
+  const by  = currentUser?.email || 'system';
+  const ops = [], revRecords = [], missing = [];
+  for (const rec of recs) {
+    const target = findRevertTarget(rec);
+    if (!target) { missing.push(rec.number || rec.id || '?'); continue; }
+    const upd = {};
+    rec.changes.forEach(c => { upd[c.field] = c.from ?? ''; });
+    upd.updatedBy = by; upd.updatedAt = now;
+    ops.push({ id: target.id, upd });
+    revRecords.push(updateChangeSummary(target, upd, rec.changes.map(c => c.field)));
+  }
+  if (!ops.length) {
+    showToast('Nothing to revert — record' + (missing.length!==1?'s':'') + ' no longer exist.', 'warning');
+    closeRevertLog(); return;
+  }
+  try {
+    const CHUNK = 400;
+    for (let i = 0; i < ops.length; i += CHUNK) {
+      const b = fdb.batch();
+      ops.slice(i, i + CHUNK).forEach(o => b.update(fdb.collection('inventory').doc(o.id), o.upd));
+      await b.commit();
+    }
+    ops.forEach(o => { const idx = DB.findIndex(r => r.id === o.id); if (idx > -1) DB[idx] = {...DB[idx], ...o.upd}; });
+    const changedIds = ops.map(o => o.id);
+    const fields = [...new Set(revRecords.flatMap(r => r.changes.map(c => c.field)))];
+    refreshInventoryRecent();
+    renderTbl();
+    await addLog('Updated', `Reverted ${revRecords.length} record${revRecords.length!==1?'s':''} from a log entry`,
+      {records: revRecords, fields});
+    propagateChange(changedIds);
+    // Flag the original log so its Revert button becomes a "Reverted" tag (this client immediately;
+    // other clients pick it up on their next full log reload — the revert's own new log syncs live).
+    log.reverted = true; log.revertedBy = by; log.revertedAt = now;
+    try { await fdb.collection('logs').doc(logId).update({reverted:true, revertedBy:by, revertedAt:now}); }
+    catch(e) { console.error('mark log reverted:', e); }
+    if (_logsReady) { kvSet('logsCache', LOGS.slice(0, 500)); }
+    fl = [...LOGS]; renderLogs();
+    closeRevertLog();
+    const extra = missing.length ? ` (${missing.length} skipped — no longer exist)` : '';
+    showToast(`Reverted ${revRecords.length} record${revRecords.length!==1?'s':''}${extra}.`, 'success');
+  } catch(e) { showToast('Revert failed: ' + e.message, 'error'); closeRevertLog(); }
 }
 function sortL(col) {
   if (lSortCol===col) lSortDir*=-1; else { lSortCol=col; lSortDir=1; }
