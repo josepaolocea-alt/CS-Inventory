@@ -224,7 +224,7 @@ function updateLastPosted() {
 // its own current time, otherwise it seeds at the current clock time. "Posted" entries are
 // never touched, and only records whose time actually changes are written to Firestore.
 async function resequencePostingTimes() {
-  // DB is in display order (top→bottom) after refreshInventoryRecent(); bottom = last row.
+  // DB is in display order (top→bottom) after any inventory refresh; bottom = last row.
   const ordered = DB.filter(r => canonPostedStatus(r.postedStatus) === 'For Posting').reverse();
   if (!ordered.length) return [];
 
@@ -303,7 +303,7 @@ function initEL() {
 // ── STATE ─────────────────────────────────────────────
 let DB=[], LOGS=[], recentViewed=[];
 let fd=[], fl=[];
-let pg=1, sortCol=null, sortDir=1;
+let pg=1, sortCol='number', sortDir=1;   // inventory list defaults to Number ascending
 let lpg=1, lSortCol=null, lSortDir=1;
 let curRec=null, editId=null, moreOpen=false, showDupes=false;
 let _editUpdatedAt=null;
@@ -659,22 +659,53 @@ function loadPinned() {
 function savePinned() {
   localStorage.setItem('cs-inv-pinned', JSON.stringify([...pinnedIds]));
 }
+// Numeric-aware comparator so the Number column sorts as real numbers (9 before
+// 100, never "100" before "9"), and text columns still get sensible natural order.
+function invCompare(a, b, col, dir) {
+  return String(a?.[col] ?? '').localeCompare(String(b?.[col] ?? ''), undefined, { numeric: true }) * dir;
+}
+// Reflect the active sort column/direction as the ▲/▼ arrow on its header
+// (clears all arrows when sortCol is null — the default most-recent order).
+function updateSortHeader() {
+  document.querySelectorAll('#invTbl th').forEach(th => th.classList.remove('asc','desc'));
+  if (sortCol && colIdx[sortCol] != null) {
+    [...document.querySelectorAll('#invTbl th')][colIdx[sortCol]]?.classList.add(sortDir===1 ? 'asc' : 'desc');
+  }
+}
+// DEFAULT order — pinned first, then most-recently-touched on top. Used on load,
+// on refresh, and after a SINGLE add/edit/delete, so the row you just changed
+// jumps to the top where you can see it.
 function sortInventoryByActivity() {
-  const pinned = DB.filter(r => pinnedIds.has(r.id));
+  const cmp = (a,b) => activityStamp(b).localeCompare(activityStamp(a)) || String(b.id||'').localeCompare(String(a.id||''));
+  const pinned   = DB.filter(r => pinnedIds.has(r.id));
   const unpinned = DB.filter(r => !pinnedIds.has(r.id));
-  pinned.sort((a,b) => activityStamp(b).localeCompare(activityStamp(a)) || String(b.id||'').localeCompare(String(a.id||'')));
-  unpinned.sort((a,b) => activityStamp(b).localeCompare(activityStamp(a)) || String(b.id||'').localeCompare(String(a.id||'')));
+  pinned.sort(cmp); unpinned.sort(cmp);
   DB.length = 0;
   for (const r of [...pinned, ...unpinned]) DB.push(r);
 }
-function clearInventorySortState() {
-  sortCol = null;
-  sortDir = 1;
-  document.querySelectorAll('#invTbl th').forEach(th => th.classList.remove('asc','desc'));
+// BULK order — pinned first, then every row by Number ascending. Used only after
+// a CSV upload or a bulk edit, so the whole affected set reads as a clean sequence.
+function sortInventoryByNumber() {
+  const pinned   = DB.filter(r => pinnedIds.has(r.id));
+  const unpinned = DB.filter(r => !pinnedIds.has(r.id));
+  pinned.sort((a,b) => invCompare(a,b,'number',1));
+  unpinned.sort((a,b) => invCompare(a,b,'number',1));
+  DB.length = 0;
+  for (const r of [...pinned, ...unpinned]) DB.push(r);
 }
+// Both refreshes keep DB order equal to on-screen order, which
+// resequencePostingTimes() and pagination both rely on.
 function refreshInventoryRecent(resetPage=true) {
   sortInventoryByActivity();
-  clearInventorySortState();
+  sortCol = null; sortDir = 1; updateSortHeader();       // default view: no column arrow
+  fd = [...DB];
+  if (resetPage) pg = 1;
+  renderTbl();
+  renderDash();
+}
+function refreshInventoryByNumber(resetPage=true) {
+  sortInventoryByNumber();
+  sortCol = 'number'; sortDir = 1; updateSortHeader();   // Number header shows ▲
   fd = [...DB];
   if (resetPage) pg = 1;
   renderTbl();
@@ -1034,8 +1065,9 @@ function clearF() {
     showDupes = false;
     document.getElementById('btnDupes').classList.remove('active');
   }
+  sortInventoryByActivity();     // back to the default most-recent-on-top order
   sortCol=null; sortDir=1;
-  document.querySelectorAll('#invTbl th').forEach(th => th.classList.remove('asc','desc'));
+  updateSortHeader();
   fd=[...DB]; pg=1; renderTbl();
 }
 function toggleDupes() {
@@ -1057,13 +1089,11 @@ function toggleMore() {
 const colIdx = {client:2,product:3,number:4,status:5,postedStatus:6,remarks:7};
 function sortBy(col) {
   if (sortCol===col) sortDir*=-1; else { sortCol=col; sortDir=1; }
-  const pinnedFd = fd.filter(r => pinnedIds.has(r.id));
+  const pinnedFd   = fd.filter(r => pinnedIds.has(r.id));
   const unpinnedFd = fd.filter(r => !pinnedIds.has(r.id));
-  unpinnedFd.sort((a,b) => (a[col]||'').localeCompare(b[col]||'')*sortDir);
+  unpinnedFd.sort((a,b) => invCompare(a,b,col,sortDir));   // numeric-aware manual sort
   fd = [...pinnedFd, ...unpinnedFd];
-  document.querySelectorAll('#invTbl th').forEach(th => th.classList.remove('asc','desc'));
-  const ths = [...document.querySelectorAll('#invTbl th')];
-  if (colIdx[col]) ths[colIdx[col]].classList.add(sortDir===1?'asc':'desc');
+  updateSortHeader();
   renderTbl();
 }
 
@@ -1763,7 +1793,7 @@ async function handleCSV(e) {
       if (op.type==='update') { const idx=DB.findIndex(r=>r.id===op.id); if(idx>-1) DB[idx]={...DB[idx],...op.data}; updated++; }
       else { DB.push(op.data); added++; }
     });
-    refreshInventoryRecent();
+    refreshInventoryByNumber();   // upload lands the whole list in Number order
     // Uploaded "For Posting" rows arrive without a time — sequence the whole set now
     // (same as a modal save) so they get chronological HH:MM instead of staying blank.
     const reseq = await resequencePostingTimes();
@@ -2852,7 +2882,7 @@ async function saveBulkEdit() {
           DB[idx] = {...rec, client:'', status:'Available', remarks:'', postedStatus:'', postedDate:'', postedHour:'', postedMin:'', postedTimeAt:'', clientOSF:'', clientMRC:'', clientOTRF:'', clientCF:'', clientCPM:'', effDate:'', actDate:'', deactDate: deactDateVal, route: requestedBy, prevClient: rec.client||'', deactivationHistory:[...(rec.deactivationHistory||[]),histEntry], updatedBy:deactivatedBy, updatedAt:deactivatedAt};
         }
       });
-      refreshInventoryRecent();
+      refreshInventoryByNumber();   // bulk edit lands the list in Number order
       await addLog('Updated', `Bulk deactivated ${ids.length} record${ids.length!==1?'s':''}`, {records:affectedRecords, fields:['client','status','deactDate','route']});
       propagateChange(ids);
       closeBE();
@@ -2893,7 +2923,7 @@ async function saveBulkEdit() {
       await b.commit();
     }
     ids.forEach(id => { const idx=DB.findIndex(r=>r.id===id); if(idx>-1) DB[idx]={...DB[idx],...updates}; });
-    refreshInventoryRecent();
+    refreshInventoryByNumber();   // bulk edit lands the list in Number order
     const reseq = await resequencePostingTimes();
     renderTbl();
     await addLog('Updated', `Bulk edited ${ids.length} records: ${dataFields.join(', ')}`, {records: affectedRecords, fields:dataFields});
@@ -2918,7 +2948,7 @@ async function saveBulkEdit() {
           const idx = DB.findIndex(r => r.id===rec.id);
           if (idx>-1) DB[idx] = {...DB[idx], ...rec};
         });
-        refreshInventoryRecent();
+        refreshInventoryByNumber();   // keep the list in Number order after undo
         propagateChange(savedRecs.map(r => r.id));
         await addLog('Updated', `Reverted bulk edit of ${savedRecs.length} records (undo)`, {records: reverseBulkChanges(affectedRecords), fields:dataFields});
         showToast(`Reverted ${savedRecs.length} record${savedRecs.length!==1?'s':''}`, 'success');
