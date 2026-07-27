@@ -683,15 +683,22 @@ function sortInventoryByActivity() {
   DB.length = 0;
   for (const r of [...pinned, ...unpinned]) DB.push(r);
 }
-// BULK order — pinned first, then every row by Number ascending. Used only after
-// a CSV upload or a bulk edit, so the whole affected set reads as a clean sequence.
-function sortInventoryByNumber() {
-  const pinned   = DB.filter(r => pinnedIds.has(r.id));
-  const unpinned = DB.filter(r => !pinnedIds.has(r.id));
-  pinned.sort((a,b) => invCompare(a,b,'number',1));
-  unpinned.sort((a,b) => invCompare(a,b,'number',1));
+// BULK order — pinned rows first, then the rows just edited/uploaded lifted to the
+// top and sorted Number ascending, then everyone else in the default recent order.
+// Used only after a CSV upload or a bulk edit, so you land right on the batch you
+// changed, in clean numeric order (like the source spreadsheet), rest still below.
+function sortInventoryEditedFirst(editedIds) {
+  const edited = new Set(editedIds || []);
+  const byNum = (a,b) => invCompare(a,b,'number',1);
+  const byAct = (a,b) => activityStamp(b).localeCompare(activityStamp(a)) || String(b.id||'').localeCompare(String(a.id||''));
+  const pinned     = DB.filter(r => pinnedIds.has(r.id));
+  const editedRows = DB.filter(r => !pinnedIds.has(r.id) && edited.has(r.id));
+  const rest       = DB.filter(r => !pinnedIds.has(r.id) && !edited.has(r.id));
+  pinned.sort(byAct);      // pins keep their usual spot at the very top
+  editedRows.sort(byNum);  // the batch you just changed, low→high by Number
+  rest.sort(byAct);        // everything else stays in default most-recent order
   DB.length = 0;
-  for (const r of [...pinned, ...unpinned]) DB.push(r);
+  for (const r of [...pinned, ...editedRows, ...rest]) DB.push(r);
 }
 // Both refreshes keep DB order equal to on-screen order, which
 // resequencePostingTimes() and pagination both rely on.
@@ -703,9 +710,9 @@ function refreshInventoryRecent(resetPage=true) {
   renderTbl();
   renderDash();
 }
-function refreshInventoryByNumber(resetPage=true) {
-  sortInventoryByNumber();
-  sortCol = 'number'; sortDir = 1; updateSortHeader();   // Number header shows ▲
+function refreshInventoryEditedFirst(editedIds, resetPage=true) {
+  sortInventoryEditedFirst(editedIds);
+  sortCol = null; sortDir = 1; updateSortHeader();       // custom order, no column arrow
   fd = [...DB];
   if (resetPage) pg = 1;
   renderTbl();
@@ -1793,15 +1800,16 @@ async function handleCSV(e) {
       if (op.type==='update') { const idx=DB.findIndex(r=>r.id===op.id); if(idx>-1) DB[idx]={...DB[idx],...op.data}; updated++; }
       else { DB.push(op.data); added++; }
     });
-    refreshInventoryByNumber();   // upload lands the whole list in Number order
+    // Rows this import actually touched: lifted to the top in Number order below,
+    // and (further down) the only rows we broadcast unless the set is too large.
+    const csvIds = ops.map(o => o.type === 'update' ? o.id : o.data.id).filter(Boolean);
+    refreshInventoryEditedFirst(csvIds);   // uploaded rows on top, low→high by Number
     // Uploaded "For Posting" rows arrive without a time — sequence the whole set now
     // (same as a modal save) so they get chronological HH:MM instead of staying blank.
     const reseq = await resequencePostingTimes();
     renderTbl();
     await addLog('CSV Upload', `"${f.name}": ${added} added, ${updated} updated`);
-    // Propagate only the rows this import actually touched; broadcastSync escalates
-    // to a full reload on its own if that set exceeds the incremental cap.
-    const csvIds = ops.map(o => o.type === 'update' ? o.id : o.data.id).filter(Boolean);
+    // broadcastSync escalates to a full reload on its own if this set exceeds the cap.
     propagateChange([...csvIds, ...reseq]);
     showToast(`Upload complete — ${added} added, ${updated} updated`, 'success');
   } catch(err) { showToast('Import error: '+err.message, 'error'); }
@@ -2882,7 +2890,7 @@ async function saveBulkEdit() {
           DB[idx] = {...rec, client:'', status:'Available', remarks:'', postedStatus:'', postedDate:'', postedHour:'', postedMin:'', postedTimeAt:'', clientOSF:'', clientMRC:'', clientOTRF:'', clientCF:'', clientCPM:'', effDate:'', actDate:'', deactDate: deactDateVal, route: requestedBy, prevClient: rec.client||'', deactivationHistory:[...(rec.deactivationHistory||[]),histEntry], updatedBy:deactivatedBy, updatedAt:deactivatedAt};
         }
       });
-      refreshInventoryByNumber();   // bulk edit lands the list in Number order
+      refreshInventoryEditedFirst(ids);   // deactivated rows on top, low→high by Number
       await addLog('Updated', `Bulk deactivated ${ids.length} record${ids.length!==1?'s':''}`, {records:affectedRecords, fields:['client','status','deactDate','route']});
       propagateChange(ids);
       closeBE();
@@ -2923,7 +2931,7 @@ async function saveBulkEdit() {
       await b.commit();
     }
     ids.forEach(id => { const idx=DB.findIndex(r=>r.id===id); if(idx>-1) DB[idx]={...DB[idx],...updates}; });
-    refreshInventoryByNumber();   // bulk edit lands the list in Number order
+    refreshInventoryEditedFirst(ids);   // edited rows on top, low→high by Number
     const reseq = await resequencePostingTimes();
     renderTbl();
     await addLog('Updated', `Bulk edited ${ids.length} records: ${dataFields.join(', ')}`, {records: affectedRecords, fields:dataFields});
@@ -2948,7 +2956,7 @@ async function saveBulkEdit() {
           const idx = DB.findIndex(r => r.id===rec.id);
           if (idx>-1) DB[idx] = {...DB[idx], ...rec};
         });
-        refreshInventoryByNumber();   // keep the list in Number order after undo
+        refreshInventoryEditedFirst(savedRecs.map(r => r.id));   // reverted rows on top, low→high by Number
         propagateChange(savedRecs.map(r => r.id));
         await addLog('Updated', `Reverted bulk edit of ${savedRecs.length} records (undo)`, {records: reverseBulkChanges(affectedRecords), fields:dataFields});
         showToast(`Reverted ${savedRecs.length} record${savedRecs.length!==1?'s':''}`, 'success');
