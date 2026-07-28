@@ -232,9 +232,11 @@
           <option value="50">50</option><option value="100">100</option>
           <option value="200">200</option><option value="500">500</option>
         </select>
+        <button class="btn btn-sm" id="lPgFirst" onclick="goToLPage('first')">« First</button>
         <button class="btn btn-sm" id="lPgPrev" onclick="changeLPg(-1)">‹ Prev</button>
         <span id="lPgInfo" style="font-size:11.5px;color:var(--t2)">Page 1</span>
         <button class="btn btn-sm" id="lPgNext" onclick="changeLPg(1)">Next ›</button>
+        <button class="btn btn-sm" id="lPgLast" onclick="goToLPage('last')">Last »</button>
       </div>
     </div>
   </div>
@@ -843,7 +845,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
 <!-- App -->
-<script src="app.js?v=27"></script>
+<script src="app.js?v=28"></script>
 
 </body>
 </html>

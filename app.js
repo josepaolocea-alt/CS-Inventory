@@ -289,7 +289,7 @@ function drHTML(label, valHTML) {
 const EL = {};
 function initEL() {
   ['invBody','tInfo','pgInfo','pgFirst','pgPrev','pgNext','pgLast','pgSize','selAll','selBar','selCount',
-   'logBody','lInfo','lPgInfo','lPgPrev','lPgNext','lPgSize'].forEach(id => EL[id] = document.getElementById(id));
+   'logBody','lInfo','lPgInfo','lPgFirst','lPgPrev','lPgNext','lPgLast','lPgSize'].forEach(id => EL[id] = document.getElementById(id));
   EL.sTotal    = document.getElementById('s-total');
   EL.sActive   = document.getElementById('s-active');
   EL.sAvail    = document.getElementById('s-avail');
@@ -2762,13 +2762,20 @@ function renderLogs() {
     </tr>`).join('');
   if (EL.lInfo)    EL.lInfo.textContent    = `Showing ${Math.min(s+1,total)||0}–${Math.min(e,total)} of ${total} records`;
   if (EL.lPgInfo)  EL.lPgInfo.textContent  = `Page ${lpg} of ${tp}`;
+  if (EL.lPgFirst) EL.lPgFirst.disabled    = lpg<=1;
   if (EL.lPgPrev)  EL.lPgPrev.disabled     = lpg<=1;
   if (EL.lPgNext)  EL.lPgNext.disabled     = lpg>=tp;
+  if (EL.lPgLast)  EL.lPgLast.disabled     = lpg>=tp;
 }
 function changeLPg(d) {
   const sz = parseInt(EL.lPgSize?.value || 25);
   const tp = Math.ceil(fl.length/sz)||1;
   lpg = Math.max(1, Math.min(lpg+d, tp)); renderLogs();
+}
+function goToLPage(target) {
+  const sz = parseInt(EL.lPgSize?.value || 25);
+  const tp = Math.ceil(fl.length/sz)||1;
+  lpg = target === 'first' ? 1 : tp; renderLogs();
 }
 
 // ── DOWNLOAD SELECTED ─────────────────────────────────
