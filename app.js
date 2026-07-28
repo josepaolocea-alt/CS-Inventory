@@ -2406,7 +2406,7 @@ function applyLF() {
   const dt  = document.getElementById('lTo').value;
   fl = LOGS.filter(r => {
     if (act && r.action!==act) return false;
-    const d = r.datetime.slice(0,10);
+    const d = new Date(r.datetime).toLocaleDateString('en-CA'); // local YYYY-MM-DD, matches the date shown in the table
     if (df && d<df) return false;
     if (dt && d>dt) return false;
     return true;
