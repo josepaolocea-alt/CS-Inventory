@@ -1765,16 +1765,58 @@ async function handleCSV(e) {
     const isNA = String(nd.number).trim().toUpperCase() === 'NA';
     const existing = isNA ? null : DB.find(r => normalizePhone(r.number) === ndNorm);
     if (existing) {
-      // Strip empty-string values so existing non-blank data is not overwritten.
-      // Always keep the existing number format — never overwrite with the CSV's format.
-      const updateData = {updatedBy: nd.updatedBy, updatedAt: nd.updatedAt};
-      Object.entries(nd).forEach(([k, v]) => {
-        if (k === 'number') return;
-        if (k !== 'updatedBy' && k !== 'updatedAt' && v !== '' && v !== null && v !== undefined) {
-          updateData[k] = v;
-        }
-      });
-      ops.push({type:'update', ref:fdb.collection('inventory').doc(existing.id), data:updateData, id:existing.id});
+      // ── Deactivation via upload ──
+      // A row bringing a NEW Deactivation Date, for a record that currently holds a
+      // client and isn't being (re)activated, is treated exactly like the in-app
+      // Deactivate button: snapshot the active client into deactivationHistory, then
+      // clear the client-side fields. Guards keep this transition-only —
+      //   • existing.client : only records that actually have a client to deactivate
+      //   • status !== Active: a row explicitly marked Active is an activation, not this
+      //   • deactDate is new : a round-tripped export (same date already stored) won't
+      //                        re-deactivate, and re-uploading the same file is a no-op.
+      const isDeactUpload = !!nd.deactDate && !!existing.client
+        && nd.status !== 'Active' && nd.deactDate !== (existing.deactDate || '');
+      if (isDeactUpload) {
+        const requestedBy = nd.route || existing.route || '';
+        const histEntry = {
+          previousClient: existing.client || '',
+          activation: activationSnapshot(existing),
+          deactDate: nd.deactDate,
+          requestedBy,
+          remarks: nd.remarks || '',
+          postedStatus: existing.postedStatus || '',
+          postedDate: existing.postedDate || '',
+          postedHour: existing.postedHour || '',
+          postedMin: existing.postedMin || '',
+          deactivatedBy: currentUser?.email || 'system',
+          deactivatedAt: nd.updatedAt
+        };
+        // Cascade-clear the client side (mirrors saveRec's Deactivation branch). These
+        // must overwrite even with blanks, so they bypass the strip-empties logic below.
+        const updateData = {
+          client: '', status: 'Available', remarks: '', postedStatus: '',
+          postedDate: '', postedHour: '', postedMin: '', postedTimeAt: '',
+          clientOSF: '', clientMRC: '', clientOTRF: '', clientCF: '', clientCPM: '',
+          effDate: '', actDate: '',
+          deactDate: nd.deactDate,
+          route: requestedBy,
+          prevClient: existing.client || '',
+          deactivationHistory: [...(existing.deactivationHistory || []), histEntry],
+          updatedBy: nd.updatedBy, updatedAt: nd.updatedAt
+        };
+        ops.push({type:'update', ref:fdb.collection('inventory').doc(existing.id), data:updateData, id:existing.id, deact:true});
+      } else {
+        // Strip empty-string values so existing non-blank data is not overwritten.
+        // Always keep the existing number format — never overwrite with the CSV's format.
+        const updateData = {updatedBy: nd.updatedBy, updatedAt: nd.updatedAt};
+        Object.entries(nd).forEach(([k, v]) => {
+          if (k === 'number') return;
+          if (k !== 'updatedBy' && k !== 'updatedAt' && v !== '' && v !== null && v !== undefined) {
+            updateData[k] = v;
+          }
+        });
+        ops.push({type:'update', ref:fdb.collection('inventory').doc(existing.id), data:updateData, id:existing.id});
+      }
     } else {
       nd.createdBy = currentUser?.email||'system';
       nd.createdAt = new Date().toISOString();
@@ -1795,9 +1837,9 @@ async function handleCSV(e) {
       ops.slice(i,i+CHUNK).forEach(op => op.type==='update' ? b.update(op.ref,op.data) : b.set(op.ref,op.data));
       await b.commit();
     }
-    let added=0, updated=0;
+    let added=0, updated=0, deactivated=0;
     ops.forEach(op => {
-      if (op.type==='update') { const idx=DB.findIndex(r=>r.id===op.id); if(idx>-1) DB[idx]={...DB[idx],...op.data}; updated++; }
+      if (op.type==='update') { const idx=DB.findIndex(r=>r.id===op.id); if(idx>-1) DB[idx]={...DB[idx],...op.data}; updated++; if(op.deact) deactivated++; }
       else { DB.push(op.data); added++; }
     });
     // Rows this import actually touched: lifted to the top in Number order below,
@@ -1808,10 +1850,11 @@ async function handleCSV(e) {
     // (same as a modal save) so they get chronological HH:MM instead of staying blank.
     const reseq = await resequencePostingTimes();
     renderTbl();
-    await addLog('CSV Upload', `"${f.name}": ${added} added, ${updated} updated`);
+    const deactMsg = deactivated ? `, ${deactivated} deactivated` : '';
+    await addLog('CSV Upload', `"${f.name}": ${added} added, ${updated} updated${deactMsg}`);
     // broadcastSync escalates to a full reload on its own if this set exceeds the cap.
     propagateChange([...csvIds, ...reseq]);
-    showToast(`Upload complete — ${added} added, ${updated} updated`, 'success');
+    showToast(`Upload complete — ${added} added, ${updated} updated${deactMsg}`, 'success');
   } catch(err) { showToast('Import error: '+err.message, 'error'); }
   e.target.value='';
 }
