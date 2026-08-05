@@ -159,7 +159,7 @@
             <th class="sort" onclick="sortBy('status')">Status</th>
             <th class="sort" onclick="sortBy('postedStatus')">Posted Status</th>
             <th class="sort" onclick="sortBy('remarks')">Remarks</th>
-            <th style="width:64px">Action</th>
+            <th style="width:86px">Action</th>
           </tr>
         </thead>
         <tbody id="invBody"></tbody>
@@ -382,6 +382,7 @@
   <div class="sp-head">
     <div class="sp-title" id="spTitle">Details</div>
     <div class="sp-btns">
+      <button class="btn btn-sm" id="btnSpCopy" onclick="openCopy()">⧉ Copy</button>
       <button class="btn btn-p btn-sm" id="btnSpEdit" onclick="openEdit()">Edit</button>
       <button class="btn btn-sm pin-modal-btn" id="btnSpPin" onclick="togglePinSP()">📌 Pin</button>
       <button class="btn btn-sm" onclick="closeSP()">Close</button>
@@ -845,7 +846,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
 <!-- App -->
-<script src="app.js?v=30"></script>
+<script src="app.js?v=31"></script>
 
 </body>
 </html>

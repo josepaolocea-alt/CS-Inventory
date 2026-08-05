@@ -1150,7 +1150,7 @@ function renderTbl() {
       <td onclick="event.stopPropagation()">
         <div class="act-btns">
           <button class="act-btn pin-btn${isPinned?' pinned':''}" title="${isPinned?'Unpin this entry':'Pin this entry'}" onclick="togglePin('${esc(r.id)}')">📌</button>
-          ${currentRole!=='viewer'?`<button class="act-btn" title="Edit" onclick="openEditById('${esc(r.id)}')">✎</button><button class="act-btn del" title="Delete" onclick="delRec('${esc(r.id)}')">⊗</button>`:''}
+          ${currentRole!=='viewer'?`<button class="act-btn" title="Copy as new entry" aria-label="Copy as new entry" onclick="openCopyById('${esc(r.id)}')">⧉</button><button class="act-btn" title="Edit" onclick="openEditById('${esc(r.id)}')">✎</button><button class="act-btn del" title="Delete" onclick="delRec('${esc(r.id)}')">⊗</button>`:''}
         </div>
       </td>
     </tr>`;
@@ -1525,6 +1525,19 @@ function openAdd() {
   document.getElementById('mNumber').focus();
 }
 function openEdit() { if (curRec) openEditById(curRec.id); }
+function openCopy() { if (curRec) openCopyById(curRec.id); }
+function openCopyById(id) {
+  const r = DB.find(x => x.id===id); if (!r) return;
+  // A copy saves as a brand-new Firestore document. fillMo() copies only editable
+  // business fields, so the source id, metadata and history stay with the original.
+  editId=null;
+  document.getElementById('moTitle').textContent='Copy Number';
+  fillMo(r); _editUpdatedAt=null; resetDeactSection('single');
+  const btn = document.getElementById('mDeactBtn'); if (btn) btn.style.display = 'none';
+  updatePinBtnState(null);
+  openMoOverlay();
+  document.getElementById('mRemarks')?.focus();
+}
 function openEditById(id) {
   const r = DB.find(x => x.id===id); if (!r) return;
   editId=id; document.getElementById('moTitle').textContent='Edit Number';
@@ -3050,8 +3063,9 @@ function applyRoleRestrictions() {
   ['btnBulkEdit','btnBulkDel'].forEach(id => {
     const el = document.getElementById(id); if (el) el.style.display = isViewer ? 'none' : '';
   });
-  const se = document.getElementById('btnSpEdit');
-  if (se) se.style.display = isViewer ? 'none' : '';
+  ['btnSpEdit','btnSpCopy'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.style.display = isViewer ? 'none' : '';
+  });
   if (!isAdmin && document.getElementById('page-admin').classList.contains('on')) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('on'));
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('on'));
