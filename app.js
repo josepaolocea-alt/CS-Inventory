@@ -664,6 +664,13 @@ function savePinned() {
 function invCompare(a, b, col, dir) {
   return String(a?.[col] ?? '').localeCompare(String(b?.[col] ?? ''), undefined, { numeric: true }) * dir;
 }
+// Most-recent batches share one updatedAt value. Keep that batch together and use
+// Number ascending as the deterministic tie-breaker instead of random Firestore ids.
+function inventoryRecentCompare(a, b) {
+  return activityStamp(b).localeCompare(activityStamp(a))
+    || invCompare(a, b, 'number', 1)
+    || String(a.id||'').localeCompare(String(b.id||''));
+}
 // Reflect the active sort column/direction as the ▲/▼ arrow on its header
 // (clears all arrows when sortCol is null — the default most-recent order).
 function updateSortHeader() {
@@ -676,10 +683,9 @@ function updateSortHeader() {
 // on refresh, and after a SINGLE add/edit/delete, so the row you just changed
 // jumps to the top where you can see it.
 function sortInventoryByActivity() {
-  const cmp = (a,b) => activityStamp(b).localeCompare(activityStamp(a)) || String(b.id||'').localeCompare(String(a.id||''));
   const pinned   = DB.filter(r => pinnedIds.has(r.id));
   const unpinned = DB.filter(r => !pinnedIds.has(r.id));
-  pinned.sort(cmp); unpinned.sort(cmp);
+  pinned.sort(inventoryRecentCompare); unpinned.sort(inventoryRecentCompare);
   DB.length = 0;
   for (const r of [...pinned, ...unpinned]) DB.push(r);
 }
@@ -690,13 +696,12 @@ function sortInventoryByActivity() {
 function sortInventoryEditedFirst(editedIds) {
   const edited = new Set(editedIds || []);
   const byNum = (a,b) => invCompare(a,b,'number',1);
-  const byAct = (a,b) => activityStamp(b).localeCompare(activityStamp(a)) || String(b.id||'').localeCompare(String(a.id||''));
   const pinned     = DB.filter(r => pinnedIds.has(r.id));
   const editedRows = DB.filter(r => !pinnedIds.has(r.id) && edited.has(r.id));
   const rest       = DB.filter(r => !pinnedIds.has(r.id) && !edited.has(r.id));
-  pinned.sort(byAct);      // pins keep their usual spot at the very top
+  pinned.sort(inventoryRecentCompare); // pins keep their usual spot at the very top
   editedRows.sort(byNum);  // the batch you just changed, low→high by Number
-  rest.sort(byAct);        // everything else stays in default most-recent order
+  rest.sort(inventoryRecentCompare);   // everything else stays in default most-recent order
   DB.length = 0;
   for (const r of [...pinned, ...editedRows, ...rest]) DB.push(r);
 }
@@ -1137,9 +1142,11 @@ function renderTbl() {
   if (EL.invBody && !total) { EL.invBody.innerHTML = invEmptyState(); updateSelBar(); updateLastPosted(); return; }
   if (EL.invBody)  EL.invBody.innerHTML    = fd.slice(s,e).map((r,i) => {
     const isPinned = pinnedIds.has(r.id);
+    const isSelected = persistentSelIds.has(r.id);
+    const rowClasses = [isPinned?'tr-pinned':'', isSelected?'tr-selected':''].filter(Boolean).join(' ');
     return `
-    <tr style="--row-i:${i}" class="${isPinned?'tr-pinned':''}" onclick="rowClick(event,'${esc(r.id)}')">
-      <td class="cb-cell" onclick="event.stopPropagation()"><label><input type="checkbox" class="rcb" data-id="${esc(r.id)}" ${persistentSelIds.has(r.id)?'checked':''} onchange="toggleRowSel(this)"></label></td>
+    <tr style="--row-i:${i}" class="${rowClasses}" aria-selected="${isSelected?'true':'false'}" onclick="rowClick(event,'${esc(r.id)}')">
+      <td class="cb-cell" onclick="event.stopPropagation()"><label><input type="checkbox" class="rcb" data-id="${esc(r.id)}" ${isSelected?'checked':''} onchange="toggleRowSel(this)"></label></td>
       <td class="row-num">${isPinned?'<span class="pin-ind" title="Pinned">📌</span>':s+i+1}</td>
       <td>${esc(r.client)}</td>
       <td>${esc(r.product)}</td>
@@ -1188,16 +1195,26 @@ function goToPage(target) {
 }
 function selAllRows(cb) {
   if (cb.checked) {
-    document.querySelectorAll('.rcb').forEach(c => { c.checked=true; persistentSelIds.add(c.dataset.id); });
+    document.querySelectorAll('.rcb').forEach(c => {
+      c.checked=true; persistentSelIds.add(c.dataset.id);
+      c.closest('tr')?.classList.add('tr-selected');
+      c.closest('tr')?.setAttribute('aria-selected','true');
+    });
   } else {
     persistentSelIds.clear();
-    document.querySelectorAll('.rcb').forEach(c => c.checked=false);
+    document.querySelectorAll('.rcb').forEach(c => {
+      c.checked=false;
+      c.closest('tr')?.classList.remove('tr-selected');
+      c.closest('tr')?.setAttribute('aria-selected','false');
+    });
   }
   updateSelBar();
 }
 function toggleRowSel(cb) {
   if (cb.checked) persistentSelIds.add(cb.dataset.id);
   else persistentSelIds.delete(cb.dataset.id);
+  cb.closest('tr')?.classList.toggle('tr-selected', cb.checked);
+  cb.closest('tr')?.setAttribute('aria-selected', cb.checked ? 'true' : 'false');
   updateSelBar();
 }
 function getCheckedIds() { return [...persistentSelIds]; }
@@ -1749,6 +1766,9 @@ async function handleCSV(e) {
   if (!Object.values(colMap).includes('number')) { showToast('CSV must have a "Number" column.','warning'); e.target.value=''; return; }
 
   const ops=[], warnings=[];
+  // One timestamp identifies this import as one batch. Normal refreshes can then
+  // keep the batch together and sort its records Number ascending on every client.
+  const batchUpdatedAt = new Date().toISOString();
   for (let i=1; i<lines.length; i++) {
     if (!lines[i].trim()) continue;
     const cols = parseCSVLine(lines[i]);
@@ -1779,7 +1799,7 @@ async function handleCSV(e) {
       }
     });
     nd.updatedBy = currentUser?.email||'system';
-    nd.updatedAt = new Date().toISOString();
+    nd.updatedAt = batchUpdatedAt;
     const ndNorm = normalizePhone(nd.number);
     const isNA = String(nd.number).trim().toUpperCase() === 'NA';
     const existing = isNA ? null : DB.find(r => normalizePhone(r.number) === ndNorm);
@@ -1838,7 +1858,7 @@ async function handleCSV(e) {
       }
     } else {
       nd.createdBy = currentUser?.email||'system';
-      nd.createdAt = new Date().toISOString();
+      nd.createdAt = batchUpdatedAt;
       const ref = fdb.collection('inventory').doc();
       nd.id = ref.id;
       ops.push({type:'set', ref, data:nd});

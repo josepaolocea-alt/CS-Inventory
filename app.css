@@ -15,11 +15,9 @@
   --nav: #0f172a; --nav-t: #7b8ea4; --nav-h: #1e293b;
   --sh: 0 1px 3px rgba(0,0,0,.3); --sh2: 0 4px 12px rgba(0,0,0,.4);
 }
-*{box-sizing:border-box;margin:0;padding:0}
+*{box-sizing:border-box;margin:0;padding:0;scrollbar-width:none;-ms-overflow-style:none}
 body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg2);color:var(--t1);font-size:13.5px;line-height:1.5}
-::-webkit-scrollbar{width:5px;height:5px}
-::-webkit-scrollbar-track{background:var(--bg3)}
-::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+*::-webkit-scrollbar{display:none;width:0;height:0}
 @keyframes fade-up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 @keyframes soft-pop{0%{opacity:0;transform:translateY(8px) scale(.985)}100%{opacity:1;transform:translateY(0) scale(1)}}
 @keyframes fade-in{from{opacity:0}to{opacity:1}}
@@ -225,6 +223,9 @@ tr:hover td{background:var(--accent-bg);cursor:pointer}
 tr.tr-pinned td{background:color-mix(in srgb,var(--accent) 5%,var(--bg))}
 tr.tr-pinned td:first-child{border-left:3px solid var(--accent)}
 tr.tr-pinned:hover td{background:var(--accent-bg)}
+tr.tr-selected td{background:color-mix(in srgb,var(--accent) 18%,var(--bg))}
+tr.tr-selected td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+tr.tr-selected:hover td{background:color-mix(in srgb,var(--accent) 24%,var(--bg))}
 .pin-ind{font-size:10px;line-height:1;display:block;text-align:center}
 .pin-modal-btn{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,var(--border))}
 input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px;cursor:pointer}
