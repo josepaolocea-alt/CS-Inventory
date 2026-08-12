@@ -1288,6 +1288,7 @@ function hasActivationSnapshot(a={}) {
 function activationRowsHTML(a={}) {
   if (!hasActivationSnapshot(a)) return '';
   return `
+    ${a.client ? `<div class="deact-hist-row"><span style="color:var(--t3)">Client</span> ${esc(a.client)}</div>` : ''}
     ${a.product ? `<div class="deact-hist-row"><span style="color:var(--t3)">Product</span> ${esc(a.product)}</div>` : ''}
     <div class="deact-hist-row"><span style="color:var(--t3)">Status</span> <span style="color:var(--ok);font-weight:600">Active</span></div>
     ${a.effDate ? `<div class="deact-hist-row"><span style="color:var(--t3)">Effective Date</span> ${fmt(a.effDate)}</div>` : ''}
@@ -1317,7 +1318,9 @@ function currentActivationHTML(r) {
 function historySectionHTML(r) {
   const current = currentActivationHTML(r);
   const deact = (r.deactivationHistory?.length) ? [...r.deactivationHistory].reverse().map(h => {
-    const activation = h.activation || {};
+    // Older history entries may have the client only in previousClient. Use it as
+    // a display fallback so both Activation and Deactivation details identify the client.
+    const activation = {...(h.activation || {}), client:(h.activation?.client || h.previousClient || '')};
     // Posted state captured at deactivation time (absent on entries recorded before this was tracked).
     const postedCaptured = ('postedStatus' in h) || ('postedDate' in h) || ('postedHour' in h);
     const postedLabel = canonPostedStatus(h.postedStatus) || 'No';
@@ -1327,11 +1330,12 @@ function historySectionHTML(r) {
     return `
       <div class="deact-hist-entry">
         <div class="deact-hist-top">
-          <span class="deact-hist-client">${esc(h.previousClient||'—')}</span>
+          <span class="deact-hist-client">${esc(h.previousClient || activation.client || '—')}</span>
           <span class="deact-hist-date">${fmt(h.deactDate)}</span>
         </div>
         ${hasActivationSnapshot(activation) ? `<div class="hist-subtitle">Activation Details</div>${activationRowsHTML(activation)}` : ''}
         <div class="hist-subtitle">Deactivation Details</div>
+        ${(h.previousClient || activation.client) ? `<div class="deact-hist-row"><span style="color:var(--t3)">Client</span> ${esc(h.previousClient || activation.client)}</div>` : ''}
         <div class="deact-hist-row"><span style="color:var(--t3)">Status</span> <span style="color:var(--err);font-weight:600">Inactive</span></div>
         ${h.requestedBy ? `<div class="deact-hist-row"><span style="color:var(--t3)">Requested by</span> ${esc(h.requestedBy)}</div>` : ''}
         ${postedCaptured ? `<div class="deact-hist-row"><span style="color:var(--t3)">Previously Posted</span> ${esc(postedLabel)}</div>${postedDT ? `<div class="deact-hist-row"><span style="color:var(--t3)">Posted Date &amp; Time</span> ${esc(postedDT)}</div>` : ''}` : ''}
