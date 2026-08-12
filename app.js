@@ -1274,6 +1274,7 @@ function activationSnapshot(r={}) {
     client: r.client || '',
     product: r.product || '',
     status: r.status || '',
+    remarks: r.remarks || '',
     effDate: r.effDate || '',
     actDate: r.actDate || '',
     provider: r.provider || '',
@@ -1283,7 +1284,7 @@ function activationSnapshot(r={}) {
   };
 }
 function hasActivationSnapshot(a={}) {
-  return !!(a.client || a.product || a.effDate || a.actDate || a.provider || a.arrDate || a.provActDate || a.route);
+  return !!(a.client || a.product || a.remarks || a.effDate || a.actDate || a.provider || a.arrDate || a.provActDate || a.route);
 }
 function activationRowsHTML(a={}) {
   if (!hasActivationSnapshot(a)) return '';
@@ -1291,6 +1292,7 @@ function activationRowsHTML(a={}) {
     ${a.client ? `<div class="deact-hist-row"><span style="color:var(--t3)">Client</span> ${esc(a.client)}</div>` : ''}
     ${a.product ? `<div class="deact-hist-row"><span style="color:var(--t3)">Product</span> ${esc(a.product)}</div>` : ''}
     <div class="deact-hist-row"><span style="color:var(--t3)">Status</span> <span style="color:var(--ok);font-weight:600">Active</span></div>
+    ${a.remarks ? `<div class="deact-hist-row"><span style="color:var(--t3)">Remarks</span> ${esc(a.remarks)}</div>` : ''}
     ${a.effDate ? `<div class="deact-hist-row"><span style="color:var(--t3)">Effective Date</span> ${fmt(a.effDate)}</div>` : ''}
     ${a.actDate ? `<div class="deact-hist-row"><span style="color:var(--t3)">Activated Date</span> ${fmt(a.actDate)}</div>` : ''}
     ${a.provider ? `<div class="deact-hist-row"><span style="color:var(--t3)">Provider</span> ${esc(a.provider)}</div>` : ''}
@@ -1339,7 +1341,7 @@ function historySectionHTML(r) {
         <div class="deact-hist-row"><span style="color:var(--t3)">Status</span> <span style="color:var(--err);font-weight:600">Inactive</span></div>
         ${h.requestedBy ? `<div class="deact-hist-row"><span style="color:var(--t3)">Requested by</span> ${esc(h.requestedBy)}</div>` : ''}
         ${postedCaptured ? `<div class="deact-hist-row"><span style="color:var(--t3)">Previously Posted</span> ${esc(postedLabel)}</div>${postedDT ? `<div class="deact-hist-row"><span style="color:var(--t3)">Posted Date &amp; Time</span> ${esc(postedDT)}</div>` : ''}` : ''}
-        ${h.remarks ? `<div class="deact-hist-row">${esc(h.remarks)}</div>` : ''}
+        ${h.remarks ? `<div class="deact-hist-row"><span style="color:var(--t3)">Remarks</span> ${esc(h.remarks)}</div>` : ''}
         <div class="deact-hist-meta">by ${esc(h.deactivatedBy||'—')} · ${metaDate(h.deactivatedAt)}</div>
       </div>`;
   }).join('') : '';
