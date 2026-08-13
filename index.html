@@ -727,6 +727,26 @@
   </div>
 </div>
 
+<!-- DELETE HISTORY ENTRY CONFIRM -->
+<div class="mo-ov" id="delHistOv" style="z-index:620">
+  <div class="mo" style="width:380px;max-width:94vw">
+    <div class="mo-head" style="border-bottom:none;padding-bottom:4px">
+      <span class="mo-title">Delete History Entry</span>
+      <button class="act-btn" onclick="document.getElementById('delHistOv').classList.remove('on')" style="font-size:17px;color:var(--t2)">&times;</button>
+    </div>
+    <div class="mo-body" style="text-align:center;padding:8px 24px 20px">
+      <div style="font-size:38px;margin-bottom:12px">&#128465;</div>
+      <p style="font-size:15px;font-weight:700;color:var(--t1);margin-bottom:8px">Delete this history entry?</p>
+      <div id="delHistInfo" style="background:var(--bg2);border-radius:8px;padding:10px 14px;margin-bottom:10px;text-align:left;font-size:13px;color:var(--t2);line-height:1.7"></div>
+      <p style="font-size:12px;color:#e05252;font-weight:600;margin-top:2px">This permanently removes only this history entry. The inventory number will remain.</p>
+    </div>
+    <div class="mo-foot" style="justify-content:center;gap:10px;padding:12px 17px 16px">
+      <button class="btn" style="min-width:100px" onclick="document.getElementById('delHistOv').classList.remove('on')">Cancel</button>
+      <button class="btn btn-d" id="delHistConfirmBtn" style="min-width:100px">Delete</button>
+    </div>
+  </div>
+</div>
+
 <!-- SIGN OUT CONFIRM -->
 <div class="mo-ov" id="soOv" style="z-index:600">
   <div class="mo" style="width:340px;max-width:94vw">

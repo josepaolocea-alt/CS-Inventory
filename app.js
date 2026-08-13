@@ -308,6 +308,7 @@ let lpg=1, lSortCol=null, lSortDir=1;
 let curRec=null, editId=null, moreOpen=false, showDupes=false;
 let _editUpdatedAt=null;
 let currentUser=null, currentRole='viewer';
+const HISTORY_DELETE_ADMIN_EMAIL = 'jpgc06.2023@gmail.com';
 let USERS=[];
 let _umSig='';
 let SELECTIONS={clients:[],products:[],providers:[],routes:[]};
@@ -1321,6 +1322,9 @@ function metaDate(v) {
   return v ? new Date(v).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
 }
 function currentActivationHTML(r) {
+  // Provider/product details can legitimately remain on an Available number.
+  // They do not represent a current client activation once the client is cleared.
+  if (!r.client && String(r.status || '').trim().toLowerCase() === 'available') return '';
   const a = activationSnapshot(r);
   if (!hasActivationSnapshot(a)) return '';
   return `
@@ -1334,9 +1338,14 @@ function currentActivationHTML(r) {
       <div class="deact-hist-meta">last updated by ${esc(r.updatedBy || r.createdBy || '—')} · ${metaDate(r.updatedAt || r.createdAt)}</div>
     </div>`;
 }
+function canDeleteHistoryEntry() {
+  return currentRole === 'admin' &&
+    (currentUser?.email || '').trim().toLowerCase() === HISTORY_DELETE_ADMIN_EMAIL;
+}
 function historySectionHTML(r) {
   const current = currentActivationHTML(r);
-  const deact = (r.deactivationHistory?.length) ? [...r.deactivationHistory].reverse().map(h => {
+  const history = Array.isArray(r.deactivationHistory) ? r.deactivationHistory : [];
+  const deact = history.length ? history.map((h, index) => ({h, index})).reverse().map(({h, index}) => {
     // Older history entries may have the client only in previousClient. Use it as
     // a display fallback so both Activation and Deactivation details identify the client.
     const activation = {...(h.activation || {}), client:(h.activation?.client || h.previousClient || '')};
@@ -1350,7 +1359,10 @@ function historySectionHTML(r) {
       <div class="deact-hist-entry">
         <div class="deact-hist-top">
           <span class="deact-hist-client">${esc(h.previousClient || activation.client || '—')}</span>
-          <span class="deact-hist-date">${fmt(h.deactDate)}</span>
+          <span class="deact-hist-tools">
+            <span class="deact-hist-date">${fmt(h.deactDate)}</span>
+            ${canDeleteHistoryEntry() ? `<button class="hist-delete-btn" type="button" title="Delete this history entry" aria-label="Delete history entry" onclick="event.stopPropagation();confirmDeleteHistoryEntry('${esc(r.id)}',${index})">&#128465;</button>` : ''}
+          </span>
         </div>
         ${hasActivationSnapshot(activation) ? `<div class="hist-subtitle">Activation Details</div>${activationRowsHTML(activation)}` : ''}
         <div class="hist-subtitle">Deactivation Details</div>
@@ -1363,6 +1375,72 @@ function historySectionHTML(r) {
       </div>`;
   }).join('') : '';
   return (current || deact) ? `<div class="ds"><div class="ds-title">Activation &amp; Deactivation History</div>${current}${deact}</div>` : '';
+}
+
+function confirmDeleteHistoryEntry(recordId, historyIndex) {
+  if (!canDeleteHistoryEntry()) {
+    showToast(`Only ${HISTORY_DELETE_ADMIN_EMAIL} can delete history entries.`, 'warning');
+    return;
+  }
+  const record = DB.find(r => r.id === recordId);
+  const history = Array.isArray(record?.deactivationHistory) ? record.deactivationHistory : [];
+  const entry = history[historyIndex];
+  if (!record || !entry) {
+    showToast('That history entry is no longer available. Reload and try again.', 'warning');
+    return;
+  }
+
+  const activation = entry.activation || {};
+  document.getElementById('delHistInfo').innerHTML = `
+    <div><span style="color:var(--t2)">Number:</span> <strong>${esc(record.number || recordId)}</strong></div>
+    ${(entry.previousClient || activation.client) ? `<div><span style="color:var(--t2)">Client:</span> ${esc(entry.previousClient || activation.client)}</div>` : ''}
+    ${entry.deactDate ? `<div><span style="color:var(--t2)">Deactivation date:</span> ${esc(fmt(entry.deactDate))}</div>` : ''}`.trim();
+  document.getElementById('delHistOv').classList.add('on');
+
+  const button = document.getElementById('delHistConfirmBtn');
+  const freshButton = button.cloneNode(true);
+  button.replaceWith(freshButton);
+  const expectedEntry = JSON.stringify(entry);
+  freshButton.onclick = async () => {
+    if (!canDeleteHistoryEntry()) {
+      document.getElementById('delHistOv').classList.remove('on');
+      showToast(`Only ${HISTORY_DELETE_ADMIN_EMAIL} can delete history entries.`, 'warning');
+      return;
+    }
+    freshButton.disabled = true;
+    freshButton.textContent = 'Deleting…';
+    try {
+      const ref = fdb.collection('inventory').doc(recordId);
+      const snap = await ref.get();
+      if (!snap.exists) throw new Error('The inventory record no longer exists.');
+      const latest = snap.data();
+      const latestHistory = Array.isArray(latest.deactivationHistory) ? latest.deactivationHistory : [];
+      if (!latestHistory[historyIndex] || JSON.stringify(latestHistory[historyIndex]) !== expectedEntry) {
+        throw new Error('The history changed since you opened it. Reload and try again.');
+      }
+
+      const nextHistory = [...latestHistory];
+      const [removed] = nextHistory.splice(historyIndex, 1);
+      const updatedAt = new Date().toISOString();
+      const updatedBy = currentUser.email;
+      await ref.update({deactivationHistory: nextHistory, updatedAt, updatedBy});
+
+      const localIndex = DB.findIndex(r => r.id === recordId);
+      if (localIndex > -1) DB[localIndex] = {...DB[localIndex], deactivationHistory:nextHistory, updatedAt, updatedBy};
+      await addLog('Updated', `Deleted a history entry from number ${record.number}`,
+        {records:[{number:record.number || '', client:removed.previousClient || removed.activation?.client || '', product:removed.activation?.product || '', status:'History deleted'}]});
+      refreshInventoryRecent();
+      renderTbl();
+      propagateChange([recordId]);
+      document.getElementById('delHistOv').classList.remove('on');
+      openSP(recordId);
+      showToast('History entry deleted.', 'success');
+    } catch(e) {
+      freshButton.disabled = false;
+      freshButton.textContent = 'Delete';
+      showToast('History delete error: ' + e.message, 'error', 7000);
+    }
+  };
 }
 function openSP(id) {
   const r = DB.find(x => x.id===id); if (!r) return;
