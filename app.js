@@ -1580,15 +1580,57 @@ function activationSnapshot(r={}) {
     route: r.route || ''
   };
 }
+function isReservedRecord(r={}) {
+  return String(r.status || '').trim().toLowerCase() === 'reserved';
+}
+function reservationEntryMatches(entry, record={}) {
+  const snapshot = entry?.reservation || {};
+  return isReservedRecord(snapshot) && (snapshot.client || '') === (record.client || '');
+}
+function applyReservationHistory(existing, nextRecord, updateTarget, changedAt, changedBy) {
+  const history = [...(existing?.reservationHistory || [])];
+  let changed = false;
+  const append = (record, reservedAt, reservedBy) => {
+    history.push({
+      reservation: {...activationSnapshot(record), status:'Reserved'},
+      reservedBy: reservedBy || 'system',
+      reservedAt: reservedAt || new Date().toISOString()
+    });
+    changed = true;
+  };
+  const oldReserved = isReservedRecord(existing || {});
+  const nextReserved = isReservedRecord(nextRecord || {});
+  const clientChanged = (existing?.client || '') !== (nextRecord?.client || '');
+
+  // Backfill an older reservation the first time it is edited or leaves Reserved.
+  if (oldReserved && (!history.length || !reservationEntryMatches(history.at(-1), existing))) {
+    append(existing, existing.updatedAt || existing.createdAt || changedAt, existing.updatedBy || existing.createdBy || changedBy);
+  }
+  // A transition into Reserved—or reserving it to a different client—is a new event.
+  if (nextReserved && (!oldReserved || clientChanged)) {
+    append(nextRecord, changedAt, changedBy);
+  }
+  // A newly created Reserved record has no existing state.
+  if (!existing && nextReserved && !changed) append(nextRecord, changedAt, changedBy);
+  if (changed) updateTarget.reservationHistory = history;
+}
 function hasActivationSnapshot(a={}) {
   return !!(a.client || a.product || a.remarks || a.effDate || a.actDate || a.provider || a.arrDate || a.provActDate || a.route);
 }
+function historyStatusStyle(status) {
+  const normalized = String(status || 'Active').trim().toLowerCase();
+  if (normalized === 'reserved') return {label:'Reserved', color:'var(--warn)'};
+  if (normalized === 'inactive') return {label:'Inactive', color:'var(--err)'};
+  if (normalized === 'available') return {label:'Available', color:'var(--t2)'};
+  return {label:'Active', color:'var(--ok)'};
+}
 function activationRowsHTML(a={}) {
   if (!hasActivationSnapshot(a)) return '';
+  const status = historyStatusStyle(a.status);
   return `
     ${a.client ? `<div class="deact-hist-row"><span style="color:var(--t3)">Client</span> ${esc(a.client)}</div>` : ''}
     ${a.product ? `<div class="deact-hist-row"><span style="color:var(--t3)">Product</span> ${esc(a.product)}</div>` : ''}
-    <div class="deact-hist-row"><span style="color:var(--t3)">Status</span> <span style="color:var(--ok);font-weight:600">Active</span></div>
+    <div class="deact-hist-row"><span style="color:var(--t3)">Status</span> <span style="color:${status.color};font-weight:600">${status.label}</span></div>
     ${a.remarks ? `<div class="deact-hist-row"><span style="color:var(--t3)">Remarks</span> ${esc(a.remarks)}</div>` : ''}
     ${a.effDate ? `<div class="deact-hist-row"><span style="color:var(--t3)">Effective Date</span> ${fmt(a.effDate)}</div>` : ''}
     ${a.actDate ? `<div class="deact-hist-row"><span style="color:var(--t3)">Activated Date</span> ${fmt(a.actDate)}</div>` : ''}
@@ -1606,13 +1648,15 @@ function currentActivationHTML(r) {
   if (!r.client && String(r.status || '').trim().toLowerCase() === 'available') return '';
   const a = activationSnapshot(r);
   if (!hasActivationSnapshot(a)) return '';
+  const isReserved = String(a.status).trim().toLowerCase() === 'reserved';
+  const currentTitle = isReserved ? 'Current Reservation' : 'Current Activation';
   return `
-    <div class="deact-hist-entry act-hist-entry">
+    <div class="deact-hist-entry ${isReserved ? 'res-hist-entry' : 'act-hist-entry'}">
       <div class="deact-hist-top">
         <span class="deact-hist-client">${esc(a.client || 'Activation Details')}</span>
-        <span class="deact-hist-date">${fmt(a.actDate || a.effDate)}</span>
+        <span class="deact-hist-date">${isReserved ? metaDate(r.updatedAt || r.createdAt) : fmt(a.actDate || a.effDate)}</span>
       </div>
-      <div class="hist-subtitle">Current Activation</div>
+      <div class="hist-subtitle">${currentTitle}</div>
       ${activationRowsHTML(a)}
       <div class="deact-hist-meta">last updated by ${esc(r.updatedBy || r.createdBy || '—')} · ${metaDate(r.updatedAt || r.createdAt)}</div>
     </div>`;
@@ -1624,6 +1668,37 @@ function canDeleteHistoryEntry() {
 function historySectionHTML(r) {
   const current = currentActivationHTML(r);
   const history = Array.isArray(r.deactivationHistory) ? r.deactivationHistory : [];
+  const reservationHistory = Array.isArray(r.reservationHistory) ? r.reservationHistory : [];
+  // The current reservation card already represents the latest open reservation.
+  // Keep it out of the archived list until the status/client changes.
+  const currentIsReserved = String(r.status || '').trim().toLowerCase() === 'reserved';
+  let currentReservationIndex = -1;
+  if (currentIsReserved) {
+    for (let i=reservationHistory.length-1; i>=0; i--) {
+      const snapshot = reservationHistory[i]?.reservation || {};
+      if ((snapshot.client || '') === (r.client || '')) { currentReservationIndex = i; break; }
+    }
+  }
+  const reserved = reservationHistory.length ? reservationHistory
+    .map((h,index) => ({h,index}))
+    .filter(({index}) => index !== currentReservationIndex)
+    .reverse()
+    .map(({h,index}) => {
+      const reservation = {...(h.reservation || {}), status:'Reserved'};
+      return `
+        <div class="deact-hist-entry res-hist-entry">
+          <div class="deact-hist-top">
+            <span class="deact-hist-client">${esc(reservation.client || 'Reservation Details')}</span>
+            <span class="deact-hist-tools">
+              <span class="deact-hist-date">${metaDate(h.reservedAt)}</span>
+              ${canDeleteHistoryEntry() ? `<button class="hist-delete-btn" type="button" title="Delete this reservation history entry" aria-label="Delete reservation history entry" onclick="event.stopPropagation();confirmDeleteHistoryEntry('${esc(r.id)}',${index},'reservationHistory')">&#128465;</button>` : ''}
+            </span>
+          </div>
+          <div class="hist-subtitle">Reservation Details</div>
+          ${activationRowsHTML(reservation)}
+          <div class="deact-hist-meta">reserved by ${esc(h.reservedBy || '—')} · ${metaDate(h.reservedAt)}</div>
+        </div>`;
+    }).join('') : '';
   const deact = history.length ? history.map((h, index) => ({h, index})).reverse().map(({h, index}) => {
     // Older history entries may have the client only in previousClient. Use it as
     // a display fallback so both Activation and Deactivation details identify the client.
@@ -1643,7 +1718,7 @@ function historySectionHTML(r) {
             ${canDeleteHistoryEntry() ? `<button class="hist-delete-btn" type="button" title="Delete this history entry" aria-label="Delete history entry" onclick="event.stopPropagation();confirmDeleteHistoryEntry('${esc(r.id)}',${index})">&#128465;</button>` : ''}
           </span>
         </div>
-        ${hasActivationSnapshot(activation) ? `<div class="hist-subtitle">Activation Details</div>${activationRowsHTML(activation)}` : ''}
+        ${hasActivationSnapshot(activation) ? `<div class="hist-subtitle">${String(activation.status).toLowerCase()==='reserved' ? 'Reservation' : 'Activation'} Details</div>${activationRowsHTML(activation)}` : ''}
         <div class="hist-subtitle">Deactivation Details</div>
         ${(h.previousClient || activation.client) ? `<div class="deact-hist-row"><span style="color:var(--t3)">Client</span> ${esc(h.previousClient || activation.client)}</div>` : ''}
         <div class="deact-hist-row"><span style="color:var(--t3)">Status</span> <span style="color:var(--err);font-weight:600">Inactive</span></div>
@@ -1653,27 +1728,30 @@ function historySectionHTML(r) {
         <div class="deact-hist-meta">by ${esc(h.deactivatedBy||'—')} · ${metaDate(h.deactivatedAt)}</div>
       </div>`;
   }).join('') : '';
-  return (current || deact) ? `<div class="ds"><div class="ds-title">Activation &amp; Deactivation History</div>${current}${deact}</div>` : '';
+  return (current || reserved || deact) ? `<div class="ds"><div class="ds-title">Reservation, Activation &amp; Deactivation History</div>${current}${reserved}${deact}</div>` : '';
 }
 
-function confirmDeleteHistoryEntry(recordId, historyIndex) {
+function confirmDeleteHistoryEntry(recordId, historyIndex, historyField='deactivationHistory') {
   if (!canDeleteHistoryEntry()) {
     showToast(`Only ${HISTORY_DELETE_ADMIN_EMAIL} can delete history entries.`, 'warning');
     return;
   }
+  if (!['deactivationHistory','reservationHistory'].includes(historyField)) return;
   const record = DB.find(r => r.id === recordId);
-  const history = Array.isArray(record?.deactivationHistory) ? record.deactivationHistory : [];
+  const history = Array.isArray(record?.[historyField]) ? record[historyField] : [];
   const entry = history[historyIndex];
   if (!record || !entry) {
     showToast('That history entry is no longer available. Reload and try again.', 'warning');
     return;
   }
 
-  const activation = entry.activation || {};
+  const activation = entry.activation || entry.reservation || {};
+  const isReservation = historyField === 'reservationHistory';
   document.getElementById('delHistInfo').innerHTML = `
     <div><span style="color:var(--t2)">Number:</span> <strong>${esc(record.number || recordId)}</strong></div>
     ${(entry.previousClient || activation.client) ? `<div><span style="color:var(--t2)">Client:</span> ${esc(entry.previousClient || activation.client)}</div>` : ''}
-    ${entry.deactDate ? `<div><span style="color:var(--t2)">Deactivation date:</span> ${esc(fmt(entry.deactDate))}</div>` : ''}`.trim();
+    ${isReservation && entry.reservedAt ? `<div><span style="color:var(--t2)">Reserved date:</span> ${esc(metaDate(entry.reservedAt))}</div>` : ''}
+    ${!isReservation && entry.deactDate ? `<div><span style="color:var(--t2)">Deactivation date:</span> ${esc(fmt(entry.deactDate))}</div>` : ''}`.trim();
   document.getElementById('delHistOv').classList.add('on');
 
   const button = document.getElementById('delHistConfirmBtn');
@@ -1693,7 +1771,7 @@ function confirmDeleteHistoryEntry(recordId, historyIndex) {
       const snap = await ref.get();
       if (!snap.exists) throw new Error('The inventory record no longer exists.');
       const latest = snap.data();
-      const latestHistory = Array.isArray(latest.deactivationHistory) ? latest.deactivationHistory : [];
+      const latestHistory = Array.isArray(latest[historyField]) ? latest[historyField] : [];
       if (!latestHistory[historyIndex] || JSON.stringify(latestHistory[historyIndex]) !== expectedEntry) {
         throw new Error('The history changed since you opened it. Reload and try again.');
       }
@@ -1702,12 +1780,13 @@ function confirmDeleteHistoryEntry(recordId, historyIndex) {
       const [removed] = nextHistory.splice(historyIndex, 1);
       const updatedAt = new Date().toISOString();
       const updatedBy = currentUser.email;
-      await ref.update({deactivationHistory: nextHistory, updatedAt, updatedBy});
+      await ref.update({[historyField]: nextHistory, updatedAt, updatedBy});
 
       const localIndex = DB.findIndex(r => r.id === recordId);
-      if (localIndex > -1) DB[localIndex] = {...DB[localIndex], deactivationHistory:nextHistory, updatedAt, updatedBy};
-      await addLog('Updated', `Deleted a history entry from number ${record.number}`,
-        {records:[{number:record.number || '', client:removed.previousClient || removed.activation?.client || '', product:removed.activation?.product || '', status:'History deleted'}]});
+      if (localIndex > -1) DB[localIndex] = {...DB[localIndex], [historyField]:nextHistory, updatedAt, updatedBy};
+      const removedSnapshot = removed.activation || removed.reservation || {};
+      await addLog('Updated', `Deleted a ${isReservation ? 'reservation ' : ''}history entry from number ${record.number}`,
+        {records:[{number:record.number || '', client:removed.previousClient || removedSnapshot.client || '', product:removedSnapshot.product || '', status:'History deleted'}]});
       refreshInventoryRecent();
       renderTbl();
       propagateChange([recordId]);
@@ -1981,13 +2060,13 @@ async function saveRec() {
   Object.entries(mMap).forEach(([id,key]) => { const el=document.getElementById(id); if(el) nd[key]=el.value; });
   nd.updatedBy = currentUser?.email || 'system';
   nd.updatedAt = new Date().toISOString();
+  const currentRec = editId ? DB.find(r => r.id === editId) : null;
 
   // ── Deactivation ───
   const isDeact = editId && document.getElementById('mDeactSection')?.style.display === 'block';
   if (isDeact) {
     const deactDateVal = document.getElementById('dDeactDate').value;
     if (!deactDateVal) { showToast('Deactivation date is required.', 'warning'); document.getElementById('dDeactDate').focus(); return; }
-    const currentRec = DB.find(r => r.id === editId);
     const histEntry = {
       previousClient: currentRec?.client || '',
       activation: activationSnapshot(currentRec || {}),
@@ -2010,6 +2089,7 @@ async function saveRec() {
     nd.prevClient = currentRec?.client || '';
     nd.deactivationHistory = [...(currentRec?.deactivationHistory || []), histEntry];
   }
+  applyReservationHistory(currentRec, nd, nd, nd.updatedAt, nd.updatedBy);
 
   // Persist Posted Status in canonical form. Posting times for the whole "For Posting" set
   // are (re)generated together by resequencePostingTimes() after the save succeeds below.
@@ -2200,6 +2280,7 @@ async function handleCSV(e) {
           deactivationHistory: [...(existing.deactivationHistory || []), histEntry],
           updatedBy: nd.updatedBy, updatedAt: nd.updatedAt
         };
+        applyReservationHistory(existing, {...existing, ...updateData}, updateData, nd.updatedAt, nd.updatedBy);
         ops.push({type:'update', ref:fdb.collection('inventory').doc(existing.id), data:updateData, id:existing.id, deact:true});
       } else {
         // Strip empty-string values so existing non-blank data is not overwritten.
@@ -2211,11 +2292,13 @@ async function handleCSV(e) {
             updateData[k] = v;
           }
         });
+        applyReservationHistory(existing, {...existing, ...updateData}, updateData, nd.updatedAt, nd.updatedBy);
         ops.push({type:'update', ref:fdb.collection('inventory').doc(existing.id), data:updateData, id:existing.id});
       }
     } else {
       nd.createdBy = currentUser?.email||'system';
       nd.createdAt = batchUpdatedAt;
+      applyReservationHistory(null, nd, nd, nd.updatedAt, nd.updatedBy);
       const ref = fdb.collection('inventory').doc();
       nd.id = ref.id;
       ops.push({type:'set', ref, data:nd});
@@ -3316,7 +3399,7 @@ async function saveBulkEdit() {
         ids.slice(i,i+CHUNK).forEach(id => {
           const rec = DB.find(r => r.id===id);
           const histEntry = { previousClient: rec?.client||'', activation: activationSnapshot(rec || {}), deactDate: deactDateVal, requestedBy, remarks: bdRemarks, postedStatus: rec?.postedStatus||'', postedDate: rec?.postedDate||'', postedHour: rec?.postedHour||'', postedMin: rec?.postedMin||'', deactivatedBy, deactivatedAt };
-          b.update(fdb.collection('inventory').doc(id), {
+          const updateData = {
             client:'', status:'Available', remarks:'', postedStatus:'', postedDate:'',
             postedHour:'', postedMin:'', postedTimeAt:'',
             clientOSF:'', clientMRC:'', clientOTRF:'', clientCF:'', clientCPM:'',
@@ -3324,7 +3407,9 @@ async function saveBulkEdit() {
             prevClient: rec?.client||'',
             deactivationHistory: [...(rec?.deactivationHistory||[]), histEntry],
             updatedBy: deactivatedBy, updatedAt: deactivatedAt
-          });
+          };
+          applyReservationHistory(rec, {...rec, ...updateData}, updateData, deactivatedAt, deactivatedBy);
+          b.update(fdb.collection('inventory').doc(id), updateData);
         });
         await b.commit();
       }
@@ -3333,7 +3418,9 @@ async function saveBulkEdit() {
         if (idx>-1) {
           const rec = DB[idx];
           const histEntry = { previousClient: rec.client||'', activation: activationSnapshot(rec), deactDate: deactDateVal, requestedBy, remarks: bdRemarks, postedStatus: rec.postedStatus||'', postedDate: rec.postedDate||'', postedHour: rec.postedHour||'', postedMin: rec.postedMin||'', deactivatedBy, deactivatedAt };
-          DB[idx] = {...rec, client:'', status:'Available', remarks:'', postedStatus:'', postedDate:'', postedHour:'', postedMin:'', postedTimeAt:'', clientOSF:'', clientMRC:'', clientOTRF:'', clientCF:'', clientCPM:'', effDate:'', actDate:'', deactDate: deactDateVal, route: requestedBy, prevClient: rec.client||'', deactivationHistory:[...(rec.deactivationHistory||[]),histEntry], updatedBy:deactivatedBy, updatedAt:deactivatedAt};
+          const updateData = {client:'', status:'Available', remarks:'', postedStatus:'', postedDate:'', postedHour:'', postedMin:'', postedTimeAt:'', clientOSF:'', clientMRC:'', clientOTRF:'', clientCF:'', clientCPM:'', effDate:'', actDate:'', deactDate: deactDateVal, route: requestedBy, prevClient: rec.client||'', deactivationHistory:[...(rec.deactivationHistory||[]),histEntry], updatedBy:deactivatedBy, updatedAt:deactivatedAt};
+          applyReservationHistory(rec, {...rec, ...updateData}, updateData, deactivatedAt, deactivatedBy);
+          DB[idx] = {...rec, ...updateData};
         }
       });
       refreshInventoryEditedFirst(ids);   // deactivated rows on top, low→high by Number
@@ -3371,12 +3458,19 @@ async function saveBulkEdit() {
 
   try {
     const CHUNK = 400;
+    const perRecordUpdates = new Map();
     for (let i=0; i<ids.length; i+=CHUNK) {
       const b = fdb.batch();
-      ids.slice(i,i+CHUNK).forEach(id => b.update(fdb.collection('inventory').doc(id), updates));
+      ids.slice(i,i+CHUNK).forEach(id => {
+        const rec = DB.find(r => r.id===id);
+        const recordUpdates = {...updates};
+        applyReservationHistory(rec, {...rec, ...recordUpdates}, recordUpdates, updates.updatedAt, updates.updatedBy);
+        perRecordUpdates.set(id, recordUpdates);
+        b.update(fdb.collection('inventory').doc(id), recordUpdates);
+      });
       await b.commit();
     }
-    ids.forEach(id => { const idx=DB.findIndex(r=>r.id===id); if(idx>-1) DB[idx]={...DB[idx],...updates}; });
+    ids.forEach(id => { const idx=DB.findIndex(r=>r.id===id); if(idx>-1) DB[idx]={...DB[idx],...(perRecordUpdates.get(id)||updates)}; });
     refreshInventoryEditedFirst(ids);   // edited rows on top, low→high by Number
     const reseq = await resequencePostingTimes();
     renderTbl();

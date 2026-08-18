@@ -139,6 +139,7 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg2);color:var(
 .btn-d.active:hover{background:#dc2626;border-color:#dc2626}
 .deact-hist-entry{background:var(--bg3);border-radius:var(--r);padding:9px 11px;margin-bottom:8px;border-left:3px solid var(--err)}
 .act-hist-entry{border-left-color:var(--ok)}
+.res-hist-entry{border-left-color:var(--warn)}
 .deact-hist-entry:last-child{margin-bottom:0}
 .deact-hist-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px}
 .deact-hist-tools{display:flex;align-items:center;gap:7px;flex-shrink:0}
