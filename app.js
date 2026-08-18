@@ -371,6 +371,285 @@ function dismissToast(t) {
   setTimeout(() => t.remove(), 210);
 }
 
+// ── PREMIUM SELECTS ──────────────────────────────────
+// Native <select> elements remain the single source of truth so all existing
+// value reads and onchange handlers keep working. This layer replaces only the
+// visible control/menu and mirrors every selection back to the native field.
+const premiumSelectState = new WeakMap();
+let premiumSelectOpen = null;
+let premiumSelectSeq = 0;
+
+function premiumSelectLabel(select) {
+  const explicit = select.getAttribute('aria-label');
+  const fieldLabel = select.closest('.fg')?.querySelector('label')?.textContent?.trim();
+  return explicit || fieldLabel || select.id.replace(/([a-z])([A-Z])/g, '$1 $2') || 'Dropdown';
+}
+
+function syncPremiumSelect(select) {
+  const state = premiumSelectState.get(select);
+  if (!state) return;
+  const option = select.options[select.selectedIndex] || select.options[0];
+  state.value.textContent = option?.textContent?.trim() || 'Select an option';
+  state.trigger.classList.toggle('is-placeholder', !select.value);
+  state.trigger.disabled = select.disabled;
+  state.trigger.setAttribute('aria-disabled', select.disabled ? 'true' : 'false');
+  state.trigger.title = option?.textContent?.trim() || '';
+  if (premiumSelectOpen?.select === select) renderPremiumSelectOptions(premiumSelectOpen);
+}
+
+function enhancePremiumSelect(select) {
+  if (!(select instanceof HTMLSelectElement) || premiumSelectState.has(select)) return;
+  const wrap = document.createElement('div');
+  const sizeClass = select.classList.contains('fc') ? 'pselect--field'
+    : select.classList.contains('fsel') ? 'pselect--filter' : 'pselect--compact';
+  wrap.className = `pselect ${sizeClass}`;
+  if (select.style.flex) wrap.style.flex = select.style.flex;
+  if (select.style.minWidth) wrap.style.minWidth = select.style.minWidth;
+  if (select.style.width) wrap.style.width = select.style.width;
+
+  select.parentNode.insertBefore(wrap, select);
+  wrap.appendChild(select);
+  select.classList.add('pselect-native');
+  select.tabIndex = -1;
+  select.setAttribute('aria-hidden', 'true');
+
+  const trigger = document.createElement('button');
+  trigger.type = 'button';
+  trigger.className = 'pselect-trigger';
+  trigger.setAttribute('role', 'combobox');
+  trigger.setAttribute('aria-haspopup', 'listbox');
+  trigger.setAttribute('aria-expanded', 'false');
+  trigger.setAttribute('aria-label', premiumSelectLabel(select));
+  if (select.style.height) trigger.style.height = select.style.height;
+  if (select.style.fontSize) trigger.style.fontSize = select.style.fontSize;
+  if (select.style.textTransform) trigger.style.textTransform = select.style.textTransform;
+  if (select.style.letterSpacing) trigger.style.letterSpacing = select.style.letterSpacing;
+  const value = document.createElement('span');
+  value.className = 'pselect-value';
+  const chevron = document.createElement('span');
+  chevron.className = 'pselect-chevron';
+  chevron.setAttribute('aria-hidden', 'true');
+  chevron.innerHTML = '<svg viewBox="0 0 20 20"><path d="m5.5 7.5 4.5 4.5 4.5-4.5"/></svg>';
+  trigger.append(value, chevron);
+  wrap.appendChild(trigger);
+
+  const state = {select, wrap, trigger, value, observer:null};
+  premiumSelectState.set(select, state);
+  select.dataset.premiumSelect = 'true';
+  const valueDescriptor = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value');
+  if (valueDescriptor?.get && valueDescriptor?.set) {
+    Object.defineProperty(select, 'value', {
+      configurable:true,
+      get() { return valueDescriptor.get.call(this); },
+      set(next) {
+        valueDescriptor.set.call(this, next);
+        queueMicrotask(() => syncPremiumSelect(this));
+      }
+    });
+  }
+
+  state.observer = new MutationObserver(() => syncPremiumSelect(select));
+  state.observer.observe(select, {childList:true, subtree:true, attributes:true, attributeFilter:['disabled','selected','label']});
+  select.addEventListener('change', () => syncPremiumSelect(select));
+  select.addEventListener('input', () => syncPremiumSelect(select));
+  trigger.addEventListener('click', e => {
+    e.stopPropagation();
+    premiumSelectOpen?.select === select ? closePremiumSelect() : openPremiumSelect(select);
+  });
+  trigger.addEventListener('keydown', e => {
+    if (!['Enter',' ','ArrowDown','ArrowUp'].includes(e.key)) return;
+    e.preventDefault();
+    openPremiumSelect(select, true, e.key === 'ArrowUp');
+  });
+  syncPremiumSelect(select);
+}
+
+function initPremiumSelects(root=document) {
+  if (root instanceof HTMLSelectElement) enhancePremiumSelect(root);
+  root.querySelectorAll?.('select').forEach(enhancePremiumSelect);
+}
+
+function premiumSelectOptionButton(select, option, index, state) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'pselect-option';
+  button.setAttribute('role', 'option');
+  button.dataset.index = index;
+  button.dataset.search = (option.textContent || '').toLowerCase();
+  const selected = index === select.selectedIndex;
+  button.setAttribute('aria-selected', selected ? 'true' : 'false');
+  if (selected) button.classList.add('is-selected');
+  if (option.disabled) { button.disabled = true; button.classList.add('is-disabled'); }
+  const text = document.createElement('span');
+  text.className = 'pselect-option-text';
+  text.textContent = option.textContent;
+  const check = document.createElement('span');
+  check.className = 'pselect-check';
+  check.setAttribute('aria-hidden', 'true');
+  check.innerHTML = '<svg viewBox="0 0 16 16"><path d="m4 8.2 2.4 2.4L12 5"/></svg>';
+  button.append(text, check);
+  button.addEventListener('keydown', e => {
+    if (!['Enter',' '].includes(e.key)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    button.click();
+  });
+  button.addEventListener('click', e => {
+    e.stopPropagation();
+    if (option.disabled) return;
+    const changed = select.selectedIndex !== index;
+    select.selectedIndex = index;
+    syncPremiumSelect(select);
+    closePremiumSelect(true);
+    if (changed) {
+      select.dispatchEvent(new Event('input', {bubbles:true}));
+      select.dispatchEvent(new Event('change', {bubbles:true}));
+    }
+  });
+  state.list.appendChild(button);
+  return button;
+}
+
+function renderPremiumSelectOptions(state, query='') {
+  const {select, list} = state;
+  if (!list) return;
+  list.innerHTML = '';
+  const normalized = query.trim().toLowerCase();
+  let matches = 0;
+  [...select.options].forEach((option, index) => {
+    if (normalized && !option.textContent.toLowerCase().includes(normalized)) return;
+    premiumSelectOptionButton(select, option, index, state);
+    matches++;
+  });
+  if (!matches) {
+    const empty = document.createElement('div');
+    empty.className = 'pselect-empty';
+    empty.textContent = 'No matching options';
+    list.appendChild(empty);
+  }
+}
+
+function positionPremiumSelect() {
+  const state = premiumSelectOpen;
+  if (!state?.menu?.isConnected) return;
+  const rect = state.trigger.getBoundingClientRect();
+  const viewportGap = 8;
+  const width = Math.min(Math.max(rect.width, 190), window.innerWidth - viewportGap * 2);
+  state.menu.style.width = `${width}px`;
+  const height = Math.min(state.menu.scrollHeight, 340);
+  const below = window.innerHeight - rect.bottom - viewportGap;
+  const above = rect.top - viewportGap;
+  const openAbove = below < Math.min(height, 230) && above > below;
+  const left = Math.min(Math.max(viewportGap, rect.left), window.innerWidth - width - viewportGap);
+  const top = openAbove ? Math.max(viewportGap, rect.top - height - 6) : Math.min(window.innerHeight - height - viewportGap, rect.bottom + 6);
+  state.menu.style.left = `${left}px`;
+  state.menu.style.top = `${Math.max(viewportGap, top)}px`;
+  state.menu.classList.toggle('opens-up', openAbove);
+}
+
+function focusPremiumOption(state, last=false) {
+  requestAnimationFrame(() => {
+    const enabled = [...state.list.querySelectorAll('.pselect-option:not(:disabled)')];
+    const selected = state.list.querySelector('.pselect-option.is-selected:not(:disabled)');
+    (last ? enabled.at(-1) : selected || enabled[0])?.focus();
+  });
+}
+
+function openPremiumSelect(select, focusOption=false, last=false) {
+  if (select.disabled) return;
+  closePremiumSelect();
+  const base = premiumSelectState.get(select);
+  if (!base) return;
+  syncPremiumSelect(select);
+  const state = {...base};
+  const menu = document.createElement('div');
+  menu.className = 'pselect-menu';
+  menu.id = `pselect-menu-${++premiumSelectSeq}`;
+  menu.setAttribute('role', 'presentation');
+  const label = document.createElement('div');
+  label.className = 'pselect-menu-label';
+  label.textContent = premiumSelectLabel(select);
+  menu.appendChild(label);
+  if (select.options.length > 8) {
+    const searchWrap = document.createElement('div');
+    searchWrap.className = 'pselect-search-wrap';
+    searchWrap.innerHTML = '<svg aria-hidden="true" viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m12.5 12.5 4 4"/></svg>';
+    const search = document.createElement('input');
+    search.type = 'search';
+    search.className = 'pselect-search';
+    search.placeholder = 'Search options…';
+    search.setAttribute('aria-label', `Search ${premiumSelectLabel(select)}`);
+    searchWrap.appendChild(search);
+    menu.appendChild(searchWrap);
+    state.search = search;
+    search.addEventListener('input', () => { renderPremiumSelectOptions(state, search.value); positionPremiumSelect(); });
+    search.addEventListener('keydown', e => {
+      if (e.key === 'ArrowDown') { e.preventDefault(); state.list.querySelector('.pselect-option:not(:disabled)')?.focus(); }
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closePremiumSelect(true); }
+    });
+  }
+  const list = document.createElement('div');
+  list.className = 'pselect-list';
+  list.setAttribute('role', 'listbox');
+  list.setAttribute('aria-label', premiumSelectLabel(select));
+  state.list = list;
+  state.menu = menu;
+  menu.appendChild(list);
+  renderPremiumSelectOptions(state);
+  document.body.appendChild(menu);
+  premiumSelectOpen = state;
+  state.wrap.classList.add('is-open');
+  state.trigger.setAttribute('aria-expanded', 'true');
+  state.trigger.setAttribute('aria-controls', menu.id);
+  positionPremiumSelect();
+  requestAnimationFrame(() => menu.classList.add('is-visible'));
+  if (focusOption) focusPremiumOption(state, last);
+}
+
+function closePremiumSelect(restoreFocus=false) {
+  const state = premiumSelectOpen;
+  if (!state) return;
+  state.wrap.classList.remove('is-open');
+  state.trigger.setAttribute('aria-expanded', 'false');
+  state.trigger.removeAttribute('aria-controls');
+  state.menu?.remove();
+  premiumSelectOpen = null;
+  if (restoreFocus) state.trigger.focus();
+}
+
+document.addEventListener('click', e => {
+  if (premiumSelectOpen && !premiumSelectOpen.menu.contains(e.target) && !premiumSelectOpen.wrap.contains(e.target)) closePremiumSelect();
+});
+document.addEventListener('keydown', e => {
+  const state = premiumSelectOpen;
+  if (!state) return;
+  if (e.key === 'Tab') { closePremiumSelect(); return; }
+  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closePremiumSelect(true); return; }
+  if (['Enter',' '].includes(e.key) && e.target.matches('.pselect-option')) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.target.click();
+    return;
+  }
+  if (!['ArrowDown','ArrowUp','Home','End'].includes(e.key) || !e.target.closest('.pselect-list')) return;
+  e.preventDefault();
+  const enabled = [...state.list.querySelectorAll('.pselect-option:not(:disabled)')];
+  const current = enabled.indexOf(document.activeElement);
+  const next = e.key === 'Home' ? 0 : e.key === 'End' ? enabled.length - 1
+    : e.key === 'ArrowDown' ? Math.min(enabled.length - 1, current + 1)
+    : Math.max(0, current - 1);
+  enabled[next]?.focus();
+}, true);
+window.addEventListener('resize', positionPremiumSelect);
+document.addEventListener('scroll', positionPremiumSelect, true);
+
+const premiumSelectObserver = new MutationObserver(records => {
+  records.forEach(record => record.addedNodes.forEach(node => {
+    if (node.nodeType === 1) initPremiumSelects(node);
+  }));
+});
+premiumSelectObserver.observe(document.documentElement, {childList:true, subtree:true});
+
 // ── THEME ─────────────────────────────────────────────
 function toggleTheme() {
   const h = document.documentElement;
@@ -3425,7 +3704,11 @@ window.addEventListener('resize', () => {
 
 // ── KEYBOARD SHORTCUTS ────────────────────────────────
 document.addEventListener('keydown', e => {
-  const typing = document.activeElement && ['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName);
+  const typing = document.activeElement && (
+    ['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName) ||
+    document.activeElement.classList.contains('pselect-trigger') ||
+    document.activeElement.closest('.pselect-menu')
+  );
   if (e.key === 'Escape') {
     if (document.getElementById('moOv').classList.contains('on'))        { closeMo();  return; }
     if (document.getElementById('beOv').classList.contains('on'))        { closeBE();  return; }
@@ -3451,6 +3734,7 @@ document.addEventListener('keydown', e => {
 initEL();
 initDateMirrors();
 initPostedTimeSelects();
+initPremiumSelects();
 loadPinned();
 if (EL.pgSize) EL.pgSize.value = '50';
 renderDash(); renderTbl(); renderLogs();
