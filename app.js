@@ -603,7 +603,13 @@ function openPremiumSelect(select, focusOption=false, last=false) {
   state.trigger.setAttribute('aria-controls', menu.id);
   positionPremiumSelect();
   requestAnimationFrame(() => menu.classList.add('is-visible'));
-  if (focusOption) focusPremiumOption(state, last);
+  // Searchable dropdowns should be ready for typing the instant they open.
+  // This also keeps keyboard-opened menus consistent with pointer-opened ones.
+  if (state.search) {
+    requestAnimationFrame(() => state.search.focus({preventScroll:true}));
+  } else if (focusOption) {
+    focusPremiumOption(state, last);
+  }
 }
 
 function closePremiumSelect(restoreFocus=false) {
