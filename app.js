@@ -656,6 +656,261 @@ const premiumSelectObserver = new MutationObserver(records => {
 });
 premiumSelectObserver.observe(document.documentElement, {childList:true, subtree:true});
 
+// ── PREMIUM DATE PICKERS ─────────────────────────────
+// Keep the native date input as the source of truth so all existing `.value`,
+// input/change listeners, validation, filters, imports, and save logic continue
+// to work. Only the visible field and browser-owned calendar are replaced.
+const premiumDateState = new WeakMap();
+let premiumDateOpen = null;
+let premiumDateSeq = 0;
+const PDATE_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const PDATE_WEEKDAYS = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+
+function premiumDateParts(value) {
+  const m = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const y = +m[1], mon = +m[2] - 1, d = +m[3];
+  const date = new Date(y, mon, d);
+  return date.getFullYear() === y && date.getMonth() === mon && date.getDate() === d ? {y, m:mon, d} : null;
+}
+function premiumDateValue(y, m, d) {
+  return `${y}-${String(m + 1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+}
+function premiumDateDisplay(value) {
+  const p = premiumDateParts(value);
+  return p ? `${String(p.m + 1).padStart(2,'0')}/${String(p.d).padStart(2,'0')}/${p.y}` : 'mm/dd/yyyy';
+}
+function premiumDateLabel(input) {
+  const explicit = input.getAttribute('aria-label');
+  const fieldLabel = input.closest('.fg')?.querySelector('label')?.textContent?.replace(/\s*\*.*/, '')?.trim();
+  const known = {fDateFrom:'Activation date from',fDateTo:'Activation date to',lFrom:'Log date from',lTo:'Log date to'};
+  return explicit || fieldLabel || known[input.id] || input.id.replace(/([a-z])([A-Z])/g, '$1 $2') || 'Date';
+}
+function premiumDateToday() {
+  const n = new Date(); return {y:n.getFullYear(), m:n.getMonth(), d:n.getDate()};
+}
+function premiumDateAllowed(input, value) {
+  return (!input.min || value >= input.min) && (!input.max || value <= input.max);
+}
+function syncPremiumDate(input) {
+  const state = premiumDateState.get(input);
+  if (!state) return;
+  state.value.textContent = premiumDateDisplay(input.value);
+  state.trigger.classList.toggle('is-placeholder', !input.value);
+  state.trigger.disabled = input.disabled;
+  state.trigger.setAttribute('aria-disabled', input.disabled ? 'true' : 'false');
+  if (premiumDateOpen?.input === input) {
+    const selected = premiumDateParts(input.value);
+    if (selected) premiumDateOpen.cursor = {...selected};
+    renderPremiumDate(premiumDateOpen);
+  }
+}
+function enhancePremiumDate(input) {
+  if (!(input instanceof HTMLInputElement) || input.type !== 'date' || premiumDateState.has(input)) return;
+  const wrap = document.createElement('div');
+  wrap.className = `pdate ${input.classList.contains('fc') ? 'pdate--field' : 'pdate--filter'}`;
+  if (input.style.flex) wrap.style.flex = input.style.flex;
+  if (input.style.minWidth) wrap.style.minWidth = input.style.minWidth;
+  if (input.style.width) wrap.style.width = input.style.width;
+  input.parentNode.insertBefore(wrap, input);
+  wrap.appendChild(input);
+  input.classList.add('pdate-native');
+  input.tabIndex = -1;
+  input.setAttribute('aria-hidden', 'true');
+
+  const trigger = document.createElement('button');
+  trigger.type = 'button';
+  trigger.className = 'pdate-trigger';
+  trigger.setAttribute('aria-haspopup', 'dialog');
+  trigger.setAttribute('aria-expanded', 'false');
+  trigger.setAttribute('aria-label', premiumDateLabel(input));
+  const value = document.createElement('span');
+  value.className = 'pdate-value';
+  const icon = document.createElement('span');
+  icon.className = 'pdate-icon';
+  icon.setAttribute('aria-hidden', 'true');
+  icon.innerHTML = '<svg viewBox="0 0 20 20"><rect x="3" y="4.5" width="14" height="12" rx="2"/><path d="M6.5 2.8v3.4M13.5 2.8v3.4M3 8h14"/></svg>';
+  trigger.append(value, icon);
+  wrap.appendChild(trigger);
+
+  const state = {input, wrap, trigger, value, observer:null};
+  premiumDateState.set(input, state);
+  const valueDescriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+  if (valueDescriptor?.get && valueDescriptor?.set) {
+    Object.defineProperty(input, 'value', {
+      configurable:true,
+      get() { return valueDescriptor.get.call(this); },
+      set(next) { valueDescriptor.set.call(this, next); queueMicrotask(() => syncPremiumDate(this)); }
+    });
+  }
+  state.observer = new MutationObserver(() => syncPremiumDate(input));
+  state.observer.observe(input, {attributes:true, attributeFilter:['disabled','min','max','value']});
+  input.addEventListener('input', () => syncPremiumDate(input));
+  input.addEventListener('change', () => syncPremiumDate(input));
+  trigger.addEventListener('click', e => {
+    e.stopPropagation();
+    premiumDateOpen?.input === input ? closePremiumDate() : openPremiumDate(input);
+  });
+  trigger.addEventListener('keydown', e => {
+    if (!['Enter',' ','ArrowDown'].includes(e.key)) return;
+    e.preventDefault(); openPremiumDate(input);
+  });
+  syncPremiumDate(input);
+}
+function initPremiumDates(root=document) {
+  if (root instanceof HTMLInputElement && root.type === 'date') enhancePremiumDate(root);
+  root.querySelectorAll?.('input[type="date"]').forEach(enhancePremiumDate);
+}
+function premiumDateLongLabel(y, m, d) {
+  return new Date(y,m,d).toLocaleDateString(undefined,{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+}
+function renderPremiumDate(state) {
+  if (!state?.grid) return;
+  const {y, m} = state.view;
+  state.title.textContent = `${PDATE_MONTHS[m]} ${y}`;
+  state.grid.innerHTML = '';
+  const firstOffset = new Date(y,m,1).getDay();
+  const selected = premiumDateParts(state.input.value);
+  const today = premiumDateToday();
+  for (let i=0; i<42; i++) {
+    const date = new Date(y,m,1 - firstOffset + i);
+    const py=date.getFullYear(), pm=date.getMonth(), pd=date.getDate();
+    const dateValue = premiumDateValue(py,pm,pd);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pdate-day';
+    btn.textContent = pd;
+    btn.dataset.date = dateValue;
+    btn.setAttribute('role','gridcell');
+    btn.setAttribute('aria-label',premiumDateLongLabel(py,pm,pd));
+    if (pm !== m) btn.classList.add('is-outside');
+    if (today.y===py && today.m===pm && today.d===pd) { btn.classList.add('is-today'); btn.setAttribute('aria-current','date'); }
+    if (selected && selected.y===py && selected.m===pm && selected.d===pd) { btn.classList.add('is-selected'); btn.setAttribute('aria-selected','true'); }
+    if (state.cursor && state.cursor.y===py && state.cursor.m===pm && state.cursor.d===pd) btn.classList.add('is-cursor');
+    if (!premiumDateAllowed(state.input,dateValue)) btn.disabled = true;
+    btn.addEventListener('click', e => { e.stopPropagation(); choosePremiumDate(state,py,pm,pd); });
+    btn.addEventListener('keydown', e => handlePremiumDateKey(e,state,py,pm,pd));
+    state.grid.appendChild(btn);
+  }
+}
+function positionPremiumDate() {
+  const state = premiumDateOpen;
+  if (!state?.menu?.isConnected) return;
+  const rect = state.trigger.getBoundingClientRect();
+  const gap = 8;
+  const width = Math.min(304, window.innerWidth - gap * 2);
+  state.menu.style.width = `${width}px`;
+  const height = Math.min(state.menu.scrollHeight, window.innerHeight - gap * 2);
+  const below = window.innerHeight - rect.bottom - gap;
+  const above = rect.top - gap;
+  const opensUp = below < height && above > below;
+  const left = Math.min(Math.max(gap, rect.left), window.innerWidth - width - gap);
+  const top = opensUp ? rect.top - height - 7 : rect.bottom + 7;
+  state.menu.style.left = `${left}px`;
+  state.menu.style.top = `${Math.max(gap, Math.min(top, window.innerHeight-height-gap))}px`;
+  state.menu.classList.toggle('opens-up',opensUp);
+}
+function focusPremiumDateCursor(state) {
+  requestAnimationFrame(() => state.grid.querySelector(`[data-date="${premiumDateValue(state.cursor.y,state.cursor.m,state.cursor.d)}"]:not(:disabled)`)?.focus({preventScroll:true}));
+}
+function shiftPremiumDateMonth(state, delta, focusDay=false) {
+  const next = new Date(state.view.y,state.view.m + delta,1);
+  state.view = {y:next.getFullYear(),m:next.getMonth()};
+  const maxDay = new Date(state.view.y,state.view.m+1,0).getDate();
+  state.cursor = {y:state.view.y,m:state.view.m,d:Math.min(state.cursor?.d || 1,maxDay)};
+  renderPremiumDate(state); positionPremiumDate();
+  if (focusDay) focusPremiumDateCursor(state);
+}
+function movePremiumDateCursor(state, y, m, d, amount) {
+  const next = new Date(y,m,d + amount);
+  state.cursor = {y:next.getFullYear(),m:next.getMonth(),d:next.getDate()};
+  state.view = {y:state.cursor.y,m:state.cursor.m};
+  renderPremiumDate(state); positionPremiumDate(); focusPremiumDateCursor(state);
+}
+function handlePremiumDateKey(e,state,y,m,d) {
+  const moves = {ArrowLeft:-1,ArrowRight:1,ArrowUp:-7,ArrowDown:7};
+  if (moves[e.key]) { e.preventDefault(); movePremiumDateCursor(state,y,m,d,moves[e.key]); return; }
+  if (e.key==='Home') { e.preventDefault(); movePremiumDateCursor(state,y,m,d,-new Date(y,m,d).getDay()); return; }
+  if (e.key==='End') { e.preventDefault(); movePremiumDateCursor(state,y,m,d,6-new Date(y,m,d).getDay()); return; }
+  if (e.key==='PageUp' || e.key==='PageDown') { e.preventDefault(); shiftPremiumDateMonth(state,e.key==='PageUp'?-1:1,true); return; }
+  if (e.key==='Enter' || e.key===' ') { e.preventDefault(); choosePremiumDate(state,y,m,d); }
+}
+function choosePremiumDate(state,y,m,d) {
+  const next = premiumDateValue(y,m,d);
+  if (!premiumDateAllowed(state.input,next)) return;
+  const changed = state.input.value !== next;
+  state.input.value = next;
+  syncPremiumDate(state.input);
+  closePremiumDate(true);
+  if (changed) {
+    state.input.dispatchEvent(new Event('input',{bubbles:true}));
+    state.input.dispatchEvent(new Event('change',{bubbles:true}));
+  }
+}
+function clearPremiumDate(state) {
+  const changed = !!state.input.value;
+  state.input.value = '';
+  syncPremiumDate(state.input);
+  closePremiumDate(true);
+  if (changed) {
+    state.input.dispatchEvent(new Event('input',{bubbles:true}));
+    state.input.dispatchEvent(new Event('change',{bubbles:true}));
+  }
+}
+function openPremiumDate(input) {
+  if (input.disabled) return;
+  closePremiumSelect(); closePremiumDate();
+  const base = premiumDateState.get(input);
+  if (!base) return;
+  const selected = premiumDateParts(input.value);
+  const today = premiumDateToday();
+  const cursor = selected || today;
+  const state = {...base,cursor:{...cursor},view:{y:cursor.y,m:cursor.m}};
+  const menu = document.createElement('div');
+  menu.className = 'pdate-menu';
+  menu.id = `pdate-menu-${++premiumDateSeq}`;
+  menu.setAttribute('role','dialog');
+  menu.setAttribute('aria-label',`Choose ${premiumDateLabel(input)}`);
+  const head = document.createElement('div'); head.className='pdate-head';
+  const title = document.createElement('div'); title.className='pdate-title'; title.setAttribute('aria-live','polite');
+  const nav = document.createElement('div'); nav.className='pdate-nav';
+  const prev = document.createElement('button'); prev.type='button'; prev.className='pdate-nav-btn'; prev.setAttribute('aria-label','Previous month'); prev.innerHTML='<svg viewBox="0 0 20 20"><path d="m12.5 5-5 5 5 5"/></svg>';
+  const next = document.createElement('button'); next.type='button'; next.className='pdate-nav-btn'; next.setAttribute('aria-label','Next month'); next.innerHTML='<svg viewBox="0 0 20 20"><path d="m7.5 5 5 5-5 5"/></svg>';
+  prev.addEventListener('click',e=>{e.stopPropagation();shiftPremiumDateMonth(state,-1);});
+  next.addEventListener('click',e=>{e.stopPropagation();shiftPremiumDateMonth(state,1);});
+  nav.append(prev,next); head.append(title,nav); menu.appendChild(head);
+  const weekdays=document.createElement('div'); weekdays.className='pdate-weekdays';
+  PDATE_WEEKDAYS.forEach(day=>{const el=document.createElement('span');el.textContent=day;weekdays.appendChild(el);});
+  menu.appendChild(weekdays);
+  const grid=document.createElement('div'); grid.className='pdate-grid'; grid.setAttribute('role','grid'); menu.appendChild(grid);
+  const foot=document.createElement('div'); foot.className='pdate-foot';
+  const clear=document.createElement('button'); clear.type='button'; clear.className='pdate-foot-btn'; clear.textContent='Clear'; clear.addEventListener('click',e=>{e.stopPropagation();clearPremiumDate(state);});
+  const todayBtn=document.createElement('button'); todayBtn.type='button'; todayBtn.className='pdate-foot-btn is-primary'; todayBtn.textContent='Today';
+  const todayValue=premiumDateValue(today.y,today.m,today.d); todayBtn.disabled=!premiumDateAllowed(input,todayValue);
+  todayBtn.addEventListener('click',e=>{e.stopPropagation();choosePremiumDate(state,today.y,today.m,today.d);});
+  foot.append(clear,todayBtn); menu.appendChild(foot);
+  state.menu=menu;state.title=title;state.grid=grid;
+  document.body.appendChild(menu); premiumDateOpen=state;
+  state.wrap.classList.add('is-open'); state.trigger.setAttribute('aria-expanded','true'); state.trigger.setAttribute('aria-controls',menu.id);
+  renderPremiumDate(state); positionPremiumDate();
+  requestAnimationFrame(()=>{menu.classList.add('is-visible');focusPremiumDateCursor(state);});
+}
+function closePremiumDate(restoreFocus=false) {
+  const state=premiumDateOpen;if(!state)return;
+  state.wrap.classList.remove('is-open');state.trigger.setAttribute('aria-expanded','false');state.trigger.removeAttribute('aria-controls');state.menu?.remove();premiumDateOpen=null;
+  if(restoreFocus)state.trigger.focus();
+}
+document.addEventListener('click',e=>{if(premiumDateOpen&&!premiumDateOpen.menu.contains(e.target)&&!premiumDateOpen.wrap.contains(e.target))closePremiumDate();});
+document.addEventListener('keydown',e=>{
+  if(!premiumDateOpen)return;
+  if(e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();closePremiumDate(true);}
+  else if(e.key==='Tab')closePremiumDate();
+},true);
+window.addEventListener('resize',positionPremiumDate);
+document.addEventListener('scroll',positionPremiumDate,true);
+const premiumDateObserver=new MutationObserver(records=>records.forEach(record=>record.addedNodes.forEach(node=>{if(node.nodeType===1)initPremiumDates(node);})));
+premiumDateObserver.observe(document.documentElement,{childList:true,subtree:true});
+
 // ── THEME ─────────────────────────────────────────────
 function toggleTheme() {
   const h = document.documentElement;
@@ -3845,6 +4100,7 @@ initEL();
 initDateMirrors();
 initPostedTimeSelects();
 initPremiumSelects();
+initPremiumDates();
 loadPinned();
 if (EL.pgSize) EL.pgSize.value = '50';
 renderDash(); renderTbl(); renderLogs();
