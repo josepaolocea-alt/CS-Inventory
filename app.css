@@ -340,11 +340,11 @@ input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px;cursor:po
 .sel-arrow.on{transform:rotate(180deg)}
 .sel-body{display:none;padding:13px;border-top:1px solid var(--border)}
 .sel-body.on{display:block}
-.sel-items{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;min-height:20px}
+.sel-items{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:0;min-height:20px}
 .sel-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 6px 3px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:20px;font-size:12px;color:var(--t1)}
 .sel-chip-del{background:none;border:none;cursor:pointer;color:var(--t3);font-size:12px;padding:0 2px;line-height:1;display:flex;align-items:center;transition:.1s}
 .sel-chip-del:hover{color:var(--err)}
-.sel-add-row{display:flex;gap:6px;align-items:center}
+.sel-add-row{display:flex;gap:6px;align-items:center;margin-bottom:10px}
 .role-badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
 .rb-admin{background:#dbeafe;color:#1e40af}
 .rb-semi{background:#f3e8ff;color:#6b21a8}
