@@ -1068,6 +1068,13 @@ async function loadLogs() {
 // by the signal doc's size, not by read cost.
 const SYNC_LIMIT = 300;
 const DEL_LIMIT  = 1000;
+// Unique to this page load. Multiple people/devices can intentionally share one
+// Firebase account, so the account UID cannot identify which client originated a
+// change. A per-session id lets only the exact source tab ignore its own signal.
+const SYNC_SOURCE_ID = (() => {
+  try { return crypto.randomUUID(); }
+  catch(e) { return `${deviceId()}-${Date.now()}-${Math.random().toString(16).slice(2)}`; }
+})();
 // If the ONE watched doc's listener dies by ERROR (not a normal network blip — the SDK
 // auto-recovers those for free), re-arm it with bounded exponential backoff so live sync
 // heals itself instead of silently staying dead until someone reloads. Terminal auth errors
@@ -1081,6 +1088,7 @@ async function broadcastSync(ids = [], del = [], full = false) {
     await fdb.collection('meta').doc('syncSignal').set({
       at:   new Date().toISOString(),
       by:   currentUser.uid || '',
+      source: SYNC_SOURCE_ID,
       ids:  (full || tooBig) ? [] : ids.filter(Boolean),
       del:  (full || tooBig) ? [] : del.filter(Boolean),
       full: full || tooBig
@@ -1097,7 +1105,9 @@ function startSyncListener() {
     if (!_syncPrimed) { _syncPrimed = true; _syncRetry = 0; _lastSyncAt = sig?.at || ''; return; }
     if (!sig || !sig.at || sig.at === _lastSyncAt) return;
     _lastSyncAt = sig.at;
-    if (sig.by && sig.by === currentUser?.uid) return;   // our own change, already applied locally
+    // Skip only the tab that sent this signal. Do not compare Firebase UIDs here:
+    // several legitimate users share one login and therefore have the same UID.
+    if (sig.source && sig.source === SYNC_SOURCE_ID) return;
     applyRemoteSync(sig);
   }, err => {
     console.error('sync listener:', err);
