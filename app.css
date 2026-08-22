@@ -41,8 +41,14 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg2);color:var(
 [data-dark] .nav-ico .theme-moon{display:block}
 .nav-ico:hover,.nav-user:hover{background:var(--nav-h);color:#fff;transform:translateY(-1px)}
 @keyframes spin{to{transform:rotate(360deg)}}
+@keyframes sync-fill{0%{transform:scaleX(0)}70%{transform:scaleX(.76)}100%{transform:scaleX(.92)}}
+#syncBtn{position:relative;overflow:hidden;isolation:isolate}
+#syncBtn::before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,var(--accent-h),var(--accent));transform:scaleX(0);transform-origin:left center;opacity:0;z-index:-1}
 #syncBtn.syncing{color:#fff;pointer-events:none}
+#syncBtn.syncing::before{opacity:1;animation:sync-fill 2.4s cubic-bezier(.16,1,.3,1) forwards}
 #syncBtn.syncing svg{animation:spin .7s linear infinite}
+#syncBtn.sync-done::before{animation:none;transform:scaleX(1);transition:transform .18s ease-out}
+@media (prefers-reduced-motion:reduce){#syncBtn.syncing::before{animation:none;transform:scaleX(.82)}#syncBtn.syncing svg{animation-duration:1.4s}}
 
 /* LAYOUT */
 .main{max-width:1600px;margin:0 auto;padding:20px 22px}

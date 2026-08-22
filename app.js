@@ -1266,12 +1266,20 @@ function refreshInventoryEditedFirst(editedIds, resetPage=true) {
 }
 async function syncData() {
   const btn = document.getElementById('syncBtn');
+  if (btn.classList.contains('syncing')) return;
+  btn.classList.remove('sync-done');
   btn.classList.add('syncing');
+  btn.setAttribute('aria-busy', 'true');
   // Refreshes THIS client only. Real changes already auto-broadcast to other open
   // users, so the button intentionally does NOT force everyone to full-reload — at
   // this inventory size that would cost ~8k reads per open user per click.
   try { await Promise.all([loadInventory(), loadLogs()]); }
-  finally { btn.classList.remove('syncing'); }
+  finally {
+    btn.classList.add('sync-done');
+    await new Promise(resolve => setTimeout(resolve, 220));
+    btn.classList.remove('syncing', 'sync-done');
+    btn.removeAttribute('aria-busy');
+  }
 }
 async function loadLogs() {
   try {
