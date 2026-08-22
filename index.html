@@ -284,7 +284,9 @@
       </label>
     </div>
     <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <button class="btn btn-sm" onclick="sendTestBackup()">Send test backup now</button>
+      <button class="btn btn-sm ab-send-btn" id="abSendBtn" onclick="sendBackupNow()">
+        <span class="ab-send-label">Send backup now</span>
+      </button>
       <span id="abWarn" style="display:none;font-size:11px;color:var(--warn)">⚠ Email sending isn’t set up yet — see setup steps.</span>
     </div>
   </div>

@@ -1266,20 +1266,12 @@ function refreshInventoryEditedFirst(editedIds, resetPage=true) {
 }
 async function syncData() {
   const btn = document.getElementById('syncBtn');
-  if (btn.classList.contains('syncing')) return;
-  btn.classList.remove('sync-done');
   btn.classList.add('syncing');
-  btn.setAttribute('aria-busy', 'true');
   // Refreshes THIS client only. Real changes already auto-broadcast to other open
   // users, so the button intentionally does NOT force everyone to full-reload — at
   // this inventory size that would cost ~8k reads per open user per click.
   try { await Promise.all([loadInventory(), loadLogs()]); }
-  finally {
-    btn.classList.add('sync-done');
-    await new Promise(resolve => setTimeout(resolve, 220));
-    btn.classList.remove('syncing', 'sync-done');
-    btn.removeAttribute('aria-busy');
-  }
+  finally { btn.classList.remove('syncing'); }
 }
 async function loadLogs() {
   try {
@@ -3057,19 +3049,19 @@ function maybeRunAutoBackup() {
 
 // Claim the week (transaction \u2192 one sender), build the file, email it, log it.
 async function runWeeklyBackup(opts = {}) {
-  if (_abSending) return;
-  const test = !!opts.test;
+  if (_abSending) return false;
+  const manual = !!opts.manual;
   const recipient = (AB && AB.recipient) || currentUser?.email || '';
-  if (!recipient)        { if (test) showToast('No recipient email found.', 'warning'); return; }
+  if (!recipient)        { if (manual) showToast('No recipient email found.', 'warning'); return false; }
   if (!BACKUP_MAILER_URL || !BACKUP_MAILER_KEY){ showToast('Backup email isn\u2019t set up yet \u2014 paste your SECRET into BACKUP_MAILER_KEY.', 'warning'); return; }
-  if (!DB.length)        { if (test) showToast('No inventory loaded yet.', 'warning'); return; }
+  if (!DB.length)        { if (manual) showToast('No inventory loaded yet.', 'warning'); return false; }
 
   _abSending = true;
   const ref = fdb.collection('meta').doc('autoBackup');
   const wk  = isoWeekKey(new Date());
   let prevWeek = (AB && AB.lastSentWeek) || '';
   try {
-    if (!test) {
+    if (!manual) {
       // Atomically claim this week so a second open tab / device won't double-send.
       let claimed = false;
       await fdb.runTransaction(async tx => {
@@ -3081,42 +3073,44 @@ async function runWeeklyBackup(opts = {}) {
         tx.set(ref, { lastSentWeek: wk }, { merge:true });
         claimed = true;
       });
-      if (!claimed) { _abSending = false; return; }
+      if (!claimed) return false;
       AB.lastSentWeek = wk;
     }
 
     const csv   = buildBackupCSV();
     const fname = `CS-Inventory-Backup-${new Date().toISOString().slice(0,10)}.csv`;
-    await deliverBackupEmail(recipient, fname, csv, DB.length, test);
+    await deliverBackupEmail(recipient, fname, csv, DB.length, manual);
 
     const stamp = new Date().toISOString();
-    if (!test) {
+    if (!manual) {
       try { await ref.set({ lastSentAt: stamp, lastSentBy: currentUser?.email || '' }, { merge:true }); } catch(_){}
       AB.lastSentAt = stamp;
     }
-    await addLog('Backup', `${test ? 'Test' : 'Weekly'} backup emailed to ${recipient} (${DB.length} records)`);
+    await addLog('Backup', `${manual ? 'Manual' : 'Weekly'} backup emailed to ${recipient} (${DB.length} records)`);
     showToast(`Backup emailed to ${recipient} \u2713`, 'success');
     renderAutoBackupCard();
+    return true;
   } catch (err) {
     console.error('runWeeklyBackup:', err);
-    if (!test) {                                    // network failure \u2192 release the claim so it retries next open
+    if (!manual) {                                  // network failure \u2192 release the claim so it retries next open
       try { await ref.set({ lastSentWeek: prevWeek }, { merge:true }); } catch(_){}
       AB.lastSentWeek = prevWeek;
     }
     showToast('Backup could not be sent \u2014 will retry.', 'error');
     renderAutoBackupCard();
+    return false;
   } finally { _abSending = false; }
 }
 
 // Fire-and-forget POST to the Apps Script mailer. `no-cors` keeps it a "simple"
 // cross-origin request (no preflight); it resolves unless the network truly fails.
-async function deliverBackupEmail(to, filename, csvText, count, test) {
+async function deliverBackupEmail(to, filename, csvText, count, manual) {
   const today = new Date();
   const payload = {
     token: BACKUP_MAILER_KEY,
     to,
-    subject: `CS Inventory \u2014 ${test ? 'Test ' : ''}Weekly Backup (${today.toISOString().slice(0,10)})`,
-    body: `Automated ${test ? 'test ' : ''}weekly backup of CS Inventory.\n\n`
+    subject: `CS Inventory \u2014 ${manual ? 'Manual' : 'Weekly'} Backup (${today.toISOString().slice(0,10)})`,
+    body: `${manual ? 'Manual' : 'Automated weekly'} backup of CS Inventory.\n\n`
         + `Records: ${count}\nGenerated: ${today.toLocaleString()}\n\n`
         + `The full inventory is attached as a CSV file.`,
     filename,
@@ -3153,10 +3147,31 @@ async function setAutoBackupEnabled(on) {
   }
 }
 
-// Manual "Send test backup now" button.
-function sendTestBackup() {
+// Manual "Send backup now" button with progress tied to the email request.
+async function sendBackupNow() {
   if (currentRole !== 'admin') { showToast('Only admins can do this.', 'warning'); return; }
-  runWeeklyBackup({ test:true });
+  if (_abSending) return;
+  const btn = document.getElementById('abSendBtn');
+  const label = btn?.querySelector('.ab-send-label');
+  const startedAt = performance.now();
+  btn?.classList.remove('is-complete');
+  btn?.classList.add('is-loading');
+  btn?.setAttribute('aria-busy', 'true');
+  if (label) label.textContent = 'Sending…';
+  try {
+    const sent = await runWeeklyBackup({ manual:true });
+    if (sent) {
+      const remaining = Math.max(0, 500 - (performance.now() - startedAt));
+      if (remaining) await new Promise(resolve => setTimeout(resolve, remaining));
+      btn?.classList.add('is-complete');
+      if (label) label.textContent = 'Backup sent ✓';
+      await new Promise(resolve => setTimeout(resolve, 650));
+    }
+  } finally {
+    btn?.classList.remove('is-loading', 'is-complete');
+    btn?.removeAttribute('aria-busy');
+    if (label) label.textContent = 'Send backup now';
+  }
 }
 
 // Paint the Admin \u25B8 Automatic Backup card from current state.
