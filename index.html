@@ -278,15 +278,21 @@
         <span style="font-size:12px;color:var(--t2)">Sends to: <b id="abRecipient">—</b></span>
         <span style="font-size:11px;color:var(--t3)" id="abStatus">Off — no automatic backups.</span>
       </div>
-      <label class="switch" title="Turn automatic weekly backup on or off">
-        <input type="checkbox" id="abToggle" onchange="setAutoBackupEnabled(this.checked)">
-        <span class="switch-track"><span class="switch-thumb"></span></span>
-      </label>
+      <span class="premium-tip">
+        <label class="switch">
+          <input type="checkbox" id="abToggle" aria-describedby="abToggleTip" aria-label="Automatic weekly backup" onchange="setAutoBackupEnabled(this.checked)">
+          <span class="switch-track"><span class="switch-thumb"></span></span>
+        </label>
+        <span class="premium-tip-bubble" id="abToggleTip" role="tooltip">Turn automatic weekly backup on or off</span>
+      </span>
     </div>
     <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <button class="btn btn-sm ab-send-btn" id="abSendBtn" onclick="sendBackupNow()">
-        <span class="ab-send-label">Send backup now</span>
-      </button>
+      <span class="premium-tip">
+        <button class="btn btn-sm ab-send-btn" id="abSendBtn" aria-describedby="abSendTip" onclick="sendBackupNow()">
+          <span class="ab-send-label">Send backup now</span>
+        </button>
+        <span class="premium-tip-bubble" id="abSendTip" role="tooltip">Email a full CSV backup of the inventory now</span>
+      </span>
       <span id="abWarn" style="display:none;font-size:11px;color:var(--warn)">⚠ Email sending isn’t set up yet — see setup steps.</span>
     </div>
   </div>
