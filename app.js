@@ -211,11 +211,11 @@ function updateLastPosted() {
     if (wrap) {
       wrap.classList.remove('empty');
       const ctx = [info.rec.number, info.rec.client].filter(Boolean).join(' · ');
-      wrap.title = ctx ? `Latest posted time — ${info.time}  (${ctx})` : `Latest posted time — ${info.time}`;
+      wrap.dataset.tooltip = ctx ? `Latest posted time — ${info.time}  (${ctx})` : `Latest posted time — ${info.time}`;
     }
   } else {
     el.textContent = '—';
-    if (wrap) { wrap.classList.add('empty'); wrap.title = 'No posted times set yet'; }
+    if (wrap) { wrap.classList.add('empty'); wrap.dataset.tooltip = 'No posted times set yet'; }
   }
 }
 // Renumber every "For Posting" entry into one chronological run based on table position:
@@ -325,8 +325,112 @@ function updateThemeButton() {
   if (!btn) return;
   const dark = document.documentElement.hasAttribute('data-dark');
   const label = dark ? 'Switch to light mode' : 'Switch to dark mode';
-  btn.title = label;
+  btn.dataset.tooltip = label;
   btn.setAttribute('aria-label', label);
+}
+
+// ── PREMIUM TOOLTIPS ──────────────────────────────────
+// One fixed overlay serves every [data-tooltip] target, including controls that
+// are rendered later. Keeping it on <body> avoids clipping inside tables, cards,
+// modals and overflow containers.
+let _premiumTooltipEl = null;
+let _premiumTooltipAnchor = null;
+let _premiumTooltipTimer = null;
+
+function premiumTooltipEl() {
+  if (_premiumTooltipEl) return _premiumTooltipEl;
+  _premiumTooltipEl = document.createElement('div');
+  _premiumTooltipEl.id = 'premiumUiTooltip';
+  _premiumTooltipEl.className = 'premium-tooltip';
+  _premiumTooltipEl.setAttribute('role', 'tooltip');
+  _premiumTooltipEl.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(_premiumTooltipEl);
+  return _premiumTooltipEl;
+}
+
+function positionPremiumTooltip(anchor, tip) {
+  const gap = 10;
+  const edge = 8;
+  const a = anchor.getBoundingClientRect();
+  const t = tip.getBoundingClientRect();
+  const below = a.top - t.height - gap < edge;
+  const top = below ? a.bottom + gap : a.top - t.height - gap;
+  const idealLeft = a.left + a.width / 2 - t.width / 2;
+  const left = Math.max(edge, Math.min(idealLeft, window.innerWidth - t.width - edge));
+  const arrowX = Math.max(10, Math.min(a.left + a.width / 2 - left, t.width - 10));
+  tip.classList.toggle('below', below);
+  tip.style.left = `${Math.round(left)}px`;
+  tip.style.top = `${Math.round(top)}px`;
+  tip.style.setProperty('--tip-arrow-x', `${Math.round(arrowX)}px`);
+}
+
+function showPremiumTooltip(anchor, delay = 220) {
+  const message = anchor?.dataset?.tooltip?.trim();
+  if (!message) return;
+  clearTimeout(_premiumTooltipTimer);
+  _premiumTooltipTimer = setTimeout(() => {
+    if (!anchor.isConnected) return;
+    const tip = premiumTooltipEl();
+    _premiumTooltipAnchor = anchor;
+    tip.className = 'premium-tooltip';
+    tip.textContent = message;
+    tip.setAttribute('aria-hidden', 'false');
+    positionPremiumTooltip(anchor, tip);
+    requestAnimationFrame(() => tip.classList.add('on'));
+  }, delay);
+}
+
+function hidePremiumTooltip(anchor = null) {
+  if (anchor && _premiumTooltipAnchor && anchor !== _premiumTooltipAnchor) return;
+  clearTimeout(_premiumTooltipTimer);
+  _premiumTooltipTimer = null;
+  _premiumTooltipAnchor = null;
+  if (_premiumTooltipEl) {
+    _premiumTooltipEl.classList.remove('on');
+    _premiumTooltipEl.setAttribute('aria-hidden', 'true');
+  }
+}
+
+function hydratePremiumTooltips(root = document) {
+  const nodes = [];
+  if (root instanceof Element && root.matches('[data-tooltip]')) nodes.push(root);
+  root.querySelectorAll?.('[data-tooltip]').forEach(el => nodes.push(el));
+  nodes.forEach(el => {
+    const isControl = el.matches('button,input,select,textarea,[role="button"],[role="switch"]');
+    if (isControl && !el.hasAttribute('aria-label') && !el.hasAttribute('aria-labelledby')) {
+      el.setAttribute('aria-label', el.dataset.tooltip.replace(/\s+/g, ' ').trim());
+    }
+  });
+}
+
+function initPremiumTooltips() {
+  hydratePremiumTooltips();
+  document.addEventListener('pointerover', e => {
+    const anchor = e.target.closest?.('[data-tooltip]');
+    if (!anchor || anchor.contains(e.relatedTarget)) return;
+    showPremiumTooltip(anchor);
+  });
+  document.addEventListener('pointerout', e => {
+    const anchor = e.target.closest?.('[data-tooltip]');
+    if (!anchor || anchor.contains(e.relatedTarget)) return;
+    hidePremiumTooltip(anchor);
+  });
+  document.addEventListener('focusin', e => {
+    const anchor = e.target.closest?.('[data-tooltip]');
+    if (anchor) showPremiumTooltip(anchor, 80);
+  });
+  document.addEventListener('focusout', e => {
+    const anchor = e.target.closest?.('[data-tooltip]');
+    if (anchor && !anchor.contains(e.relatedTarget)) hidePremiumTooltip(anchor);
+  });
+  document.addEventListener('pointerdown', () => hidePremiumTooltip());
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') hidePremiumTooltip(); });
+  window.addEventListener('scroll', () => hidePremiumTooltip(), true);
+  window.addEventListener('resize', () => hidePremiumTooltip());
+  new MutationObserver(changes => changes.forEach(change => {
+    if (change.type === 'attributes') hydratePremiumTooltips(change.target);
+    else change.addedNodes.forEach(node => { if (node.nodeType === 1) hydratePremiumTooltips(node); });
+  })).observe(document.body, {subtree:true, childList:true, attributes:true, attributeFilter:['data-tooltip']});
 }
 
 // ── THEME INIT (runs immediately on script load) ──────
@@ -393,7 +497,7 @@ function syncPremiumSelect(select) {
   state.trigger.classList.toggle('is-placeholder', !select.value);
   state.trigger.disabled = select.disabled;
   state.trigger.setAttribute('aria-disabled', select.disabled ? 'true' : 'false');
-  state.trigger.title = option?.textContent?.trim() || '';
+  state.trigger.dataset.tooltip = option?.textContent?.trim() || '';
   if (premiumSelectOpen?.select === select) renderPremiumSelectOptions(premiumSelectOpen);
 }
 
@@ -995,8 +1099,8 @@ function updateNavUser() {
   const email = currentUser?.email || '—';
   const name  = deviceName();
   el.textContent = name ? `🖥 ${name}` : email;
-  el.title = name ? `Signed in as ${email}\nThis device: ${name} — click to rename`
-                  : `Signed in as ${email}\nClick to name this device`;
+  el.dataset.tooltip = name ? `Signed in as ${email}\nThis device: ${name} — click to rename`
+                            : `Signed in as ${email}\nClick to name this device`;
 }
 function openDeviceModal(firstRun=false) {
   const p = devicePlatform();
@@ -1698,17 +1802,17 @@ function renderTbl() {
     return `
     <tr style="--row-i:${i}" class="${rowClasses}" aria-selected="${isSelected?'true':'false'}" onclick="rowClick(event,'${esc(r.id)}')">
       <td class="cb-cell" onclick="event.stopPropagation()"><label><input type="checkbox" class="rcb" data-id="${esc(r.id)}" ${isSelected?'checked':''} onchange="toggleRowSel(this)"></label></td>
-      <td class="row-num">${isPinned?'<span class="pin-ind" title="Pinned">📌</span>':s+i+1}</td>
+      <td class="row-num">${isPinned?'<span class="pin-ind" data-tooltip="Pinned">📌</span>':s+i+1}</td>
       <td>${esc(r.client)}</td>
       <td>${esc(r.product)}</td>
-      <td class="num-cell"><span class="num-val">${esc(r.number)}</span><button type="button" class="num-copy" title="Copy number" aria-label="Copy number" onclick="event.stopPropagation();copyNumber(this)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></td>
+      <td class="num-cell"><span class="num-val">${esc(r.number)}</span><button type="button" class="num-copy" data-tooltip="Copy number" aria-label="Copy number" onclick="event.stopPropagation();copyNumber(this)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></td>
       <td><span class="badge ${bclass(r.status)}">${esc(r.status)}</span></td>
       <td><span class="badge ${postedClass(r.postedStatus)}">${esc(canonPostedStatus(r.postedStatus) || 'No')}</span>${r.postedHour ? `<span class="posted-time">${esc(r.postedHour)}:${esc(r.postedMin || '00')}</span>` : ''}</td>
       <td>${esc(r.remarks)}</td>
       <td onclick="event.stopPropagation()">
         <div class="act-btns">
-          <button class="act-btn pin-btn${isPinned?' pinned':''}" title="${isPinned?'Unpin this entry':'Pin this entry'}" onclick="togglePin('${esc(r.id)}')">📌</button>
-          ${currentRole!=='viewer'?`<button class="act-btn" title="Copy as new entry" aria-label="Copy as new entry" onclick="openCopyById('${esc(r.id)}')">⧉</button><button class="act-btn" title="Edit" onclick="openEditById('${esc(r.id)}')">✎</button><button class="act-btn del" title="Delete" onclick="delRec('${esc(r.id)}')">⊗</button>`:''}
+          <button class="act-btn pin-btn${isPinned?' pinned':''}" data-tooltip="${isPinned?'Unpin this entry':'Pin this entry'}" onclick="togglePin('${esc(r.id)}')">📌</button>
+          ${currentRole!=='viewer'?`<button class="act-btn" data-tooltip="Copy as new entry" aria-label="Copy as new entry" onclick="openCopyById('${esc(r.id)}')">⧉</button><button class="act-btn" data-tooltip="Edit" onclick="openEditById('${esc(r.id)}')">✎</button><button class="act-btn del" data-tooltip="Delete" onclick="delRec('${esc(r.id)}')">⊗</button>`:''}
         </div>
       </td>
     </tr>`;
@@ -1962,7 +2066,7 @@ function historySectionHTML(r) {
             <span class="deact-hist-client">${esc(reservation.client || 'Reservation Details')}</span>
             <span class="deact-hist-tools">
               <span class="deact-hist-date">${metaDate(h.reservedAt)}</span>
-              ${canDeleteHistoryEntry() ? `<button class="hist-delete-btn" type="button" title="Delete this reservation history entry" aria-label="Delete reservation history entry" onclick="event.stopPropagation();confirmDeleteHistoryEntry('${esc(r.id)}',${index},'reservationHistory')">&#128465;</button>` : ''}
+              ${canDeleteHistoryEntry() ? `<button class="hist-delete-btn" type="button" data-tooltip="Delete this reservation history entry" aria-label="Delete reservation history entry" onclick="event.stopPropagation();confirmDeleteHistoryEntry('${esc(r.id)}',${index},'reservationHistory')">&#128465;</button>` : ''}
             </span>
           </div>
           <div class="hist-subtitle">Reservation Details</div>
@@ -1986,7 +2090,7 @@ function historySectionHTML(r) {
           <span class="deact-hist-client">${esc(h.previousClient || activation.client || '—')}</span>
           <span class="deact-hist-tools">
             <span class="deact-hist-date">${fmt(h.deactDate)}</span>
-            ${canDeleteHistoryEntry() ? `<button class="hist-delete-btn" type="button" title="Delete this history entry" aria-label="Delete history entry" onclick="event.stopPropagation();confirmDeleteHistoryEntry('${esc(r.id)}',${index})">&#128465;</button>` : ''}
+            ${canDeleteHistoryEntry() ? `<button class="hist-delete-btn" type="button" data-tooltip="Delete this history entry" aria-label="Delete history entry" onclick="event.stopPropagation();confirmDeleteHistoryEntry('${esc(r.id)}',${index})">&#128465;</button>` : ''}
           </span>
         </div>
         ${hasActivationSnapshot(activation) ? `<div class="hist-subtitle">${String(activation.status).toLowerCase()==='reserved' ? 'Reservation' : 'Activation'} Details</div>${activationRowsHTML(activation)}` : ''}
@@ -3371,7 +3475,7 @@ function renderLogDetails(log) {
   const main = (!records.length || !m || !log.id)
     ? esc(details)
     : `${esc(m[1])}<button type="button" class="log-rec-link" onclick="event.stopPropagation();openLogRecords('${esc(log.id)}')">${esc(m[2])}</button>${esc(m[3])}`;
-  const dev = log.device ? `<div class="log-device" title="Device that performed this action">🖥 ${esc(log.device)}</div>` : '';
+  const dev = log.device ? `<div class="log-device" data-tooltip="Device that performed this action">🖥 ${esc(log.device)}</div>` : '';
   return main + dev + logRevertControl(log);
 }
 function openLogRecords(logId) {
@@ -3458,10 +3562,10 @@ function logRevertControl(log) {
   if (log.reverted) {
     const t = 'Reverted' + (log.revertedBy ? ' by ' + log.revertedBy : '') +
               (log.revertedAt ? ' · ' + new Date(log.revertedAt).toLocaleString() : '');
-    return `<div class="log-revert-wrap"><span class="log-reverted-tag" title="${esc(t)}">↩ Reverted</span></div>`;
+    return `<div class="log-revert-wrap"><span class="log-reverted-tag" data-tooltip="${esc(t)}">↩ Reverted</span></div>`;
   }
   if (!canRevertLog(log)) return '';
-  return `<div class="log-revert-wrap"><button type="button" class="log-revert-btn" title="Restore the values this change replaced" onclick="event.stopPropagation();revertLog('${esc(log.id)}')">↩ Revert</button></div>`;
+  return `<div class="log-revert-wrap"><button type="button" class="log-revert-btn" data-tooltip="Restore the values this change replaced" onclick="event.stopPropagation();revertLog('${esc(log.id)}')">↩ Revert</button></div>`;
 }
 // The record still present for a logged change (by id first, then number if it was recreated).
 function findRevertTarget(rec) {
@@ -3868,8 +3972,8 @@ function renderUsers() {
       <td style="font-size:12px;color:var(--t2)">${u.addedDate?new Date(u.addedDate).toLocaleDateString():'—'}</td>
       <td>
         <div class="act-btns">
-          <button class="act-btn" title="Edit" onclick="openEditUser('${esc(u.uid)}')">✎</button>
-          ${u.uid===self?'<span style="color:var(--t3);padding:3px 5px;font-size:12px" title="Cannot delete own account">—</span>':`<button class="act-btn del" title="Delete" onclick="deleteUser('${esc(u.uid)}')">⊗</button>`}
+          <button class="act-btn" data-tooltip="Edit" onclick="openEditUser('${esc(u.uid)}')">✎</button>
+          ${u.uid===self?'<span style="color:var(--t3);padding:3px 5px;font-size:12px" data-tooltip="Cannot delete own account">—</span>':`<button class="act-btn del" data-tooltip="Delete" onclick="deleteUser('${esc(u.uid)}')">⊗</button>`}
         </div>
       </td>
     </tr>`).join('');
@@ -3978,7 +4082,7 @@ function renderSelections() {
     const el = document.getElementById('selItems-'+type); if (!el) return;
     const sorted = [...SELECTIONS[type]].sort();
     el.innerHTML = sorted.length
-      ? sorted.map(v => `<span class="sel-chip"><span>${esc(v)}</span><button class="sel-chip-del" title="Remove" data-type="${esc(type)}" data-val="${esc(v)}" onclick="removeSelItemBtn(this)">✕</button></span>`).join('')
+      ? sorted.map(v => `<span class="sel-chip"><span>${esc(v)}</span><button class="sel-chip-del" data-tooltip="Remove" data-type="${esc(type)}" data-val="${esc(v)}" onclick="removeSelItemBtn(this)">✕</button></span>`).join('')
       : '<span style="font-size:12px;color:var(--t3)">No items added.</span>';
   });
 }
@@ -4124,6 +4228,7 @@ initDateMirrors();
 initPostedTimeSelects();
 initPremiumSelects();
 initPremiumDates();
+initPremiumTooltips();
 loadPinned();
 if (EL.pgSize) EL.pgSize.value = '50';
 renderDash(); renderTbl(); renderLogs();

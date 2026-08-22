@@ -31,14 +31,14 @@
     <button class="nav-btn" id="navAdmin" onclick="go('admin',this)">Admin</button>
   </div>
   <div class="nav-right">
-    <button class="nav-user" id="navUser" title="Click to name this device" onclick="openDeviceModal()">—</button>
-    <button class="nav-ico" id="syncBtn" title="Sync - pull latest data from server" aria-label="Sync data" onclick="syncData()">
+    <button class="nav-user" id="navUser" data-tooltip="Click to name this device" onclick="openDeviceModal()">—</button>
+    <button class="nav-ico" id="syncBtn" data-tooltip="Sync — pull latest data from server" aria-label="Sync data" onclick="syncData()">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 0 1-14.7 7"/><path d="M3 12A9 9 0 0 1 17.7 5"/><path d="M7 19H3v4"/><path d="M17 5h4V1"/></svg>
     </button>
-    <button class="nav-ico" title="Sign out" aria-label="Sign out" onclick="doSignOut()">
+    <button class="nav-ico" data-tooltip="Sign out" aria-label="Sign out" onclick="doSignOut()">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
     </button>
-    <button class="nav-ico" title="Switch to light mode" aria-label="Switch to light mode" id="themeBtn" onclick="toggleTheme()">
+    <button class="nav-ico" data-tooltip="Switch to light mode" aria-label="Switch to light mode" id="themeBtn" onclick="toggleTheme()">
       <svg class="theme-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
       <svg class="theme-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.2 14.4A8.3 8.3 0 0 1 9.6 3.8 8.8 8.8 0 1 0 20.2 14.4Z"/></svg>
     </button>
@@ -106,7 +106,7 @@
         <select class="fsel" id="fProvider" onchange="applyF()"><option value="">All Providers</option></select>
         <button class="btn" id="moreBtn" onclick="toggleMore()">More ▾</button>
         <button class="btn" onclick="clearF()">Clear</button>
-        <span class="last-posted empty" id="lastPostedInd" title="Highest posted time set on any number">
+        <span class="last-posted empty" id="lastPostedInd" data-tooltip="Highest posted time set on any number">
           <span class="lp-label">Last posted</span>
           <span class="lp-time" id="lastPostedTime">—</span>
         </span>
@@ -121,11 +121,11 @@
     </div>
     <div class="tb-actions">
       <button class="btn btn-p" id="btnAdd" onclick="openAdd()">+ Add Number</button>
-      <button class="btn btn-ico" id="btnUpload" title="Upload CSV" onclick="document.getElementById('csvIn').click()">⤒</button>
+      <button class="btn btn-ico" id="btnUpload" data-tooltip="Upload CSV" onclick="document.getElementById('csvIn').click()">⤒</button>
       <input type="file" id="csvIn" accept=".csv" style="display:none" onchange="handleCSV(event)">
-      <button class="btn btn-ico" title="Download Sample CSV" onclick="dlSample()">⤓</button>
+      <button class="btn btn-ico" data-tooltip="Download Sample CSV" onclick="dlSample()">⤓</button>
       <div class="export-wrap" id="btnExportWrap">
-        <button class="btn btn-ico" id="btnExportAll" title="Export options" onclick="toggleExportMenu(event)">↗</button>
+        <button class="btn btn-ico" id="btnExportAll" data-tooltip="Export options" onclick="toggleExportMenu(event)">↗</button>
         <div class="export-menu" id="exportMenu">
           <button onclick="exportAll()">⤓ Export CSV</button>
           <button onclick="exportExcel()">⤓ Export Excel (.xlsx)</button>
@@ -151,7 +151,7 @@
       <table id="invTbl">
         <thead>
           <tr>
-            <th class="cb-cell" style="width:34px"><label title="Select all rows on this page"><input type="checkbox" id="selAll" onchange="selAllRows(this)"></label></th>
+            <th class="cb-cell" style="width:34px"><label data-tooltip="Select all rows on this page"><input type="checkbox" id="selAll" aria-label="Select all rows on this page" onchange="selAllRows(this)"></label></th>
             <th style="width:42px">#</th>
             <th class="sort" onclick="sortBy('client')">Client</th>
             <th class="sort" onclick="sortBy('product')">Product</th>
@@ -278,21 +278,15 @@
         <span style="font-size:12px;color:var(--t2)">Sends to: <b id="abRecipient">—</b></span>
         <span style="font-size:11px;color:var(--t3)" id="abStatus">Off — no automatic backups.</span>
       </div>
-      <span class="premium-tip">
-        <label class="switch">
-          <input type="checkbox" id="abToggle" aria-describedby="abToggleTip" aria-label="Automatic weekly backup" onchange="setAutoBackupEnabled(this.checked)">
-          <span class="switch-track"><span class="switch-thumb"></span></span>
-        </label>
-        <span class="premium-tip-bubble" id="abToggleTip" role="tooltip">Turn automatic weekly backup on or off</span>
-      </span>
+      <label class="switch" data-tooltip="Turn automatic weekly backup on or off">
+        <input type="checkbox" id="abToggle" aria-label="Automatic weekly backup" onchange="setAutoBackupEnabled(this.checked)">
+        <span class="switch-track"><span class="switch-thumb"></span></span>
+      </label>
     </div>
     <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <span class="premium-tip">
-        <button class="btn btn-sm ab-send-btn" id="abSendBtn" aria-describedby="abSendTip" onclick="sendBackupNow()">
-          <span class="ab-send-label">Send backup now</span>
-        </button>
-        <span class="premium-tip-bubble" id="abSendTip" role="tooltip">Email a full CSV backup of the inventory now</span>
-      </span>
+      <button class="btn btn-sm ab-send-btn" id="abSendBtn" data-tooltip="Email a full CSV backup of the inventory now" onclick="sendBackupNow()">
+        <span class="ab-send-label">Send backup now</span>
+      </button>
       <span id="abWarn" style="display:none;font-size:11px;color:var(--warn)">⚠ Email sending isn’t set up yet — see setup steps.</span>
     </div>
   </div>
@@ -304,10 +298,10 @@
       <div class="sel-head" onclick="toggleSel('clients')">
         <span class="sel-label">Client</span>
         <div class="sel-head-right">
-          <button class="btn btn-ico btn-sm" title="Upload CSV" onclick="event.stopPropagation();document.getElementById('csvSel-clients').click()" style="font-size:14px">⤒</button>
+          <button class="btn btn-ico btn-sm" data-tooltip="Upload CSV" onclick="event.stopPropagation();document.getElementById('csvSel-clients').click()" style="font-size:14px">⤒</button>
           <input type="file" id="csvSel-clients" accept=".csv" style="display:none" onchange="handleSelCSV(event,'clients')">
-          <button class="btn btn-ico btn-sm" title="Download Sample" onclick="event.stopPropagation();dlSelSample('clients')" style="font-size:14px">⤓</button>
-          <button class="btn btn-ico btn-sm btn-d" title="Delete All" onclick="event.stopPropagation();delAllSelItems('clients')" style="font-size:14px">⊗</button>
+          <button class="btn btn-ico btn-sm" data-tooltip="Download Sample" onclick="event.stopPropagation();dlSelSample('clients')" style="font-size:14px">⤓</button>
+          <button class="btn btn-ico btn-sm btn-d" data-tooltip="Delete All" onclick="event.stopPropagation();delAllSelItems('clients')" style="font-size:14px">⊗</button>
           <span class="sel-arrow" id="selArrow-clients">▾</span>
         </div>
       </div>
@@ -324,10 +318,10 @@
       <div class="sel-head" onclick="toggleSel('products')">
         <span class="sel-label">Product</span>
         <div class="sel-head-right">
-          <button class="btn btn-ico btn-sm" title="Upload CSV" onclick="event.stopPropagation();document.getElementById('csvSel-products').click()" style="font-size:14px">⤒</button>
+          <button class="btn btn-ico btn-sm" data-tooltip="Upload CSV" onclick="event.stopPropagation();document.getElementById('csvSel-products').click()" style="font-size:14px">⤒</button>
           <input type="file" id="csvSel-products" accept=".csv" style="display:none" onchange="handleSelCSV(event,'products')">
-          <button class="btn btn-ico btn-sm" title="Download Sample" onclick="event.stopPropagation();dlSelSample('products')" style="font-size:14px">⤓</button>
-          <button class="btn btn-ico btn-sm btn-d" title="Delete All" onclick="event.stopPropagation();delAllSelItems('products')" style="font-size:14px">⊗</button>
+          <button class="btn btn-ico btn-sm" data-tooltip="Download Sample" onclick="event.stopPropagation();dlSelSample('products')" style="font-size:14px">⤓</button>
+          <button class="btn btn-ico btn-sm btn-d" data-tooltip="Delete All" onclick="event.stopPropagation();delAllSelItems('products')" style="font-size:14px">⊗</button>
           <span class="sel-arrow" id="selArrow-products">▾</span>
         </div>
       </div>
@@ -344,10 +338,10 @@
       <div class="sel-head" onclick="toggleSel('providers')">
         <span class="sel-label">Provider</span>
         <div class="sel-head-right">
-          <button class="btn btn-ico btn-sm" title="Upload CSV" onclick="event.stopPropagation();document.getElementById('csvSel-providers').click()" style="font-size:14px">⤒</button>
+          <button class="btn btn-ico btn-sm" data-tooltip="Upload CSV" onclick="event.stopPropagation();document.getElementById('csvSel-providers').click()" style="font-size:14px">⤒</button>
           <input type="file" id="csvSel-providers" accept=".csv" style="display:none" onchange="handleSelCSV(event,'providers')">
-          <button class="btn btn-ico btn-sm" title="Download Sample" onclick="event.stopPropagation();dlSelSample('providers')" style="font-size:14px">⤓</button>
-          <button class="btn btn-ico btn-sm btn-d" title="Delete All" onclick="event.stopPropagation();delAllSelItems('providers')" style="font-size:14px">⊗</button>
+          <button class="btn btn-ico btn-sm" data-tooltip="Download Sample" onclick="event.stopPropagation();dlSelSample('providers')" style="font-size:14px">⤓</button>
+          <button class="btn btn-ico btn-sm btn-d" data-tooltip="Delete All" onclick="event.stopPropagation();delAllSelItems('providers')" style="font-size:14px">⊗</button>
           <span class="sel-arrow" id="selArrow-providers">▾</span>
         </div>
       </div>
@@ -364,10 +358,10 @@
       <div class="sel-head" onclick="toggleSel('routes')">
         <span class="sel-label">Route Requested by</span>
         <div class="sel-head-right">
-          <button class="btn btn-ico btn-sm" title="Upload CSV" onclick="event.stopPropagation();document.getElementById('csvSel-routes').click()" style="font-size:14px">⤒</button>
+          <button class="btn btn-ico btn-sm" data-tooltip="Upload CSV" onclick="event.stopPropagation();document.getElementById('csvSel-routes').click()" style="font-size:14px">⤒</button>
           <input type="file" id="csvSel-routes" accept=".csv" style="display:none" onchange="handleSelCSV(event,'routes')">
-          <button class="btn btn-ico btn-sm" title="Download Sample" onclick="event.stopPropagation();dlSelSample('routes')" style="font-size:14px">⤓</button>
-          <button class="btn btn-ico btn-sm btn-d" title="Delete All" onclick="event.stopPropagation();delAllSelItems('routes')" style="font-size:14px">⊗</button>
+          <button class="btn btn-ico btn-sm" data-tooltip="Download Sample" onclick="event.stopPropagation();dlSelSample('routes')" style="font-size:14px">⤓</button>
+          <button class="btn btn-ico btn-sm btn-d" data-tooltip="Delete All" onclick="event.stopPropagation();delAllSelItems('routes')" style="font-size:14px">⊗</button>
           <span class="sel-arrow" id="selArrow-routes">▾</span>
         </div>
       </div>
