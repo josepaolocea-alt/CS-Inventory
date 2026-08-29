@@ -3420,9 +3420,38 @@ async function addLog(action, details, extra={}) {
     if (_logsReady) { kvSet('logsCache', LOGS.slice(0, 500)); kvSet('logsCursor', _logCursor); }
   } catch(e) { console.error('addLog:', e); }
 }
-function toggleLF() {
-  document.getElementById('lfBody').classList.toggle('on');
-  document.getElementById('lfArrow').classList.toggle('on');
+function toggleLF(force) {
+  const body = document.getElementById('lfBody');
+  if (!body) return;
+  const open = typeof force === 'boolean' ? force : !body.classList.contains('on');
+  body.classList.toggle('on', open);
+  document.getElementById('lfArrow')?.classList.toggle('on', open);
+  document.getElementById('lfHead')?.setAttribute('aria-expanded', open ? 'true' : 'false');
+  updateLFState();
+}
+// The panel is collapsed most of the time, so its header carries the state:
+// which filters are on, and whether the two clearing actions can do anything.
+function updateLFState() {
+  const {act, df, dt, summary} = getLogFilterState();
+  const active = !!(act || df || dt);
+  document.getElementById('lfPanel')?.classList.toggle('is-active', active);
+  const sum = document.getElementById('lfSummary');
+  if (sum) {
+    sum.textContent = summary;
+    sum.dataset.tooltip = summary;
+    sum.hidden = !active;
+  }
+  const hint = document.getElementById('lfHint');
+  if (hint) hint.hidden = active;
+  const reset = document.getElementById('lfReset');
+  if (reset) reset.disabled = !active;
+  const clearMatch = document.getElementById('lfClearMatch');
+  if (clearMatch) {
+    clearMatch.disabled = !active || !fl.length;
+    clearMatch.dataset.tooltip = !active
+      ? 'Set a filter first — this clears only what matches'
+      : `Delete the ${fl.length.toLocaleString()} log${fl.length===1?'':'s'} matching these filters`;
+  }
 }
 function applyLF() {
   const act = document.getElementById('lAction').value;
@@ -3790,6 +3819,7 @@ function renderLogs() {
   if (EL.lPgPrev)  EL.lPgPrev.disabled     = lpg<=1;
   if (EL.lPgNext)  EL.lPgNext.disabled     = lpg>=tp;
   if (EL.lPgLast)  EL.lPgLast.disabled     = lpg>=tp;
+  updateLFState();
 }
 function changeLPg(d) {
   const sz = parseInt(EL.lPgSize?.value || 25);
