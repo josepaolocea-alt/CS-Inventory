@@ -2589,6 +2589,8 @@ html[data-dark]{color-scheme:dark}
   width:96px;
   text-align:center;
 }
+/* The button group is inline-flex, so it centres under the header via text-align. */
+#invTbl tbody td:last-child{text-align:center}
 html:not([data-dark]) #invTbl td{
   border-color:color-mix(in srgb,var(--theme-line) 60%,transparent);
 }
@@ -2686,4 +2688,75 @@ html:not([data-dark]) #invTbl .num-cell{
   .duplicate-filter-btn{width:100%;justify-content:center}
   .tb-actions{width:100%;justify-content:flex-start}
   #btnAdd{flex:1;justify-content:center}
+}
+
+/* ── Logs filter bar ──────────────────────────────────────────────
+   Filters read left-to-right; the destructive actions are pushed to
+   their own group on the right so Export stops competing with them. */
+.lf-body.on{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:9px;
+}
+.lf-body .fsel,.lf-body .pselect--filter{flex:0 0 auto}
+.lf-date-range{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  padding:5px 10px;
+  border:1px solid var(--theme-line);
+  border-radius:8px;
+}
+.lf-date-field{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  color:var(--theme-text);
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.05em;
+  text-transform:uppercase;
+  white-space:nowrap;
+}
+.lf-date-field .pdate--filter{width:134px}
+.lf-body .btn{gap:6px}
+.lf-body .btn svg{
+  width:15px;
+  height:15px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.65;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+/* Resetting filters is a low-stakes escape hatch: quiet, but still a button. */
+.lf-reset-btn{
+  border-color:color-mix(in srgb,var(--theme-line) 62%,transparent)!important;
+  background:transparent!important;
+  opacity:.85;
+}
+.lf-reset-btn:hover{opacity:1;border-color:var(--theme-line)!important}
+.lf-actions{
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:6px;
+  margin-left:auto;
+}
+.lf-actions-divider{
+  width:1px;
+  height:22px;
+  margin-inline:3px;
+  background:var(--theme-line);
+}
+
+@media(max-width:720px){
+  .lf-date-range{width:100%;flex-wrap:wrap}
+  /* One field per line, labels on a shared width so the inputs line up. */
+  .lf-date-field{flex:1 1 100%}
+  .lf-date-field > span{width:38px}
+  .lf-date-field .pdate--filter{flex:1 1 auto;width:auto;min-width:0}
+  .lf-actions{width:100%;margin-left:0}
+  .lf-actions-divider{display:none}
 }
