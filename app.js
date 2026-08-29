@@ -2275,7 +2275,7 @@ function openSP(id) {
         ${dr('Client OSF',entryFee(r.clientOSF))}${dr('Client MRC',entryFee(r.clientMRC))}
         ${dr('Client OTRF',entryFee(r.clientOTRF))}${dr('Channel fee',entryFee(r.clientCF))}
         ${dr('Client CPM',r.clientCPM||'—')}${dr('Effective date',fmt(r.effDate))}
-        ${dr('Activated date',fmt(r.actDate))}
+        ${dr('Activated date',fmt(r.actDate))}<div class="entry-grid-filler" aria-hidden="true"></div>
       </div>
     </div>
     <div class="ds entry-section">

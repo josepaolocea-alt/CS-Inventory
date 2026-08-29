@@ -2302,6 +2302,10 @@ html[data-dark]{color-scheme:dark}
   padding:11px 12px;
   background:var(--theme-workspace);
 }
+.entry-grid-filler{
+  min-height:65px;
+  background:var(--theme-workspace);
+}
 .sp-body .entry-detail-grid .entry-field-wide{grid-column:1/-1}
 .sp-body .entry-detail-grid .dl{
   display:block;
@@ -2356,6 +2360,7 @@ html[data-dark]{color-scheme:dark}
   .entry-summary-client{border-right:0;border-bottom:1px solid rgba(17,17,15,.34)}
   .sp-body .entry-section{padding:17px 16px 19px}
   .entry-detail-grid{grid-template-columns:minmax(0,1fr)}
+  .entry-grid-filler{display:none}
   .sp-body .entry-detail-grid .entry-field-wide{grid-column:1}
 }
 
@@ -2904,24 +2909,37 @@ html:not([data-dark]) #invTbl .num-cell{
   transition:color .16s ease;
 }
 .lf-panel.is-active .lf-ico{color:var(--flat-orange)}
-.lf-label{letter-spacing:.01em;white-space:nowrap}
+/* Give the label the same line box as the summary chip. This keeps their text
+   optically centred even though the two elements use different font sizes. */
+.lf-label{
+  display:inline-flex;
+  align-items:center;
+  height:21px;
+  line-height:1;
+  letter-spacing:.01em;
+  white-space:nowrap;
+}
 /* What is filtering the table, readable without opening the panel. */
 .lf-summary{
+  display:inline-flex;
+  align-items:center;
   min-width:0;
   max-width:min(52ch,58%);
+  height:21px;
   overflow:hidden;
-  padding:2px 9px;
+  padding:0 10px;
   border:1px solid color-mix(in srgb,var(--flat-orange) 48%,transparent);
   border-radius:999px;
   background:color-mix(in srgb,var(--flat-orange) 12%,transparent);
   color:var(--flat-orange);
   font-size:10px;
   font-weight:800;
+  line-height:1;
   letter-spacing:.01em;
   white-space:nowrap;
   text-overflow:ellipsis;
 }
-.lf-hint{color:var(--theme-muted);font-size:10.5px;font-weight:600;white-space:nowrap}
+.lf-hint{line-height:1;color:var(--theme-muted);font-size:10.5px;font-weight:600;white-space:nowrap}
 .lf-summary[hidden],.lf-hint[hidden]{display:none}
 .lf-arrow{
   display:grid;
