@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="app.css?v=35">
+<link rel="stylesheet" href="app.css?v=36">
 </head>
 <body>
 
@@ -34,17 +34,24 @@
     <button class="nav-btn" id="navAdmin" onclick="go('admin',this)">Admin</button>
   </div>
   <div class="nav-right">
-    <button class="nav-user" id="navUser" data-tooltip="Click to name this device" onclick="openDeviceModal()">—</button>
-    <button class="nav-ico" id="syncBtn" data-tooltip="Sync — pull latest data from server" aria-label="Sync data" onclick="syncData()">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 0 1-14.7 7"/><path d="M3 12A9 9 0 0 1 17.7 5"/><path d="M7 19H3v4"/><path d="M17 5h4V1"/></svg>
+    <button class="nav-user" id="navUser" data-tooltip="Click to name this device" onclick="openDeviceModal()">
+      <span class="nav-user-badge" id="navUserBadge" aria-hidden="true">—</span>
+      <span class="nav-user-name" id="navUserName">—</span>
     </button>
-    <button class="nav-ico" data-tooltip="Sign out" aria-label="Sign out" onclick="doSignOut()">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
-    </button>
-    <button class="nav-ico" data-tooltip="Switch to light mode" aria-label="Switch to light mode" id="themeBtn" onclick="toggleTheme()">
-      <svg class="theme-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
-      <svg class="theme-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.2 14.4A8.3 8.3 0 0 1 9.6 3.8 8.8 8.8 0 1 0 20.2 14.4Z"/></svg>
-    </button>
+    <div class="nav-rail" role="group" aria-label="Session controls">
+      <button class="nav-ico" id="syncBtn" data-tooltip="Sync — pull latest data from server" aria-label="Sync data" onclick="syncData()">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 0 1-14.7 7"/><path d="M3 12A9 9 0 0 1 17.7 5"/><path d="M7 19H3v4"/><path d="M17 5h4V1"/></svg>
+      </button>
+      <span class="nav-rail-div" aria-hidden="true"></span>
+      <button class="nav-ico" data-tooltip="Switch to light mode" aria-label="Switch to light mode" id="themeBtn" onclick="toggleTheme()">
+        <svg class="theme-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+        <svg class="theme-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.2 14.4A8.3 8.3 0 0 1 9.6 3.8 8.8 8.8 0 1 0 20.2 14.4Z"/></svg>
+      </button>
+      <span class="nav-rail-div" aria-hidden="true"></span>
+      <button class="nav-ico nav-ico-exit" data-tooltip="Sign out" aria-label="Sign out" onclick="doSignOut()">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+      </button>
+    </div>
   </div>
 </nav>
 
@@ -935,7 +942,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
 <!-- App -->
-<script src="app.js?v=43"></script>
+<script src="app.js?v=44"></script>
 
 </body>
 </html>

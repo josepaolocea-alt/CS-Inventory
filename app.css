@@ -2760,3 +2760,126 @@ html:not([data-dark]) #invTbl .num-cell{
   .lf-actions{width:100%;margin-left:0}
   .lf-actions-divider{display:none}
 }
+
+/* ═══════════════════════════════════════════════════════
+   NAV SESSION CLUSTER
+   Two objects instead of four loose pills: the device chip
+   (identity) and one segmented rail (session controls).
+   ═══════════════════════════════════════════════════════ */
+.nav-right{gap:8px}
+
+/* Device chip — an initial tile plus the label it belongs to. */
+.nav-user{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  height:34px;
+  max-width:224px;
+  min-width:0;
+  padding:0 13px 0 3px;
+  border:1px solid #35352e;
+  border-radius:999px;
+  background:#1a1a16;
+  color:#d7d3c7;
+  font-size:11px;
+  font-weight:700;
+  letter-spacing:-.01em;
+  overflow:visible;
+  transition:border-color .16s ease,background-color .16s ease,color .16s ease;
+}
+.nav-user-badge{
+  flex:0 0 auto;
+  display:grid;
+  place-items:center;
+  width:26px;
+  height:26px;
+  border-radius:999px;
+  background:var(--flat-orange);
+  color:var(--flat-ink);
+  font-family:var(--mono);
+  font-size:11px;
+  font-weight:500;
+  line-height:1;
+  text-transform:uppercase;
+  transition:background-color .16s ease;
+}
+.nav-user-name{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.nav-user:hover{border-color:var(--flat-orange);background:#23231d;color:var(--flat-paper)}
+.nav-user:hover .nav-user-badge{background:var(--flat-yellow)}
+
+/* Session rail — sync · theme · sign out, hairline-separated. */
+.nav-rail{
+  display:inline-flex;
+  align-items:center;
+  height:34px;
+  padding:2px;
+  border:1px solid #35352e;
+  border-radius:999px;
+  background:#1a1a16;
+}
+.nav-rail .nav-ico{
+  width:29px;
+  height:28px;
+  border:0;
+  border-radius:999px;
+  background:transparent;
+  color:#b3afa4;
+  transition:background-color .16s ease,color .16s ease;
+}
+.nav-rail .nav-ico svg{width:15px;height:15px;stroke-width:1.9}
+.nav-rail .nav-ico:hover{border:0;background:var(--flat-orange);color:var(--flat-ink)}
+.nav-rail .nav-ico:active{background:var(--flat-yellow);color:var(--flat-ink)}
+/* Leaving the app is the one control that shouldn't look like the others. */
+.nav-rail .nav-ico-exit:hover{background:var(--flat-red);color:var(--flat-ink)}
+.nav-rail .nav-ico-exit:active{background:var(--flat-red);color:var(--flat-ink)}
+.nav-rail .nav-ico:focus-visible{outline-offset:1px}
+.nav-rail-div{
+  flex:0 0 auto;
+  width:1px;
+  height:15px;
+  margin:0 2px;
+  background:#35352e;
+  transition:opacity .16s ease;
+}
+/* Once the pointer is in the rail the dividers stop competing with the hover pill. */
+.nav-rail:hover .nav-rail-div{opacity:.4}
+.nav-rail #syncBtn.syncing{background:var(--flat-orange);color:var(--flat-ink)}
+
+@media(max-width:600px){
+  .nav-right{gap:6px}
+  .nav-user{max-width:160px}
+}
+
+/* ═══════════════════════════════════════════════════════
+   CLIPPED-CELL TOOLTIP
+   Remarks are one line in the row; the full note is on hover.
+   ═══════════════════════════════════════════════════════ */
+.premium-tooltip.tip-note{
+  max-width:min(430px,calc(100vw - 24px));
+  padding:9px 12px 10px;
+  text-align:left;
+  white-space:normal;
+  font-size:11.5px;
+  font-weight:600;
+  line-height:1.5;
+}
+.premium-tooltip .tip-cap{
+  display:block;
+  margin-bottom:5px;
+  color:var(--flat-orange);
+  font-size:8.5px;
+  font-weight:800;
+  letter-spacing:.13em;
+  text-transform:uppercase;
+}
+.premium-tooltip .tip-body{
+  display:block;
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+}
+#invTbl .remarks-cell{max-width:250px}

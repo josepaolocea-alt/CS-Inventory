@@ -278,11 +278,19 @@ function roleBadge(role) {
   const [cls,lbl] = m[role] || ['rb-viewer', role];
   return `<span class="role-badge ${cls}">${esc(lbl)}</span>`;
 }
-function dr(label, val) {
-  return `<div class="dr"><span class="dl">${esc(label)}</span><span class="dv">${esc(val == null ? '—' : String(val))}</span></div>`;
+function dr(label, val, className='') {
+  return `<div class="dr${className ? ` ${className}` : ''}"><span class="dl">${esc(label)}</span><span class="dv">${esc(val == null ? '—' : String(val))}</span></div>`;
 }
-function drHTML(label, valHTML) {
-  return `<div class="dr"><span class="dl">${esc(label)}</span><span class="dv">${valHTML}</span></div>`;
+function drHTML(label, valHTML, className='') {
+  return `<div class="dr${className ? ` ${className}` : ''}"><span class="dl">${esc(label)}</span><span class="dv">${valHTML}</span></div>`;
+}
+function entrySectionHeading(index, title, description) {
+  return `<div class="entry-section-heading"><span class="entry-section-index">${esc(index)}</span><span><strong>${esc(title)}</strong><small>${esc(description)}</small></span></div>`;
+}
+function entryFee(value) {
+  const normalized = String(value ?? '').trim();
+  if (!normalized) return '—';
+  return ['Waived','POC','NA'].includes(normalized) ? normalized : `$${normalized}`;
 }
 
 // A single, line-based icon family keeps data-table actions legible and visually
@@ -376,13 +384,29 @@ function positionPremiumTooltip(anchor, tip) {
 function showPremiumTooltip(anchor, delay = 220) {
   const message = anchor?.dataset?.tooltip?.trim();
   if (!message) return;
+  // data-tip-clip marks cells whose tooltip only earns its place when the text
+  // is actually cut off — no hint when the whole value already fits.
+  if ('tipClip' in anchor.dataset && anchor.scrollWidth <= anchor.clientWidth + 1) return;
   clearTimeout(_premiumTooltipTimer);
   _premiumTooltipTimer = setTimeout(() => {
     if (!anchor.isConnected) return;
     const tip = premiumTooltipEl();
     _premiumTooltipAnchor = anchor;
     tip.className = 'premium-tooltip';
-    tip.textContent = message;
+    if (anchor.dataset.tipVariant) tip.classList.add('tip-' + anchor.dataset.tipVariant);
+    const caption = anchor.dataset.tipLabel;
+    if (caption) {
+      tip.textContent = '';
+      const cap = document.createElement('span');
+      cap.className = 'tip-cap';
+      cap.textContent = caption;
+      const body = document.createElement('span');
+      body.className = 'tip-body';
+      body.textContent = message;
+      tip.append(cap, body);
+    } else {
+      tip.textContent = message;
+    }
     tip.setAttribute('aria-hidden', 'false');
     positionPremiumTooltip(anchor, tip);
     requestAnimationFrame(() => tip.classList.add('on'));
@@ -503,6 +527,7 @@ function syncPremiumSelect(select) {
   if (!state) return;
   const option = select.options[select.selectedIndex] || select.options[0];
   state.value.textContent = option?.textContent?.trim() || 'Select an option';
+  state.wrap.classList.toggle('is-filled', !!select.value);
   state.trigger.classList.toggle('is-placeholder', !select.value);
   state.trigger.disabled = select.disabled;
   state.trigger.setAttribute('aria-disabled', select.disabled ? 'true' : 'false');
@@ -809,6 +834,7 @@ function syncPremiumDate(input) {
   const state = premiumDateState.get(input);
   if (!state) return;
   state.value.textContent = premiumDateDisplay(input.value);
+  state.wrap.classList.toggle('is-filled', !!input.value);
   state.trigger.classList.toggle('is-placeholder', !input.value);
   state.trigger.disabled = input.disabled;
   state.trigger.setAttribute('aria-disabled', input.disabled ? 'true' : 'false');
@@ -1084,7 +1110,7 @@ fauth.onAuthStateChanged(async user => {
     document.getElementById('authOv').style.display = 'flex';
     document.getElementById('appNav').style.display = 'none';
     document.getElementById('appMain').style.display = 'none';
-    document.getElementById('navUser').textContent = '—';
+    setNavUserChip('—');
     renderDash(); renderTbl(); renderLogs();
   }
 });
@@ -1107,9 +1133,19 @@ function updateNavUser() {
   const el = document.getElementById('navUser'); if (!el) return;
   const email = currentUser?.email || '—';
   const name  = deviceName();
-  el.textContent = name ? `🖥 ${name}` : email;
+  const label = name || email;
+  setNavUserChip(label);
   el.dataset.tooltip = name ? `Signed in as ${email}\nThis device: ${name} — click to rename`
                             : `Signed in as ${email}\nClick to name this device`;
+}
+// The chip carries an initial tile + the label, so the two spans are written
+// separately — never the button's own textContent, which would drop the tile.
+function setNavUserChip(label) {
+  const nameEl  = document.getElementById('navUserName');
+  const badgeEl = document.getElementById('navUserBadge');
+  const text = String(label || '—').trim() || '—';
+  if (nameEl)  nameEl.textContent  = text;
+  if (badgeEl) badgeEl.textContent = /[a-z0-9]/i.test(text[0]) ? text[0].toUpperCase() : '—';
 }
 function openDeviceModal(firstRun=false) {
   const p = devicePlatform();
@@ -1328,9 +1364,14 @@ function inventoryRecentCompare(a, b) {
 // Reflect the active sort column/direction as the ▲/▼ arrow on its header
 // (clears all arrows when sortCol is null — the default most-recent order).
 function updateSortHeader() {
-  document.querySelectorAll('#invTbl th').forEach(th => th.classList.remove('asc','desc'));
+  document.querySelectorAll('#invTbl th.sort').forEach(th => {
+    th.classList.remove('asc','desc');
+    th.setAttribute('aria-sort', 'none');
+  });
   if (sortCol && colIdx[sortCol] != null) {
-    [...document.querySelectorAll('#invTbl th')][colIdx[sortCol]]?.classList.add(sortDir===1 ? 'asc' : 'desc');
+    const activeHeader = [...document.querySelectorAll('#invTbl th')][colIdx[sortCol]];
+    activeHeader?.classList.add(sortDir===1 ? 'asc' : 'desc');
+    activeHeader?.setAttribute('aria-sort', sortDir===1 ? 'ascending' : 'descending');
   }
 }
 // DEFAULT order — pinned first, then most-recently-touched on top. Used on load,
@@ -1742,7 +1783,19 @@ function applyF() {
     }
     return true;
   });
-  pg=1; renderTbl();
+  pg=1; renderTbl(); updateInventoryFilterUI();
+}
+function updateInventoryFilterUI() {
+  const advancedCount = ['fDateFrom','fDateTo'].reduce((count,id) => count + (document.getElementById(id)?.value ? 1 : 0), 0) + (showDupes ? 1 : 0);
+  const count = document.getElementById('advancedFilterCount');
+  if (count) {
+    count.textContent = String(advancedCount);
+    count.hidden = advancedCount === 0;
+  }
+  const more = document.getElementById('moreBtn');
+  more?.classList.toggle('has-active-filters', advancedCount > 0);
+  const dupes = document.getElementById('btnDupes');
+  dupes?.setAttribute('aria-pressed', showDupes ? 'true' : 'false');
 }
 function clearF() {
   ['fSearch','fDateFrom','fDateTo'].forEach(id => document.getElementById(id).value='');
@@ -1754,11 +1807,13 @@ function clearF() {
   sortInventoryByActivity();     // back to the default most-recent-on-top order
   sortCol=null; sortDir=1;
   updateSortHeader();
-  fd=[...DB]; pg=1; renderTbl();
+  fd=[...DB]; pg=1; renderTbl(); updateInventoryFilterUI();
 }
 function toggleDupes() {
   showDupes = !showDupes;
-  document.getElementById('btnDupes').classList.toggle('active', showDupes);
+  const button = document.getElementById('btnDupes');
+  button.classList.toggle('active', showDupes);
+  button.setAttribute('aria-pressed', showDupes ? 'true' : 'false');
   if (showDupes) {
     document.getElementById('fDateFrom').value = '';
     document.getElementById('fDateTo').value = '';
@@ -1768,7 +1823,9 @@ function toggleDupes() {
 function toggleMore() {
   moreOpen = !moreOpen;
   document.getElementById('moreRow').classList.toggle('on', moreOpen);
-  document.getElementById('moreBtn').textContent = moreOpen ? 'Less ▴' : 'More ▾';
+  const button = document.getElementById('moreBtn');
+  button.classList.toggle('is-open', moreOpen);
+  button.setAttribute('aria-expanded', moreOpen ? 'true' : 'false');
 }
 
 // ── SORT ──────────────────────────────────────────────
@@ -1827,11 +1884,11 @@ function renderTbl() {
       <td class="num-cell"><span class="num-val">${esc(r.number)}</span><button type="button" class="num-copy" data-tooltip="Copy number" aria-label="Copy number" onclick="event.stopPropagation();copyNumber(this)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></td>
       <td><span class="badge ${bclass(r.status)}">${esc(r.status)}</span></td>
       <td><span class="badge ${postedClass(r.postedStatus)}">${esc(canonPostedStatus(r.postedStatus) || 'No')}</span>${r.postedHour ? `<span class="posted-time">${esc(r.postedHour)}:${esc(r.postedMin || '00')}</span>` : ''}</td>
-      <td>${esc(r.remarks)}</td>
+      <td class="remarks-cell"${r.remarks ? ` data-tooltip="${esc(r.remarks)}" data-tip-label="Remarks" data-tip-variant="note" data-tip-clip="1"` : ''}>${esc(r.remarks)}</td>
       <td onclick="event.stopPropagation()">
-        <div class="act-btns">
-          <button type="button" class="act-btn pin-btn${isPinned?' pinned':''}" data-tooltip="${isPinned?'Unpin this entry':'Pin this entry'}" aria-label="${isPinned?'Unpin this entry':'Pin this entry'}" onclick="togglePin('${esc(r.id)}')">${ACTION_ICONS.pin}</button>
-          ${currentRole!=='viewer'?`<button type="button" class="act-btn" data-tooltip="Copy as new entry" aria-label="Copy as new entry" onclick="openCopyById('${esc(r.id)}')">${ACTION_ICONS.copy}</button><button type="button" class="act-btn" data-tooltip="Edit" aria-label="Edit entry" onclick="openEditById('${esc(r.id)}')">${ACTION_ICONS.edit}</button><button type="button" class="act-btn del" data-tooltip="Delete" aria-label="Delete entry" onclick="delRec('${esc(r.id)}')">${ACTION_ICONS.remove}</button>`:''}
+        <div class="act-btns inventory-actions">
+          <button type="button" class="act-btn pin-btn${isPinned?' pinned':''}" data-tooltip="${isPinned?'Unpin this entry':'Pin this entry'}" aria-label="${isPinned?'Unpin this entry':'Pin this entry'}" onclick="togglePin('${esc(r.id)}')">${ACTION_ICONS.pin}<span class="act-label">${isPinned?'Unpin':'Pin'}</span></button>
+          ${currentRole!=='viewer'?`<button type="button" class="act-btn" data-tooltip="Copy as new entry" aria-label="Copy as new entry" onclick="openCopyById('${esc(r.id)}')">${ACTION_ICONS.copy}<span class="act-label">Copy</span></button><button type="button" class="act-btn" data-tooltip="Edit" aria-label="Edit entry" onclick="openEditById('${esc(r.id)}')">${ACTION_ICONS.edit}<span class="act-label">Edit</span></button><button type="button" class="act-btn del" data-tooltip="Delete" aria-label="Delete entry" onclick="delRec('${esc(r.id)}')">${ACTION_ICONS.remove}<span class="act-label">Delete</span></button>`:''}
         </div>
       </td>
     </tr>`;
@@ -2059,7 +2116,7 @@ function canDeleteHistoryEntry() {
   return currentRole === 'admin' &&
     (currentUser?.email || '').trim().toLowerCase() === HISTORY_DELETE_ADMIN_EMAIL;
 }
-function historySectionHTML(r) {
+function historySectionHTML(r, sectionIndex='04') {
   const current = currentActivationHTML(r);
   const history = Array.isArray(r.deactivationHistory) ? r.deactivationHistory : [];
   const reservationHistory = Array.isArray(r.reservationHistory) ? r.reservationHistory : [];
@@ -2122,7 +2179,7 @@ function historySectionHTML(r) {
         <div class="deact-hist-meta">by ${esc(h.deactivatedBy||'—')} · ${metaDate(h.deactivatedAt)}</div>
       </div>`;
   }).join('') : '';
-  return (current || reserved || deact) ? `<div class="ds"><div class="ds-title">Reservation, Activation &amp; Deactivation History</div>${current}${reserved}${deact}</div>` : '';
+  return (current || reserved || deact) ? `<div class="ds entry-section entry-history-section">${entrySectionHeading(sectionIndex,'Record history','Reservations, activations, and deactivations in reverse chronological order.')}${current}${reserved}${deact}</div>` : '';
 }
 
 function confirmDeleteHistoryEntry(recordId, historyIndex, historyField='deactivationHistory') {
@@ -2198,34 +2255,57 @@ function openSP(id) {
   const r = DB.find(x => x.id===id); if (!r) return;
   curRec = r;
   document.getElementById('spTitle').textContent = r.number;
+  const postedDateTime = (r.postedDate || r.postedHour)
+    ? `${r.postedDate ? fmt(r.postedDate) : ''}${r.postedHour ? ` ${r.postedHour}:${r.postedMin||'00'}` : ''}`.trim()
+    : '—';
+  const historyHTML = historySectionHTML(r, '04');
+  const auditSectionIndex = historyHTML ? '05' : '04';
   document.getElementById('spBody').innerHTML = `
-    <div class="ds"><div class="ds-title">Client Information</div>
-      ${dr('Client',r.client)}${dr('Product',r.product)}${dr('Number',r.number)}
-      ${drHTML('Status',`<span class="badge ${bclass(r.status)}">${esc(r.status)}</span>`)}
-      ${dr('Remarks',r.remarks||'—')}${dr('Posted Status',canonPostedStatus(r.postedStatus)||'—')}
-      ${dr('Posted Date & Time', (r.postedDate || r.postedHour) ? `${r.postedDate ? fmt(r.postedDate) : ''}${r.postedHour ? ` ${r.postedHour}:${r.postedMin||'00'}` : ''}`.trim() : '—')}${dr('Client OSF','$'+(r.clientOSF||'—'))}
-      ${dr('Client MRC','$'+(r.clientMRC||'—'))}${dr('Client OTRF','$'+(r.clientOTRF||'—'))}
-      ${dr('Client Channel Fee','$'+(r.clientCF||'—'))}${dr('Client CPM',r.clientCPM||'—')}
-      ${dr('Effective Date',fmt(r.effDate))}${dr('Activated Date',fmt(r.actDate))}
+    <div class="entry-summary">
+      <div class="entry-summary-item entry-summary-client"><span>Client</span><strong>${esc(r.client||'Unassigned')}</strong></div>
+      <div class="entry-summary-item"><span>Product</span><strong>${esc(r.product||'—')}</strong></div>
+      <div class="entry-summary-item"><span>Status</span><strong><span class="badge ${bclass(r.status)}">${esc(r.status||'—')}</span></strong></div>
     </div>
-    <div class="ds"><div class="ds-title">Provider Information</div>
-      ${dr('Provider',r.provider||'—')}${dr('Arrival Date',fmt(r.arrDate))}
-      ${dr('Provider Activation Date',fmt(r.provActDate))}
-      ${dr('Provider OSF','$'+(r.provOSF||'—'))}${dr('Provider MRC','$'+(r.provMRC||'—'))}
-      ${dr('Provider OTRF','$'+(r.provOTRF||'—'))}${dr('Provider CPM',r.provCPM||'—')}
-      ${dr('Type / Session',r.typeSession||'—')}
+    <div class="ds entry-section">
+      ${entrySectionHeading('01','Client & posting','Commercial terms, posting state, and activation timing.')}
+      <div class="entry-detail-grid">
+        ${dr('Remarks',r.remarks||'—','entry-field-wide')}
+        ${dr('Posted status',canonPostedStatus(r.postedStatus)||'—')}
+        ${dr('Posted date & time',postedDateTime)}
+        ${dr('Client OSF',entryFee(r.clientOSF))}${dr('Client MRC',entryFee(r.clientMRC))}
+        ${dr('Client OTRF',entryFee(r.clientOTRF))}${dr('Channel fee',entryFee(r.clientCF))}
+        ${dr('Client CPM',r.clientCPM||'—')}${dr('Effective date',fmt(r.effDate))}
+        ${dr('Activated date',fmt(r.actDate))}
+      </div>
     </div>
-    <div class="ds"><div class="ds-title">Routing &amp; History</div>
-      ${dr('Route Request by',r.route||'—')}
-      ${dr('Deactivation Date (Prev Client)',fmt(r.deactDate))}
-      ${dr('Previous Client',r.prevClient||'—')}
+    <div class="ds entry-section">
+      ${entrySectionHeading('02','Provider information','Provisioning source, timing, and provider-side charges.')}
+      <div class="entry-detail-grid">
+        ${dr('Provider',r.provider||'—','entry-field-wide')}${dr('Arrival date',fmt(r.arrDate))}
+        ${dr('Provider activation',fmt(r.provActDate))}
+        ${dr('Provider OSF',entryFee(r.provOSF))}${dr('Provider MRC',entryFee(r.provMRC))}
+        ${dr('Provider OTRF',entryFee(r.provOTRF))}${dr('Provider CPM',r.provCPM||'—')}
+        ${dr('Type / session',r.typeSession||'—','entry-field-wide')}
+      </div>
     </div>
-    ${historySectionHTML(r)}
-    <div class="ds"><div class="ds-title">Meta</div>
-      ${dr('Created by',r.createdBy||'—')}${dr('Updated by',r.updatedBy||'—')}
+    <div class="ds entry-section">
+      ${entrySectionHeading('03','Routing & previous client','Request ownership and the most recent deactivation context.')}
+      <div class="entry-detail-grid">
+        ${dr('Route requested by',r.route||'—')}
+        ${dr('Deactivation date',fmt(r.deactDate))}
+        ${dr('Previous client',r.prevClient||'—','entry-field-wide')}
+      </div>
+    </div>
+    ${historyHTML}
+    <div class="ds entry-section entry-audit-section">
+      ${entrySectionHeading(auditSectionIndex,'Audit details','Record ownership for administrative review.')}
+      <div class="entry-detail-grid">
+        ${dr('Created by',r.createdBy||'—')}${dr('Updated by',r.updatedBy||'—')}
+      </div>
     </div>`;
   document.getElementById('spOv').classList.add('on');
   document.getElementById('sp').classList.add('on');
+  document.getElementById('spBody').scrollTop = 0;
   updateSPPinBtn();
 }
 function closeSP() {
@@ -3318,10 +3398,13 @@ function renderAutoBackupCard() {
 
 function toggleExportMenu(e) {
   e.stopPropagation();
-  document.getElementById('exportMenu').classList.toggle('on');
+  const menu = document.getElementById('exportMenu');
+  const open = menu.classList.toggle('on');
+  document.getElementById('btnExportAll')?.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 function closeExportMenu() {
   document.getElementById('exportMenu')?.classList.remove('on');
+  document.getElementById('btnExportAll')?.setAttribute('aria-expanded', 'false');
 }
 
 // ── LOGS ──────────────────────────────────────────────
@@ -4276,4 +4359,6 @@ initPremiumDates();
 initPremiumTooltips();
 loadPinned();
 if (EL.pgSize) EL.pgSize.value = '50';
+updateInventoryFilterUI();
+updateSortHeader();
 renderDash(); renderTbl(); renderLogs();
