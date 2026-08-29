@@ -2408,6 +2408,8 @@ function openMoOverlay() {
   void ov.offsetHeight;
   const mo = ov.querySelector('.mo');
   if (mo) mo.scrollTop = 0;
+  const body = mo?.querySelector('.mo-body');
+  if (body) body.scrollTop = 0;
 }
 function closeMo() { document.getElementById('moOv').classList.remove('on'); }
 function resetDeactSection(mode) {

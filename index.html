@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="app.css?v=26">
+<link rel="stylesheet" href="app.css?v=30">
 </head>
 <body>
 
@@ -115,9 +115,9 @@
         </span>
       </div>
       <div class="more-row" id="moreRow">
-        <span style="font-size:12px;color:var(--t2);font-weight:500">Activation Date:</span>
+        <span class="filter-label">Activation Date:</span>
         <input type="date" class="finp" id="fDateFrom" onchange="applyF()" style="width:145px">
-        <span style="font-size:12px;color:var(--t3)">to</span>
+        <span class="filter-separator">to</span>
         <input type="date" class="finp" id="fDateTo" onchange="applyF()" style="width:145px">
         <button class="btn" id="btnDupes" onclick="toggleDupes()" style="margin-left:8px">Duplicate</button>
       </div>
@@ -249,7 +249,7 @@
 <div class="page" id="page-admin">
   <div class="ph"><h1>Admin</h1><p>System administration</p></div>
 
-  <div class="card" style="margin-bottom:16px">
+  <div class="card admin-management-card" style="margin-bottom:16px">
     <div class="um-toolbar">
       <div class="ctitle" style="margin:0">User Management</div>
       <button class="btn btn-p btn-sm" onclick="openAddUser()">+ Add User</button>
@@ -269,7 +269,7 @@
     </div>
   </div>
 
-  <div class="card" style="margin-bottom:16px">
+  <div class="card admin-management-card" style="margin-bottom:16px">
     <div class="ctitle">Automatic Backup</div>
     <p style="font-size:12px;color:var(--t2);margin:2px 0 14px;line-height:1.55">
       When on, a full CSV backup of your inventory is emailed <b>once a week</b> to the address below.
@@ -294,7 +294,7 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card admin-management-card">
     <div class="ctitle">Selection Management</div>
 
     <div class="sel-panel">
@@ -398,30 +398,41 @@
 
 <!-- ADD / EDIT MODAL -->
 <div class="mo-ov" id="moOv">
-  <div class="mo">
+  <div class="mo number-editor">
     <div class="mo-head">
-      <span class="mo-title" id="moTitle">Add Number</span>
-      <button class="act-btn" onclick="closeMo()" style="font-size:17px;color:var(--t2)">✕</button>
+      <div class="number-editor-heading">
+        <span class="number-editor-kicker">Inventory record</span>
+        <span class="mo-title" id="moTitle">Add Number</span>
+        <span class="number-editor-subtitle">Update ownership, posting, provider, and routing details.</span>
+      </div>
+      <button type="button" class="act-btn" aria-label="Close number editor" onclick="closeMo()">✕</button>
     </div>
     <div class="mo-body">
+      <div class="number-editor-note">
+        <span>Record details</span>
+        <span><b>*</b> Required field</span>
+      </div>
       <div class="fgrid" id="moForm">
-        <div class="fsect">Client Information</div>
-        <div class="fg"><label>Client</label><select class="fc" id="mClient"><option value="">— select client —</option></select></div>
-        <div class="fg"><label>Product</label><select class="fc" id="mProduct"><option value="">— select product —</option></select></div>
-        <div class="fg"><label>Number <span style="color:var(--err)">*</span></label><input class="fc" id="mNumber" placeholder="+1 555 000 0000"></div>
+        <div class="fsect">
+          <span class="fsect-index">01</span>
+          <span><strong>Client information</strong><small>Ownership, availability, posting details, and client charges.</small></span>
+        </div>
+        <div class="fg field-span-2 field-primary"><label>Number <span style="color:var(--err)">*</span></label><input class="fc" id="mNumber" placeholder="+1 555 000 0000"></div>
         <div class="fg"><label>Status</label>
           <select class="fc" id="mStatus"><option>Available</option><option>Reserved</option><option>Active</option><option>Inactive</option></select>
         </div>
-        <div class="fg full"><label>Remarks</label><input class="fc" id="mRemarks" placeholder="Any remarks…"></div>
+        <div class="fg"><label>Client</label><select class="fc" id="mClient"><option value="">— select client —</option></select></div>
+        <div class="fg"><label>Product</label><select class="fc" id="mProduct"><option value="">— select product —</option></select></div>
         <div class="fg"><label>Posted Status</label>
           <select class="fc" id="mPosted"><option value="No">No</option><option value="Posted">Posted</option><option value="For Posting">For Posting</option></select>
         </div>
+        <div class="fg full"><label>Remarks</label><input class="fc" id="mRemarks" placeholder="Add a note about this number…"></div>
         <div class="fg full">
           <label>Posted Date &amp; Time <span style="color:var(--t3);font-weight:400;font-size:11px">(optional · time is auto-generated in sequence when saved as “For Posting”)</span></label>
-          <div style="display:flex;gap:6px;align-items:center">
-            <input type="date" class="fc" id="mPostedDate" style="flex:2;min-width:0">
-            <select class="fc" id="mPostedHour" style="flex:1;min-width:0"><option value="">HH</option></select>
-            <select class="fc" id="mPostedMin" style="flex:1;min-width:0"><option value="">MM</option></select>
+          <div class="posted-time-fields">
+            <input type="date" class="fc" id="mPostedDate">
+            <select class="fc" id="mPostedHour"><option value="">HH</option></select>
+            <select class="fc" id="mPostedMin"><option value="">MM</option></select>
           </div>
         </div>
         <div class="fg"><label>Client OSF</label>
@@ -444,8 +455,11 @@
         <div class="fg"><label>Effective Date</label><input type="date" class="fc" id="mEffDate"></div>
         <div class="fg"><label>Activated Date</label><input type="date" class="fc" id="mActDate"></div>
 
-        <div class="fsect">Provider Information</div>
-        <div class="fg"><label>Provider</label><select class="fc" id="mProvider"><option value="">— select provider —</option></select></div>
+        <div class="fsect">
+          <span class="fsect-index">02</span>
+          <span><strong>Provider information</strong><small>Source, activation timing, and provider-side charges.</small></span>
+        </div>
+        <div class="fg field-span-2"><label>Provider</label><select class="fc" id="mProvider"><option value="">— select provider —</option></select></div>
         <div class="fg"><label>Arrival Date</label><input type="date" class="fc" id="mArrDate"></div>
         <div class="fg"><label>Provider Activation Date</label><input type="date" class="fc" id="mProvActDate"></div>
         <div class="fg"><label>Provider OSF</label>
@@ -466,14 +480,17 @@
         </div>
         <div class="fg"><label>Type / Session</label><input class="fc" id="mTypeSession" placeholder="e.g. SIP, WebRTC"></div>
 
-        <div class="fsect">Routing &amp; History</div>
+        <div class="fsect">
+          <span class="fsect-index">03</span>
+          <span><strong>Routing &amp; history</strong><small>Request ownership and previous-client context.</small></span>
+        </div>
         <div class="fg"><label>Route Request by</label><select class="fc" id="mRoute"><option value="">— select —</option></select></div>
         <div class="fg"><label>Deactivation Date (Prev Client)</label><input type="date" class="fc" id="mDeactDate"></div>
         <div class="fg full"><label>Previous Client</label><select class="fc" id="mPrevClient"><option value="">— select prev client —</option></select></div>
-        <div id="mDeactSection" style="display:none;grid-column:1/-1">
-          <div style="background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.28);border-radius:var(--r);padding:12px;margin-top:4px">
-            <div style="font-size:11px;font-weight:700;color:var(--err);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(239,68,68,.2)">Deactivation Details</div>
-            <div class="fgrid" style="padding:0">
+        <div id="mDeactSection" class="deactivation-panel-wrap" style="display:none">
+          <div class="deactivation-panel">
+            <div class="deactivation-panel-title">Deactivation details</div>
+            <div class="fgrid deactivation-fields">
               <div class="fg"><label>Deactivation Date <span style="color:var(--err)">*</span></label><input type="date" class="fc" id="dDeactDate"></div>
               <div class="fg"><label>Route Requested by</label><select class="fc" id="dRoute"><option value="">— select —</option></select></div>
               <div class="fg full"><label>Remarks</label><input class="fc" id="dRemarks" placeholder="Reason for deactivation…"></div>
@@ -483,10 +500,13 @@
       </div>
     </div>
     <div class="mo-foot">
-      <button class="btn" onclick="closeMo()">Cancel</button>
-      <button class="btn btn-d" id="mDeactBtn" style="display:none" onclick="toggleDeactivate('single')">Deactivate</button>
-      <button class="btn pin-modal-btn" id="mPinBtn" style="display:none" onclick="togglePinModal()">Pin</button>
-      <button class="btn btn-p" onclick="saveRec()">Save</button>
+      <span class="number-editor-footnote">Changes are recorded in the activity log.</span>
+      <div class="number-editor-actions">
+        <button type="button" class="btn" onclick="closeMo()">Cancel</button>
+        <button type="button" class="btn btn-d" id="mDeactBtn" style="display:none" onclick="toggleDeactivate('single')">Deactivate</button>
+        <button type="button" class="btn pin-modal-btn" id="mPinBtn" style="display:none" onclick="togglePinModal()">Pin</button>
+        <button type="button" class="btn btn-p number-editor-save" onclick="saveRec()">Save number</button>
+      </div>
     </div>
   </div>
 </div>
