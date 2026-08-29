@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="app.css?v=31">
+<link rel="stylesheet" href="app.css?v=34">
 </head>
 <body>
 
@@ -94,12 +94,21 @@
 
 <!-- ══════════ INVENTORY ══════════ -->
 <div class="page" id="page-inventory">
-  <div class="ph"><h1>Inventory</h1><p>Manage your number inventory</p></div>
+  <div class="ph inventory-ph">
+    <div><h1>Inventory</h1><p>Manage your number inventory</p></div>
+    <span class="last-posted empty" id="lastPostedInd" data-tooltip="Highest posted time set on any number">
+      <span class="lp-label">Last posted</span>
+      <span class="lp-time" id="lastPostedTime">—</span>
+    </span>
+  </div>
 
   <div class="inv-top">
-    <div style="flex:1">
-      <div class="filter-row">
-        <input class="finp" id="fSearch" placeholder="Search all fields… (use * as wildcard)" oninput="applyF()">
+    <div class="filter-stack">
+      <div class="filter-row" aria-label="Inventory filters">
+        <div class="filter-search" data-tooltip="Use * as a wildcard">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.25"/><path d="m12.5 12.5 4 4"/></svg>
+          <input class="finp" id="fSearch" aria-label="Search inventory" placeholder="Search inventory…" oninput="applyF()">
+        </div>
         <select class="fsel" id="fClient" onchange="applyF()"><option value="">All Clients</option></select>
         <select class="fsel" id="fStatus" onchange="applyF()">
           <option value="">All Statuses</option>
@@ -107,29 +116,34 @@
         </select>
         <select class="fsel" id="fProduct" onchange="applyF()"><option value="">All Products</option></select>
         <select class="fsel" id="fProvider" onchange="applyF()"><option value="">All Providers</option></select>
-        <button class="btn" id="moreBtn" onclick="toggleMore()">More ▾</button>
-        <button class="btn" onclick="clearF()">Clear</button>
-        <span class="last-posted empty" id="lastPostedInd" data-tooltip="Highest posted time set on any number">
-          <span class="lp-label">Last posted</span>
-          <span class="lp-time" id="lastPostedTime">—</span>
-        </span>
+        <button class="btn filter-more-btn" id="moreBtn" type="button" aria-expanded="false" aria-controls="moreRow" onclick="toggleMore()">
+          <span>Advanced</span>
+          <span class="filter-count" id="advancedFilterCount" hidden>0</span>
+          <svg class="filter-more-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
+        </button>
+        <button class="btn filter-clear-btn" id="btnClearFilters" type="button" onclick="clearF()">Reset</button>
       </div>
       <div class="more-row" id="moreRow">
-        <span class="filter-label">Activation Date:</span>
-        <input type="date" class="finp" id="fDateFrom" onchange="applyF()" style="width:145px">
-        <span class="filter-separator">to</span>
-        <input type="date" class="finp" id="fDateTo" onchange="applyF()" style="width:145px">
-        <button class="btn" id="btnDupes" onclick="toggleDupes()" style="margin-left:8px">Duplicate</button>
+        <div class="date-filter-group" role="group" aria-label="Activation date range">
+          <span class="filter-group-title">Activation date</span>
+          <label class="date-filter-field"><span>From</span><input type="date" class="finp date-filter-input" id="fDateFrom" aria-label="Activation date from" onchange="applyF()"></label>
+          <label class="date-filter-field"><span>To</span><input type="date" class="finp date-filter-input" id="fDateTo" aria-label="Activation date to" onchange="applyF()"></label>
+        </div>
+        <button class="btn duplicate-filter-btn" id="btnDupes" type="button" aria-pressed="false" onclick="toggleDupes()">
+          <svg viewBox="0 0 18 18" aria-hidden="true"><rect x="6" y="6" width="9" height="9" rx="1.5"/><path d="M12 6V4.5A1.5 1.5 0 0 0 10.5 3h-6A1.5 1.5 0 0 0 3 4.5v6A1.5 1.5 0 0 0 4.5 12H6"/></svg>
+          <span>Duplicates only</span>
+        </button>
       </div>
     </div>
-    <div class="tb-actions">
+    <div class="tb-actions" aria-label="Inventory actions">
       <button class="btn btn-p" id="btnAdd" onclick="openAdd()">+ Add Number</button>
-      <button class="btn btn-ico" id="btnUpload" data-tooltip="Upload CSV" onclick="document.getElementById('csvIn').click()">⤒</button>
+      <span class="tb-actions-divider" aria-hidden="true"></span>
+      <button class="btn tb-action-btn" id="btnUpload" data-tooltip="Import records from CSV" aria-label="Import CSV" onclick="document.getElementById('csvIn').click()"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 13V3m0 0L6.5 6.5M10 3l3.5 3.5"/><path d="M4 11v4a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-4"/></svg><span>Import</span></button>
       <input type="file" id="csvIn" accept=".csv" style="display:none" onchange="handleCSV(event)">
-      <button class="btn btn-ico" data-tooltip="Download Sample CSV" onclick="dlSample()">⤓</button>
+      <button class="btn tb-action-btn" data-tooltip="Download sample CSV" aria-label="Download CSV template" onclick="dlSample()"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 2.5h6l4 4V17.5H5z"/><path d="M11 2.5v4h4M10 9v5m0 0-2-2m2 2 2-2"/></svg><span>Template</span></button>
       <div class="export-wrap" id="btnExportWrap">
-        <button class="btn btn-ico" id="btnExportAll" data-tooltip="Export options" onclick="toggleExportMenu(event)">↗</button>
-        <div class="export-menu" id="exportMenu">
+        <button class="btn tb-action-btn" id="btnExportAll" data-tooltip="Export options" aria-label="Open export options" aria-haspopup="menu" aria-expanded="false" onclick="toggleExportMenu(event)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v10m0 0 3.5-3.5M10 13 6.5 9.5"/><path d="M4 12v3a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-3"/></svg><span>Export</span></button>
+        <div class="export-menu" id="exportMenu" role="menu">
           <button onclick="exportAll()">⤓ Export CSV</button>
           <button onclick="exportExcel()">⤓ Export Excel (.xlsx)</button>
           <button onclick="exportGoogleSheets()">⤓ Download Multi-Tab Excel</button>
@@ -156,13 +170,13 @@
           <tr>
             <th class="cb-cell" style="width:34px"><label data-tooltip="Select all rows on this page"><input type="checkbox" id="selAll" aria-label="Select all rows on this page" onchange="selAllRows(this)"></label></th>
             <th style="width:42px">#</th>
-            <th class="sort" onclick="sortBy('client')">Client</th>
-            <th class="sort" onclick="sortBy('product')">Product</th>
-            <th class="sort" onclick="sortBy('number')">Number</th>
-            <th class="sort" onclick="sortBy('status')">Status</th>
-            <th class="sort" onclick="sortBy('postedStatus')">Posted Status</th>
-            <th class="sort" onclick="sortBy('remarks')">Remarks</th>
-            <th style="width:86px">Action</th>
+            <th class="sort" tabindex="0" aria-sort="none" onclick="sortBy('client')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();sortBy('client')}">Client</th>
+            <th class="sort" tabindex="0" aria-sort="none" onclick="sortBy('product')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();sortBy('product')}">Product</th>
+            <th class="sort" tabindex="0" aria-sort="none" onclick="sortBy('number')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();sortBy('number')}">Number</th>
+            <th class="sort" tabindex="0" aria-sort="none" onclick="sortBy('status')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();sortBy('status')}">Status</th>
+            <th class="sort" tabindex="0" aria-sort="none" onclick="sortBy('postedStatus')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();sortBy('postedStatus')}">Posted Status</th>
+            <th class="sort" tabindex="0" aria-sort="none" onclick="sortBy('remarks')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();sortBy('remarks')}">Remarks</th>
+            <th class="action-head">Actions</th>
           </tr>
         </thead>
         <tbody id="invBody"></tbody>
@@ -385,12 +399,16 @@
 <div class="sp-ov" id="spOv" onclick="closeSP()"></div>
 <aside class="sp" id="sp" role="dialog" aria-modal="true" aria-labelledby="spTitle">
   <div class="sp-head">
-    <div class="sp-title" id="spTitle">Details</div>
-    <div class="sp-btns">
+    <div class="sp-heading">
+      <span class="sp-kicker">Inventory entry</span>
+      <div class="sp-title" id="spTitle">Details</div>
+      <span class="sp-subtitle">Record overview and activity history</span>
+    </div>
+    <div class="sp-btns" aria-label="Entry actions">
       <button class="btn btn-sm" id="btnSpCopy" onclick="openCopy()">Copy</button>
       <button class="btn btn-p btn-sm" id="btnSpEdit" onclick="openEdit()">Edit</button>
       <button class="btn btn-sm pin-modal-btn" id="btnSpPin" onclick="togglePinSP()">Pin</button>
-      <button class="btn btn-sm" onclick="closeSP()">Close</button>
+      <button type="button" class="sp-close" aria-label="Close entry view" onclick="closeSP()">✕</button>
     </div>
   </div>
   <div class="sp-body" id="spBody"></div>
@@ -913,7 +931,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
 <!-- App -->
-<script src="app.js?v=39"></script>
+<script src="app.js?v=43"></script>
 
 </body>
 </html>
