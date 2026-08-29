@@ -1019,7 +1019,7 @@ tbody tr:hover td{background:color-mix(in srgb,var(--accent-bg) 72%,var(--bg))}
   --flat-paper:#f3efe5;
   --flat-orange:#ff6d42;
   --flat-orange-dark:#e85a31;
-  --flat-purple:#8859df;
+  --flat-purple:#9b73e6;
   --flat-green:#67c77a;
   --flat-yellow:#e9c34f;
   --flat-red:#df6255;
@@ -1400,4 +1400,183 @@ input[type=checkbox]:checked{border-color:var(--flat-line);background:var(--flat
   .tbl-wrap{border-radius:7px}
   .auth-box{padding:28px 24px}
   .auth-title{font-size:34px}
+}
+
+/* ═══════════════════════════════════════════════════════
+   THEME + INTERACTION CORRECTIONS
+   Neutral tooltips, stable dashboard hover states, and
+   complete light/dark contrast for every major surface.
+   ═══════════════════════════════════════════════════════ */
+:root{
+  --theme-canvas:#d7d2c7;
+  --theme-workspace:#f3efe5;
+  --theme-surface:#e7e1d5;
+  --theme-surface-alt:#dad3c5;
+  --theme-text:#151512;
+  --theme-muted:#5f5e56;
+  --theme-line:#171713;
+  --theme-tooltip:#1a1a17;
+  --theme-tooltip-border:#515149;
+}
+[data-dark]{
+  --theme-canvas:#3a3935;
+  --theme-workspace:#11110f;
+  --theme-surface:#191916;
+  --theme-surface-alt:#22221d;
+  --theme-text:#f3efe5;
+  --theme-muted:#aaa79e;
+  --theme-line:#373731;
+  --theme-tooltip:#1a1a17;
+  --theme-tooltip-border:#515149;
+}
+
+body{background:var(--theme-canvas)}
+.main{background:var(--theme-workspace)}
+
+/* Tooltip border stays neutral in both themes. */
+.premium-tooltip{
+  border-color:var(--theme-tooltip-border);
+  background:var(--theme-tooltip);
+  color:var(--flat-paper);
+}
+.premium-tooltip::after{
+  background:var(--theme-tooltip);
+  border-right-color:var(--theme-tooltip-border);
+  border-bottom-color:var(--theme-tooltip-border);
+}
+.premium-tooltip.below::after{
+  border-right-color:transparent;
+  border-bottom-color:transparent;
+  border-left-color:var(--theme-tooltip-border);
+  border-top-color:var(--theme-tooltip-border);
+}
+
+/* Never replace a bright dashboard block with the dark grid on hover. */
+.stat:first-child:hover{background:var(--flat-orange)}
+.stat:nth-child(2):hover{background:var(--flat-purple)}
+.stat:nth-child(3):hover{background:var(--flat-green)}
+.stat:nth-child(4):hover{background:var(--flat-yellow)}
+.dg2 > .card:first-child:hover{background:var(--flat-purple)}
+.dg2 > .card:nth-child(2):hover{background:var(--flat-green)}
+
+/* Shared theme-aware surfaces. */
+.dg3 > .card,.card:not(.dg2 > .card),.lf-panel,.sel-panel,
+.lf-head,.sel-head,.lf-body,.sel-body,.mo,.sp,.mo-foot,
+.export-menu,.pselect-menu,.pdate-menu{
+  background:var(--theme-surface);
+  color:var(--theme-text);
+  border-color:var(--theme-line);
+}
+.dg3 > .card:hover,.card:not(.dg2 > .card):hover,.lf-head:hover,.sel-head:hover{
+  background:var(--theme-surface-alt);
+  border-color:var(--theme-line);
+}
+.dg3 .li,.li,.lf-body,.sel-body,.mo-head,.mo-foot,.sp-head{border-color:var(--theme-line)}
+.dg3 .li-name,.dg3 .li-sub,.li-name,.lf-label,.sel-label,.mo,.sp,.dv{color:var(--theme-text)}
+.li-sub,.dl,.tbl-info,.toast-msg{color:var(--theme-muted)}
+.dg3 .sbar-track{background:var(--theme-surface-alt)}
+
+/* Menus follow the active theme while keeping the flat language. */
+.export-menu button,.pselect-option,.pdate-title,.pdate-weekday,.pdate-day{
+  background:transparent;
+  color:var(--theme-text);
+  border-color:var(--theme-line);
+}
+.export-menu button:hover,.pselect-option:hover,.pselect-option.is-active,
+.pdate-day:hover:not(:disabled),.pdate-day:focus-visible,.pdate-day.is-cursor{
+  background:var(--theme-surface-alt);
+  color:var(--theme-text);
+}
+.pselect-search{border-color:var(--theme-line);background:var(--theme-surface-alt);color:var(--theme-text)}
+.pselect-option.is-selected,.pdate-day.is-selected{background:var(--flat-orange);color:var(--flat-ink)}
+
+/* Data body and footer now switch together; the dark footer is no longer white. */
+.tbl-wrap{background:var(--theme-surface)}
+td{color:var(--theme-text);border-color:var(--theme-line)}
+tbody tr:nth-child(odd):not(.tbl-empty) td{background:var(--theme-surface)}
+tbody tr:nth-child(even):not(.tbl-empty) td{background:var(--theme-surface-alt)}
+tbody tr:hover td{background:color-mix(in srgb,var(--flat-orange) 18%,var(--theme-surface))}
+.row-num{color:var(--theme-muted)}
+.num-cell{color:var(--accent)}
+.tbl-foot{
+  border-color:var(--theme-line);
+  background:var(--theme-surface-alt);
+  color:var(--theme-text);
+}
+.tbl-foot .tbl-info,.tbl-foot .pgn,.tbl-foot .pgn > span{color:var(--theme-text)!important}
+.tbl-foot .btn,.tbl-foot .pgsel{
+  border-color:var(--theme-line);
+  background:var(--theme-workspace);
+  color:var(--theme-text);
+}
+.tbl-foot .btn:hover{background:var(--flat-purple);color:var(--flat-ink)}
+
+/* Detail sheets and dialogs keep readable fields and labels in either theme. */
+.sp-body,.mo-body{background:var(--theme-surface);color:var(--theme-text)}
+.mo-foot{background:var(--theme-surface-alt)}
+.fg label,.ds-title,.fsect{color:var(--theme-muted)}
+.sp-body .fc,.mo-body .fc,.lf-body .finp,.lf-body .fsel,.sel-body .finp{
+  border-color:var(--theme-line);
+  background:var(--theme-workspace);
+  color:var(--theme-text);
+}
+
+/* Explicit control contrast for both states of the theme toggle. */
+[data-dark] .btn:not(.btn-p):not(.btn-d),
+[data-dark] .finp,[data-dark] .fsel,[data-dark] .fc,[data-dark] .pgsel,
+[data-dark] .pselect-trigger,[data-dark] .pdate-trigger{
+  border-color:#4a4a42;
+  background:#171714;
+  color:#f3efe5;
+}
+[data-dark] .btn:not(.btn-p):not(.btn-d):hover{
+  border-color:#f3efe5;
+  background:#f3efe5;
+  color:#11110f;
+}
+html:not([data-dark]) .btn:not(.btn-p):not(.btn-d),
+html:not([data-dark]) .finp,html:not([data-dark]) .fsel,html:not([data-dark]) .fc,
+html:not([data-dark]) .pgsel,html:not([data-dark]) .pselect-trigger,
+html:not([data-dark]) .pdate-trigger{
+  border-color:#171713;
+  background:#f3efe5;
+  color:#151512;
+}
+html:not([data-dark]) .btn:not(.btn-p):not(.btn-d):hover{
+  background:#171713;
+  color:#f3efe5;
+}
+
+/* Colored dashboard and toolbar controls deliberately remain dark on bright fills. */
+.dg2 > .card .pgsel,.inv-top .finp,.inv-top .fsel,.inv-top .pselect-trigger,
+.inv-top .pdate-trigger,.inv-top .btn:not(.btn-p),.inv-top .last-posted{
+  border-color:#34342e;
+  background:var(--flat-ink);
+  color:var(--flat-paper);
+}
+.inv-top .btn:not(.btn-p):hover{border-color:var(--flat-line);background:var(--flat-paper);color:var(--flat-ink)}
+
+/* Selection and pinned rows retain readable text after theme changes. */
+tr.tr-selected td,tr.tr-selected:hover td{background:color-mix(in srgb,var(--flat-orange) 25%,var(--theme-surface));color:var(--theme-text)}
+tr.tr-pinned td,tr.tr-pinned:hover td{background:color-mix(in srgb,var(--flat-yellow) 15%,var(--theme-surface));color:var(--theme-text)}
+
+/* Native select arrows remain single after theme background changes. */
+select.fsel,select.pgsel,select.fc,
+[data-dark] select.fsel,[data-dark] select.pgsel,[data-dark] select.fc,
+html:not([data-dark]) select.fsel,html:not([data-dark]) select.pgsel,html:not([data-dark]) select.fc{
+  background-repeat:no-repeat;
+  background-position:right 8px center;
+  background-size:13px;
+}
+
+/* Bright toolbar fields intentionally stay black in the light theme too. */
+html:not([data-dark]) .inv-top .finp,
+html:not([data-dark]) .inv-top .fsel,
+html:not([data-dark]) .inv-top .pselect-trigger,
+html:not([data-dark]) .inv-top .pdate-trigger,
+html:not([data-dark]) .inv-top .btn:not(.btn-p),
+html:not([data-dark]) .inv-top .last-posted{
+  border-color:#34342e;
+  background-color:var(--flat-ink);
+  color:var(--flat-paper);
 }
