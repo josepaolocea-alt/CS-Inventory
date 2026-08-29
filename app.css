@@ -1586,26 +1586,30 @@ html:not([data-dark]) .inv-top .last-posted{
    The navigation and workspace read as one continuous,
    flat-edged composition, matching the supplied reference.
    ═══════════════════════════════════════════════════════ */
-html,body{background:var(--theme-workspace)}
+html,body{
+  background:var(--theme-canvas);
+  overflow-x:clip;
+}
 body,button,input,select,textarea{font-family:var(--sans)}
 .ph h1,.auth-title,.sp-title,.mo-title{font-family:var(--display)}
 
 /* One outer frame: rounded at the top of the rail and the bottom of the app. */
 .nav{
-  width:calc(100% - 16px);
+  width:calc(100% - 20px);
   max-width:1440px;
   height:52px;
-  margin:0 auto;
-  top:0;
+  margin:10px auto 0;
+  position:relative;
+  top:auto;
   border:2px solid #090906;
   border-bottom:0;
   border-radius:14px 14px 0 0;
 }
 .main{
-  width:calc(100% - 16px);
+  width:calc(100% - 20px);
   max-width:1440px;
-  min-height:calc(100dvh - 52px);
-  margin:0 auto;
+  min-height:calc(100dvh - 72px);
+  margin:0 auto 10px;
   padding:8px;
   border:2px solid #090906;
   border-top:0;
@@ -1628,7 +1632,7 @@ body,button,input,select,textarea{font-family:var(--sans)}
 /* Fill the available application height so the table footer sits at the edge. */
 @media(min-width:901px){
   #page-inventory.on,#page-logs.on{
-    height:calc(100dvh - 70px);
+    height:calc(100dvh - 90px);
     min-height:0;
   }
   #page-inventory > .tbl-wrap,#page-logs > .tbl-wrap{
@@ -1651,12 +1655,12 @@ body,button,input,select,textarea{font-family:var(--sans)}
 @media(max-width:600px){
   .nav{
     height:auto;
-    margin:0 auto;
+    margin:8px auto 0;
     border-radius:12px 12px 0 0;
   }
   .main{
-    min-height:calc(100dvh - 92px);
-    margin:0 auto;
+    min-height:calc(100dvh - 108px);
+    margin:0 auto 8px;
     border-radius:0 0 12px 12px;
   }
 }
