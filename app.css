@@ -1580,3 +1580,83 @@ html:not([data-dark]) .inv-top .last-posted{
   background-color:var(--flat-ink);
   color:var(--flat-paper);
 }
+
+/* ═══════════════════════════════════════════════════════
+   INTEGRATED REFERENCE SHELL
+   The navigation and workspace read as one continuous,
+   flat-edged composition, matching the supplied reference.
+   ═══════════════════════════════════════════════════════ */
+html,body{background:var(--theme-workspace)}
+body,button,input,select,textarea{font-family:var(--sans)}
+.ph h1,.auth-title,.sp-title,.mo-title{font-family:var(--display)}
+
+/* One outer frame: rounded at the top of the rail and the bottom of the app. */
+.nav{
+  width:calc(100% - 16px);
+  max-width:1440px;
+  height:52px;
+  margin:0 auto;
+  top:0;
+  border:2px solid #090906;
+  border-bottom:0;
+  border-radius:14px 14px 0 0;
+}
+.main{
+  width:calc(100% - 16px);
+  max-width:1440px;
+  min-height:calc(100dvh - 52px);
+  margin:0 auto;
+  padding:8px;
+  border:2px solid #090906;
+  border-top:0;
+  border-radius:0 0 14px 14px;
+}
+
+/* The active section is identified by type, not a filled orange pill. */
+.nav-btn,.nav-btn:hover{
+  border-color:transparent;
+  background:transparent;
+}
+.nav-btn:hover{color:#d7d3c9}
+.nav-btn.on,.nav-btn.on:hover{
+  border-color:transparent;
+  background:transparent;
+  color:#fff;
+  font-weight:800;
+}
+
+/* Fill the available application height so the table footer sits at the edge. */
+@media(min-width:901px){
+  #page-inventory.on,#page-logs.on{
+    height:calc(100dvh - 70px);
+    min-height:0;
+  }
+  #page-inventory > .tbl-wrap,#page-logs > .tbl-wrap{
+    flex:1 1 0;
+    min-height:0;
+  }
+}
+
+/* Scroll affordances remain functional without visible browser chrome. */
+*{
+  scrollbar-width:none!important;
+  -ms-overflow-style:none!important;
+}
+*::-webkit-scrollbar{
+  display:none!important;
+  width:0!important;
+  height:0!important;
+}
+
+@media(max-width:600px){
+  .nav{
+    height:auto;
+    margin:0 auto;
+    border-radius:12px 12px 0 0;
+  }
+  .main{
+    min-height:calc(100dvh - 92px);
+    margin:0 auto;
+    border-radius:0 0 12px 12px;
+  }
+}
