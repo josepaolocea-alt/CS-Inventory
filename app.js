@@ -1634,9 +1634,10 @@ function drawChart() {
   canvas.height = rect.height * dpr;
   const ctx = canvas.getContext('2d'); ctx.scale(dpr, dpr);
   const W = rect.width, H = rect.height;
-  const dark = document.documentElement.hasAttribute('data-dark');
-  const tc = dark ? '#64748b' : '#9ca3af';
-  const gc = dark ? '#2d3f52' : '#e5e7eb';
+  // The chart sits on the same purple editorial block in both themes, so its
+  // contrast should follow that surface instead of the document theme.
+  const tc = '#211f1b';
+  const gc = 'rgba(17,17,15,.28)';
   const labels=[], act=[], deact=[];
   const now = Date.now();
   for (let i = days-1; i >= 0; i--) {
@@ -1656,16 +1657,16 @@ function drawChart() {
     const y = pad.t+(cH/4)*i;
     ctx.strokeStyle=gc; ctx.lineWidth=1;
     ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(W-pad.r,y); ctx.stroke();
-    ctx.fillStyle=tc; ctx.font=`9px 'Manrope',system-ui`; ctx.textAlign='right';
+    ctx.fillStyle=tc; ctx.font=`600 10px 'Manrope',system-ui`; ctx.textAlign='right';
     ctx.fillText(Math.round(maxV-(maxV/4)*i), pad.l-3, y+3);
   }
   labels.forEach((day,i) => {
     const x  = pad.l+(cW/days)*i+(cW/days)*0.1;
     const aH = act[i]/maxV*cH, dH = deact[i]/maxV*cH;
-    ctx.fillStyle='#ff7043'; ctx.fillRect(x, pad.t+cH-aH, bW, aH);
-    ctx.fillStyle='#8d5bea'; ctx.fillRect(x+bW+2, pad.t+cH-dH, bW, dH);
+    ctx.fillStyle='#ff6d42'; ctx.fillRect(x, pad.t+cH-aH, bW, aH);
+    ctx.fillStyle='#11110f'; ctx.fillRect(x+bW+2, pad.t+cH-dH, bW, dH);
     if (i % labelEvery === 0) {
-      ctx.fillStyle=tc; ctx.font=`8px 'Manrope',system-ui`; ctx.textAlign='center';
+      ctx.fillStyle=tc; ctx.font=`600 9px 'Manrope',system-ui`; ctx.textAlign='center';
       ctx.fillText(day, x+bW, H-5);
     }
   });
@@ -1910,7 +1911,7 @@ function togglePinSP() {
 function updateSPPinBtn() {
   const btn = document.getElementById('btnSpPin');
   if (!btn || !curRec) return;
-  btn.textContent = pinnedIds.has(curRec.id) ? '📌 Unpin' : '📌 Pin';
+  btn.textContent = pinnedIds.has(curRec.id) ? 'Unpin' : 'Pin';
 }
 function pinSelected() {
   const ids = getCheckedIds(); if (!ids.length) return;

@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="app.css?v=24">
+<link rel="stylesheet" href="app.css?v=25">
 </head>
 <body>
 
@@ -73,7 +73,7 @@
       <div class="chart-wrap"><canvas id="chart"></canvas></div>
       <div class="chart-legend">
         <span class="legend-item"><span class="legend-dot" style="background:#ff7043"></span>Activated</span>
-        <span class="legend-item"><span class="legend-dot" style="background:#8d5bea"></span>Deactivated</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#11110f"></span>Deactivated</span>
       </div>
     </div>
     <div class="card">
@@ -298,10 +298,10 @@
       <div class="sel-head" onclick="toggleSel('clients')">
         <span class="sel-label">Client</span>
         <div class="sel-head-right">
-          <button class="btn btn-ico btn-sm" data-tooltip="Upload CSV" onclick="event.stopPropagation();document.getElementById('csvSel-clients').click()" style="font-size:14px">⤒</button>
+          <button class="btn btn-sm sel-action" data-tooltip="Upload CSV" onclick="event.stopPropagation();document.getElementById('csvSel-clients').click()">Upload</button>
           <input type="file" id="csvSel-clients" accept=".csv" style="display:none" onchange="handleSelCSV(event,'clients')">
-          <button class="btn btn-ico btn-sm" data-tooltip="Download Sample" onclick="event.stopPropagation();dlSelSample('clients')" style="font-size:14px">⤓</button>
-          <button class="btn btn-ico btn-sm btn-d" data-tooltip="Delete All" onclick="event.stopPropagation();delAllSelItems('clients')" style="font-size:14px">⊗</button>
+          <button class="btn btn-sm sel-action" data-tooltip="Download Sample" onclick="event.stopPropagation();dlSelSample('clients')">Sample</button>
+          <button class="btn btn-sm btn-d sel-action" data-tooltip="Delete All" onclick="event.stopPropagation();delAllSelItems('clients')">Clear</button>
           <span class="sel-arrow" id="selArrow-clients">▾</span>
         </div>
       </div>
@@ -318,10 +318,10 @@
       <div class="sel-head" onclick="toggleSel('products')">
         <span class="sel-label">Product</span>
         <div class="sel-head-right">
-          <button class="btn btn-ico btn-sm" data-tooltip="Upload CSV" onclick="event.stopPropagation();document.getElementById('csvSel-products').click()" style="font-size:14px">⤒</button>
+          <button class="btn btn-sm sel-action" data-tooltip="Upload CSV" onclick="event.stopPropagation();document.getElementById('csvSel-products').click()">Upload</button>
           <input type="file" id="csvSel-products" accept=".csv" style="display:none" onchange="handleSelCSV(event,'products')">
-          <button class="btn btn-ico btn-sm" data-tooltip="Download Sample" onclick="event.stopPropagation();dlSelSample('products')" style="font-size:14px">⤓</button>
-          <button class="btn btn-ico btn-sm btn-d" data-tooltip="Delete All" onclick="event.stopPropagation();delAllSelItems('products')" style="font-size:14px">⊗</button>
+          <button class="btn btn-sm sel-action" data-tooltip="Download Sample" onclick="event.stopPropagation();dlSelSample('products')">Sample</button>
+          <button class="btn btn-sm btn-d sel-action" data-tooltip="Delete All" onclick="event.stopPropagation();delAllSelItems('products')">Clear</button>
           <span class="sel-arrow" id="selArrow-products">▾</span>
         </div>
       </div>
@@ -338,10 +338,10 @@
       <div class="sel-head" onclick="toggleSel('providers')">
         <span class="sel-label">Provider</span>
         <div class="sel-head-right">
-          <button class="btn btn-ico btn-sm" data-tooltip="Upload CSV" onclick="event.stopPropagation();document.getElementById('csvSel-providers').click()" style="font-size:14px">⤒</button>
+          <button class="btn btn-sm sel-action" data-tooltip="Upload CSV" onclick="event.stopPropagation();document.getElementById('csvSel-providers').click()">Upload</button>
           <input type="file" id="csvSel-providers" accept=".csv" style="display:none" onchange="handleSelCSV(event,'providers')">
-          <button class="btn btn-ico btn-sm" data-tooltip="Download Sample" onclick="event.stopPropagation();dlSelSample('providers')" style="font-size:14px">⤓</button>
-          <button class="btn btn-ico btn-sm btn-d" data-tooltip="Delete All" onclick="event.stopPropagation();delAllSelItems('providers')" style="font-size:14px">⊗</button>
+          <button class="btn btn-sm sel-action" data-tooltip="Download Sample" onclick="event.stopPropagation();dlSelSample('providers')">Sample</button>
+          <button class="btn btn-sm btn-d sel-action" data-tooltip="Delete All" onclick="event.stopPropagation();delAllSelItems('providers')">Clear</button>
           <span class="sel-arrow" id="selArrow-providers">▾</span>
         </div>
       </div>
@@ -358,10 +358,10 @@
       <div class="sel-head" onclick="toggleSel('routes')">
         <span class="sel-label">Route Requested by</span>
         <div class="sel-head-right">
-          <button class="btn btn-ico btn-sm" data-tooltip="Upload CSV" onclick="event.stopPropagation();document.getElementById('csvSel-routes').click()" style="font-size:14px">⤒</button>
+          <button class="btn btn-sm sel-action" data-tooltip="Upload CSV" onclick="event.stopPropagation();document.getElementById('csvSel-routes').click()">Upload</button>
           <input type="file" id="csvSel-routes" accept=".csv" style="display:none" onchange="handleSelCSV(event,'routes')">
-          <button class="btn btn-ico btn-sm" data-tooltip="Download Sample" onclick="event.stopPropagation();dlSelSample('routes')" style="font-size:14px">⤓</button>
-          <button class="btn btn-ico btn-sm btn-d" data-tooltip="Delete All" onclick="event.stopPropagation();delAllSelItems('routes')" style="font-size:14px">⊗</button>
+          <button class="btn btn-sm sel-action" data-tooltip="Download Sample" onclick="event.stopPropagation();dlSelSample('routes')">Sample</button>
+          <button class="btn btn-sm btn-d sel-action" data-tooltip="Delete All" onclick="event.stopPropagation();delAllSelItems('routes')">Clear</button>
           <span class="sel-arrow" id="selArrow-routes">▾</span>
         </div>
       </div>
@@ -384,9 +384,9 @@
   <div class="sp-head">
     <div class="sp-title" id="spTitle">Details</div>
     <div class="sp-btns">
-      <button class="btn btn-sm" id="btnSpCopy" onclick="openCopy()">⧉ Copy</button>
+      <button class="btn btn-sm" id="btnSpCopy" onclick="openCopy()">Copy</button>
       <button class="btn btn-p btn-sm" id="btnSpEdit" onclick="openEdit()">Edit</button>
-      <button class="btn btn-sm pin-modal-btn" id="btnSpPin" onclick="togglePinSP()">📌 Pin</button>
+      <button class="btn btn-sm pin-modal-btn" id="btnSpPin" onclick="togglePinSP()">Pin</button>
       <button class="btn btn-sm" onclick="closeSP()">Close</button>
     </div>
   </div>

@@ -1664,3 +1664,172 @@ body,button,input,select,textarea{font-family:var(--sans)}
     border-radius:0 0 12px 12px;
   }
 }
+
+/* ═══════════════════════════════════════════════════════
+   CONTRAST + COMPONENT AUDIT
+   Theme-safe controls, a fully hidden side sheet, clearer
+   admin actions, and legible chart/detail typography.
+   ═══════════════════════════════════════════════════════ */
+
+/* The previous 470px panel was moved only 450px off-screen. A transform keeps
+   every responsive width fully hidden and removes the exposed right-edge slice. */
+.sp{
+  right:0;
+  width:min(470px,100vw);
+  height:100dvh;
+  transform:translateX(100%);
+  visibility:hidden;
+  pointer-events:none;
+  transition:transform .28s cubic-bezier(.2,.8,.2,1),visibility 0s linear .28s;
+  box-shadow:none;
+}
+.sp.on{
+  right:0;
+  transform:translateX(0);
+  visibility:visible;
+  pointer-events:auto;
+  transition-delay:0s;
+}
+
+/* Larger top navigation labels without reintroducing a selected pill. */
+.nav-btn{
+  height:32px;
+  padding-inline:14px;
+  font-size:13px;
+  font-weight:650;
+}
+
+/* Side-panel title uses a data-oriented face and actions become clean text. */
+.sp-head{
+  display:grid;
+  grid-template-columns:minmax(0,1fr);
+  align-items:start;
+  gap:11px;
+  padding:16px;
+}
+.sp-title{
+  font-family:var(--mono);
+  font-size:22px;
+  font-weight:500;
+  line-height:1.12;
+  letter-spacing:-.045em;
+  font-variant-numeric:tabular-nums;
+}
+.sp-btns{
+  width:100%;
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+}
+.sp-head .btn{
+  height:29px;
+  padding:0 12px;
+  border:1px solid rgba(17,17,15,.72);
+  background:transparent;
+  color:var(--flat-ink);
+  font-size:10px;
+}
+.sp-head .btn:hover{
+  border-color:var(--flat-ink);
+  background:var(--flat-ink);
+  color:var(--flat-paper);
+}
+.sp-head .btn-p{
+  border-color:var(--flat-ink);
+  background:var(--flat-ink);
+  color:var(--flat-paper);
+}
+
+/* Detail information is grouped into readable flat records. */
+.sp-body{padding:14px}
+.sp-body .ds{
+  margin-bottom:10px;
+  padding:14px;
+  border:1px solid var(--theme-line);
+  border-radius:9px;
+  background:var(--theme-workspace);
+}
+.sp-body .ds:last-child{margin-bottom:0}
+.sp-body .ds-title{
+  margin-bottom:11px;
+  padding-bottom:7px;
+  color:var(--theme-muted);
+  font-size:9px;
+  letter-spacing:.12em;
+}
+.sp-body .dr{
+  display:grid;
+  grid-template-columns:minmax(116px,.82fr) minmax(0,1.18fr);
+  gap:12px;
+  margin-bottom:8px;
+  line-height:1.4;
+}
+.sp-body .dr:last-child{margin-bottom:0}
+.sp-body .dl{min-width:0;color:var(--theme-muted);font-weight:600}
+.sp-body .dv{min-width:0;color:var(--theme-text);font-weight:650}
+
+/* All modal close controls sit on orange, so they always use ink contrast. */
+.mo-head > .act-btn{
+  width:32px;
+  height:32px;
+  border:1px solid rgba(17,17,15,.55);
+  border-radius:50%;
+  background:transparent;
+  color:var(--flat-ink)!important;
+  font-size:20px!important;
+  line-height:1;
+}
+.mo-head > .act-btn:hover{
+  border-color:var(--flat-ink);
+  background:var(--flat-ink);
+  color:var(--flat-paper)!important;
+}
+
+/* Theme-safe icon and destructive-button contrast. */
+[data-dark] .act-btn:not(.mo-head > .act-btn){color:#d8d4ca}
+[data-dark] .act-btn:not(.mo-head > .act-btn):hover{background:#302f29;color:#fff}
+html:not([data-dark]) .act-btn:not(.mo-head > .act-btn){color:#4c4b44}
+html:not([data-dark]) .act-btn:not(.mo-head > .act-btn):hover{background:#ded7ca;color:#11110f}
+[data-dark] .btn-d{
+  border-color:#df6255!important;
+  background:#2b1815!important;
+  color:#ffaaa1!important;
+}
+html:not([data-dark]) .btn-d{
+  border-color:#a83d34!important;
+  background:#fff4f0!important;
+  color:#842a23!important;
+}
+.btn-d:hover,.btn-d:focus-visible,.btn-d.active,.btn-d.active:hover{
+  border-color:var(--flat-line)!important;
+  background:var(--flat-red)!important;
+  color:var(--flat-ink)!important;
+}
+
+/* Clearer, labeled selection-management actions replace ambiguous glyphs. */
+.sel-head-right{gap:5px}
+.sel-action{
+  min-width:0;
+  height:27px;
+  padding-inline:9px;
+  border-radius:6px;
+  font-size:9px;
+  letter-spacing:.035em;
+}
+.sel-arrow{width:22px;height:27px;display:grid;place-items:center;margin-left:1px}
+
+/* The purple chart block is shared by both themes: ink labels and black/coral
+   series retain contrast regardless of the document theme. */
+.dg2 > .card:first-child .ctitle,
+.dg2 > .card:first-child .legend-item{color:var(--flat-ink)!important}
+.dg2 > .card:first-child .legend-item{font-weight:750}
+.dg2 > .card:first-child .legend-item:first-child .legend-dot{background:var(--flat-orange)!important}
+.dg2 > .card:first-child .legend-item:nth-child(2) .legend-dot{background:var(--flat-ink)!important}
+
+@media(max-width:520px){
+  .nav-btn{padding-inline:11px;font-size:12px}
+  .sp-head{padding:14px}
+  .sp-title{font-size:20px}
+  .sp-body .dr{grid-template-columns:1fr;gap:2px}
+  .sel-action{padding-inline:7px;font-size:8.5px}
+}
