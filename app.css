@@ -1833,3 +1833,130 @@ html:not([data-dark]) .btn-d{
   .sp-body .dr{grid-template-columns:1fr;gap:2px}
   .sel-action{padding-inline:7px;font-size:8.5px}
 }
+
+/* ── AUDIT POLISH PASS ───────────────────────────────────────────────
+   Refines hierarchy, action clarity, responsive behavior, and keyboard
+   access while preserving the established flat single-shell direction. */
+html{color-scheme:light}
+html[data-dark]{color-scheme:dark}
+
+.skip-link{
+  position:fixed;
+  top:8px;
+  left:50%;
+  z-index:12000;
+  padding:9px 14px;
+  border:2px solid var(--flat-line);
+  border-radius:999px;
+  background:var(--flat-yellow);
+  color:var(--flat-ink);
+  font-size:11px;
+  font-weight:800;
+  text-decoration:none;
+  transform:translate(-50%,-160%);
+  transition:transform .16s ease;
+}
+.skip-link:focus{outline:none;transform:translate(-50%,0)}
+
+.page{min-width:0}
+.ph h1{text-wrap:balance}
+.ph p{max-width:66ch;text-wrap:pretty}
+
+/* Sentence-case micro-headings read more calmly in a dense workspace. */
+.ctitle{
+  font-size:10.5px;
+  font-weight:750;
+  letter-spacing:.015em;
+  text-transform:none;
+}
+.fg label{
+  font-size:10.5px;
+  letter-spacing:.015em;
+  text-transform:none;
+}
+.fsect{letter-spacing:.055em}
+
+/* Actions are one compact control group, rather than unrelated glyphs. */
+.act-btns{
+  display:inline-flex;
+  align-items:center;
+  gap:2px;
+  padding:3px;
+  border:1px solid var(--theme-line);
+  border-radius:9px;
+  background:var(--theme-workspace);
+}
+.act-btn{
+  width:28px;
+  height:28px;
+  border:1px solid transparent;
+  border-radius:6px;
+}
+.act-btn svg,.pin-ind svg{
+  display:block;
+  width:14px;
+  height:14px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.8;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+.act-btn.pin-btn{font-size:inherit}
+.act-btn:hover{border-color:var(--theme-line)}
+.act-btn.del:hover{border-color:color-mix(in srgb,var(--err) 55%,var(--theme-line))}
+.pin-ind{
+  display:inline-grid;
+  place-items:center;
+  color:var(--flat-orange);
+}
+
+/* Copy remains discoverable without forcing visual noise into every number. */
+.num-cell{padding-right:34px}
+.num-cell .num-copy{
+  opacity:.42;
+  pointer-events:auto;
+  transform:none;
+  background:transparent;
+  color:var(--theme-muted);
+}
+.num-cell:hover .num-copy,.num-cell .num-copy:hover,.num-cell .num-copy:focus-visible{
+  opacity:1;
+  transform:none;
+  color:var(--accent);
+}
+
+.mo,.sp{overscroll-behavior:contain}
+.mo-body{scroll-padding-block:16px}
+.sp-body .ds-title{letter-spacing:.055em;text-transform:none}
+
+@media(min-width:1101px){
+  .stats{grid-template-columns:1.12fr repeat(3,1fr)}
+  .dg3{grid-template-columns:1.12fr .94fr .94fr}
+}
+
+@media(pointer:coarse){
+  .num-cell .num-copy{opacity:.76}
+  .act-btn{width:32px;height:32px}
+}
+
+@media(max-width:700px){
+  .fgrid{grid-template-columns:1fr}
+  .fg.full,.fsect{grid-column:1}
+  .mo-foot{gap:7px}
+}
+
+@media(max-width:600px){
+  .nav-links{
+    overflow-x:auto;
+    overscroll-behavior-inline:contain;
+    scroll-snap-type:x proximity;
+  }
+  .nav-btn{scroll-snap-align:start}
+  .ph{padding-inline:19px}
+  .act-btns{padding:2px}
+}
+
+@media(prefers-reduced-motion:reduce){
+  .skip-link{transition:none}
+}

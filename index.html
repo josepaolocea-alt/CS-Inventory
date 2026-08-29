@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CS Inventory</title>
+<meta name="description" content="Manage, review, and audit the CS phone-number inventory.">
 <link rel="icon" href="app-icon.png" type="image/png">
 <link rel="apple-touch-icon" href="app-icon.png">
 <link rel="manifest" href="manifest.json">
@@ -11,9 +12,11 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="app.css?v=25">
+<link rel="stylesheet" href="app.css?v=26">
 </head>
 <body>
+
+<a class="skip-link" href="#appMain">Skip to inventory workspace</a>
 
 <!-- TOAST CONTAINER -->
 <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
@@ -24,8 +27,8 @@
     <img src="inventory-icon.svg" class="brand-icon" alt="" aria-hidden="true">
     CS Inventory
   </span>
-  <div class="nav-links">
-    <button class="nav-btn on" onclick="go('dashboard',this)">Dashboard</button>
+  <div class="nav-links" aria-label="Primary sections">
+    <button class="nav-btn on" aria-current="page" onclick="go('dashboard',this)">Dashboard</button>
     <button class="nav-btn" onclick="go('inventory',this)">Inventory</button>
     <button class="nav-btn" id="navLogs" onclick="go('logs',this)">Logs</button>
     <button class="nav-btn" id="navAdmin" onclick="go('admin',this)">Admin</button>
@@ -380,7 +383,7 @@
 
 <!-- SIDE PANEL -->
 <div class="sp-ov" id="spOv" onclick="closeSP()"></div>
-<div class="sp" id="sp">
+<aside class="sp" id="sp" role="dialog" aria-modal="true" aria-labelledby="spTitle">
   <div class="sp-head">
     <div class="sp-title" id="spTitle">Details</div>
     <div class="sp-btns">
@@ -391,7 +394,7 @@
     </div>
   </div>
   <div class="sp-body" id="spBody"></div>
-</div>
+</aside>
 
 <!-- ADD / EDIT MODAL -->
 <div class="mo-ov" id="moOv">
@@ -482,7 +485,7 @@
     <div class="mo-foot">
       <button class="btn" onclick="closeMo()">Cancel</button>
       <button class="btn btn-d" id="mDeactBtn" style="display:none" onclick="toggleDeactivate('single')">Deactivate</button>
-      <button class="btn pin-modal-btn" id="mPinBtn" style="display:none" onclick="togglePinModal()">📌 Pin</button>
+      <button class="btn pin-modal-btn" id="mPinBtn" style="display:none" onclick="togglePinModal()">Pin</button>
       <button class="btn btn-p" onclick="saveRec()">Save</button>
     </div>
   </div>
@@ -576,7 +579,7 @@
     <div class="mo-foot">
       <button class="btn" onclick="closeBE()">Cancel</button>
       <button class="btn btn-d" id="bDeactBtn" onclick="toggleDeactivate('bulk')">Deactivate Selected</button>
-      <button class="btn pin-modal-btn" onclick="pinSelected()">📌 Pin Selected</button>
+      <button class="btn pin-modal-btn" onclick="pinSelected()">Pin Selected</button>
       <button class="btn pin-modal-btn" onclick="unpinSelected()">Unpin Selected</button>
       <button class="btn btn-p" onclick="saveBulkEdit()">Apply to Selected</button>
     </div>

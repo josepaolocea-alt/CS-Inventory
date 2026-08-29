@@ -285,6 +285,15 @@ function drHTML(label, valHTML) {
   return `<div class="dr"><span class="dl">${esc(label)}</span><span class="dv">${valHTML}</span></div>`;
 }
 
+// A single, line-based icon family keeps data-table actions legible and visually
+// consistent across Windows/browser font stacks. Labels remain explicit for AT.
+const ACTION_ICONS = {
+  pin: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h12v17l-6-4-6 4z"/></svg>',
+  copy: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>',
+  edit: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4z"/></svg>',
+  remove: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/></svg>'
+};
+
 // ── DOM CACHE ─────────────────────────────────────────
 const EL = {};
 function initEL() {
@@ -1568,10 +1577,19 @@ async function refreshLogsIncremental() {
 function go(tab, btn) {
   if (tab==='admin' && currentRole!=='admin') return;
   if (tab==='logs'  && currentRole==='viewer') return;
-  document.querySelectorAll('.page').forEach(el => el.classList.remove('on'));
-  document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('on'));
-  document.getElementById('page-'+tab).classList.add('on');
+  document.querySelectorAll('.page').forEach(el => {
+    el.classList.remove('on');
+    el.setAttribute('aria-hidden', 'true');
+  });
+  document.querySelectorAll('.nav-btn').forEach(el => {
+    el.classList.remove('on');
+    el.removeAttribute('aria-current');
+  });
+  const page = document.getElementById('page-'+tab);
+  page.classList.add('on');
+  page.setAttribute('aria-hidden', 'false');
   btn.classList.add('on');
+  btn.setAttribute('aria-current', 'page');
   if (tab==='dashboard') renderDash();
   if (tab==='inventory') renderTbl();
   if (tab==='logs')      renderLogs();
@@ -1803,7 +1821,7 @@ function renderTbl() {
     return `
     <tr style="--row-i:${i}" class="${rowClasses}" aria-selected="${isSelected?'true':'false'}" onclick="rowClick(event,'${esc(r.id)}')">
       <td class="cb-cell" onclick="event.stopPropagation()"><label><input type="checkbox" class="rcb" data-id="${esc(r.id)}" ${isSelected?'checked':''} onchange="toggleRowSel(this)"></label></td>
-      <td class="row-num">${isPinned?'<span class="pin-ind" data-tooltip="Pinned">📌</span>':s+i+1}</td>
+      <td class="row-num">${isPinned?`<span class="pin-ind" data-tooltip="Pinned" aria-label="Pinned">${ACTION_ICONS.pin}</span>`:s+i+1}</td>
       <td>${esc(r.client)}</td>
       <td>${esc(r.product)}</td>
       <td class="num-cell"><span class="num-val">${esc(r.number)}</span><button type="button" class="num-copy" data-tooltip="Copy number" aria-label="Copy number" onclick="event.stopPropagation();copyNumber(this)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button></td>
@@ -1812,8 +1830,8 @@ function renderTbl() {
       <td>${esc(r.remarks)}</td>
       <td onclick="event.stopPropagation()">
         <div class="act-btns">
-          <button class="act-btn pin-btn${isPinned?' pinned':''}" data-tooltip="${isPinned?'Unpin this entry':'Pin this entry'}" onclick="togglePin('${esc(r.id)}')">📌</button>
-          ${currentRole!=='viewer'?`<button class="act-btn" data-tooltip="Copy as new entry" aria-label="Copy as new entry" onclick="openCopyById('${esc(r.id)}')">⧉</button><button class="act-btn" data-tooltip="Edit" onclick="openEditById('${esc(r.id)}')">✎</button><button class="act-btn del" data-tooltip="Delete" onclick="delRec('${esc(r.id)}')">⊗</button>`:''}
+          <button type="button" class="act-btn pin-btn${isPinned?' pinned':''}" data-tooltip="${isPinned?'Unpin this entry':'Pin this entry'}" aria-label="${isPinned?'Unpin this entry':'Pin this entry'}" onclick="togglePin('${esc(r.id)}')">${ACTION_ICONS.pin}</button>
+          ${currentRole!=='viewer'?`<button type="button" class="act-btn" data-tooltip="Copy as new entry" aria-label="Copy as new entry" onclick="openCopyById('${esc(r.id)}')">${ACTION_ICONS.copy}</button><button type="button" class="act-btn" data-tooltip="Edit" aria-label="Edit entry" onclick="openEditById('${esc(r.id)}')">${ACTION_ICONS.edit}</button><button type="button" class="act-btn del" data-tooltip="Delete" aria-label="Delete entry" onclick="delRec('${esc(r.id)}')">${ACTION_ICONS.remove}</button>`:''}
         </div>
       </td>
     </tr>`;
@@ -1898,7 +1916,7 @@ function updatePinBtnState(id) {
   if (!btn) return;
   if (!id) { btn.style.display = 'none'; return; }
   btn.style.display = '';
-  btn.textContent = pinnedIds.has(id) ? '📌 Unpin' : '📌 Pin';
+  btn.textContent = pinnedIds.has(id) ? 'Unpin' : 'Pin';
 }
 function togglePinModal() {
   if (!editId) return;
@@ -3973,8 +3991,8 @@ function renderUsers() {
       <td style="font-size:12px;color:var(--t2)">${u.addedDate?new Date(u.addedDate).toLocaleDateString():'—'}</td>
       <td>
         <div class="act-btns">
-          <button class="act-btn" data-tooltip="Edit" onclick="openEditUser('${esc(u.uid)}')">✎</button>
-          ${u.uid===self?'<span style="color:var(--t3);padding:3px 5px;font-size:12px" data-tooltip="Cannot delete own account">—</span>':`<button class="act-btn del" data-tooltip="Delete" onclick="deleteUser('${esc(u.uid)}')">⊗</button>`}
+          <button type="button" class="act-btn" data-tooltip="Edit" aria-label="Edit user" onclick="openEditUser('${esc(u.uid)}')">${ACTION_ICONS.edit}</button>
+          ${u.uid===self?'<span style="color:var(--t3);padding:3px 5px;font-size:12px" data-tooltip="Cannot delete own account">—</span>':`<button type="button" class="act-btn del" data-tooltip="Delete" aria-label="Delete user" onclick="deleteUser('${esc(u.uid)}')">${ACTION_ICONS.remove}</button>`}
         </div>
       </td>
     </tr>`).join('');
@@ -4224,7 +4242,27 @@ document.addEventListener('keydown', e => {
 });
 
 // ── INIT ──────────────────────────────────────────────
+function initAccessibility() {
+  document.querySelectorAll('.page').forEach(page => {
+    page.setAttribute('aria-hidden', page.classList.contains('on') ? 'false' : 'true');
+  });
+  document.querySelectorAll('.nav-btn').forEach(button => {
+    if (button.classList.contains('on')) button.setAttribute('aria-current', 'page');
+    else button.removeAttribute('aria-current');
+  });
+  document.querySelectorAll('.mo-ov > .mo').forEach(dialog => {
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-modal', 'true');
+    dialog.setAttribute('tabindex', '-1');
+    const title = dialog.querySelector('.mo-title');
+    if (!title) return;
+    if (title.id) dialog.setAttribute('aria-labelledby', title.id);
+    else dialog.setAttribute('aria-label', title.textContent.trim());
+  });
+}
+
 initEL();
+initAccessibility();
 initDateMirrors();
 initPostedTimeSelects();
 initPremiumSelects();
