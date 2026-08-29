@@ -1966,42 +1966,42 @@ html[data-dark]{color-scheme:dark}
 }
 
 /* Add/Edit Number: a compact record workspace instead of one long form. */
-#moOv{padding:18px}
-#moOv .number-editor{
+#moOv,#beOv{padding:18px}
+:is(#moOv,#beOv) .record-editor{
   width:min(980px,calc(100vw - 36px));
   max-width:none;
   max-height:94dvh;
   overflow:hidden;
 }
-#moOv .number-editor .mo-head{
+:is(#moOv,#beOv) .record-editor .mo-head{
   position:relative;
   flex:0 0 auto;
   min-height:92px;
   padding:18px 22px;
 }
-.number-editor-heading{display:grid;gap:2px;min-width:0}
-.number-editor-kicker{
+.record-editor-heading{display:grid;gap:2px;min-width:0}
+.record-editor-kicker{
   color:#653020;
   font-size:9px;
   font-weight:850;
   letter-spacing:.12em;
   text-transform:uppercase;
 }
-#moOv .number-editor .mo-title{
+:is(#moOv,#beOv) .record-editor .mo-title{
   display:block;
   font-family:var(--display);
   font-size:clamp(25px,3vw,34px);
   line-height:1;
   letter-spacing:-.045em;
 }
-.number-editor-subtitle{margin-top:3px;color:#54281d;font-size:11px;font-weight:650}
-#moOv .number-editor .mo-body{
+.record-editor-subtitle{margin-top:3px;color:#54281d;font-size:11px;font-weight:650}
+:is(#moOv,#beOv) .record-editor .mo-body{
   min-height:0;
   padding:0 24px 28px;
   overflow-y:auto;
   overscroll-behavior:contain;
 }
-.number-editor-note{
+.record-editor-note{
   display:flex;
   align-items:center;
   justify-content:space-between;
@@ -2015,16 +2015,16 @@ html[data-dark]{color-scheme:dark}
   font-weight:750;
   letter-spacing:.035em;
 }
-.number-editor-note b{color:var(--err)}
-#moOv #moForm{
+.record-editor-note b{color:var(--err)}
+:is(#moOv,#beOv) :is(#moForm,#beForm){
   grid-template-columns:repeat(3,minmax(0,1fr));
   column-gap:14px;
   row-gap:12px;
 }
-#moOv #moForm > .fg{min-width:0}
-#moOv #moForm > .field-span-2{grid-column:span 2}
-#moOv #moForm > .full{grid-column:1/-1}
-#moOv #moForm .fsect{
+:is(#moOv,#beOv) :is(#moForm,#beForm) > .fg{min-width:0}
+:is(#moOv,#beOv) :is(#moForm,#beForm) > .field-span-2{grid-column:span 2}
+:is(#moOv,#beOv) :is(#moForm,#beForm) > .full{grid-column:1/-1}
+:is(#moOv,#beOv) :is(#moForm,#beForm) .fsect{
   display:grid;
   grid-template-columns:34px minmax(0,1fr);
   align-items:center;
@@ -2037,8 +2037,8 @@ html[data-dark]{color-scheme:dark}
   letter-spacing:0;
   text-transform:none;
 }
-#moOv #moForm .fsect:first-child{margin-top:0;border-top:0}
-#moOv #moForm .fsect-index{
+:is(#moOv,#beOv) :is(#moForm,#beForm) .fsect:first-child{margin-top:0;border-top:0}
+:is(#moOv,#beOv) :is(#moForm,#beForm) .fsect-index{
   width:34px;
   height:34px;
   display:grid;
@@ -2051,8 +2051,8 @@ html[data-dark]{color-scheme:dark}
   font-size:10px;
   font-weight:700;
 }
-#moOv #moForm .fsect strong{display:block;font-size:13px;letter-spacing:-.01em}
-#moOv #moForm .fsect small{
+:is(#moOv,#beOv) :is(#moForm,#beForm) .fsect strong{display:block;font-size:13px;letter-spacing:-.01em}
+:is(#moOv,#beOv) :is(#moForm,#beForm) .fsect small{
   display:block;
   margin-top:2px;
   color:var(--theme-muted);
@@ -2061,27 +2061,27 @@ html[data-dark]{color-scheme:dark}
   letter-spacing:0;
   line-height:1.35;
 }
-#moOv #moForm .fg{gap:6px}
-#moOv #moForm .fg > label{
+:is(#moOv,#beOv) :is(#moForm,#beForm) .fg{gap:6px}
+:is(#moOv,#beOv) :is(#moForm,#beForm) .fg > label{
   color:var(--theme-muted);
   font-size:10.5px;
   font-weight:750;
   letter-spacing:.015em;
 }
-#moOv #moForm .fc,
-#moOv #moForm .pselect-trigger,
-#moOv #moForm .pdate-trigger{
+:is(#moOv,#beOv) :is(#moForm,#beForm) .fc,
+:is(#moOv,#beOv) :is(#moForm,#beForm) .pselect-trigger,
+:is(#moOv,#beOv) :is(#moForm,#beForm) .pdate-trigger{
   height:40px;
   border-radius:7px;
   font-size:12px;
 }
-#moOv #moForm .fc:focus,
-#moOv #moForm .pselect-trigger:focus-visible,
-#moOv #moForm .pdate-trigger:focus-visible{
+:is(#moOv,#beOv) :is(#moForm,#beForm) .fc:focus,
+:is(#moOv,#beOv) :is(#moForm,#beForm) .pselect-trigger:focus-visible,
+:is(#moOv,#beOv) :is(#moForm,#beForm) .pdate-trigger:focus-visible{
   outline:2px solid var(--flat-orange);
   outline-offset:1px;
 }
-#moOv #moForm .field-primary .fc{
+:is(#moOv,#beOv) :is(#moForm,#beForm) .field-primary .fc{
   border-color:color-mix(in srgb,var(--flat-orange) 72%,var(--theme-line));
   font-family:var(--mono);
   font-size:14px;
@@ -2111,7 +2111,7 @@ html[data-dark]{color-scheme:dark}
   letter-spacing:.04em;
 }
 .deactivation-fields{padding:0}
-#moOv .number-editor .mo-foot{
+:is(#moOv,#beOv) .record-editor .mo-foot{
   position:relative;
   flex:0 0 auto;
   justify-content:space-between;
@@ -2119,29 +2119,30 @@ html[data-dark]{color-scheme:dark}
   min-height:64px;
   padding:12px 22px;
 }
-.number-editor-footnote{color:var(--theme-muted);font-size:10.5px;font-weight:600}
-.number-editor-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap}
-#moOv .number-editor-save{min-width:118px;justify-content:center}
+.record-editor-footnote{color:var(--theme-muted);font-size:10.5px;font-weight:600}
+.record-editor-actions{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap}
+.record-editor-save{min-width:118px;justify-content:center}
 
 @media(max-width:800px){
-  #moOv #moForm{grid-template-columns:repeat(2,minmax(0,1fr))}
-  #moOv #moForm > .field-span-2{grid-column:span 2}
+  :is(#moOv,#beOv) :is(#moForm,#beForm){grid-template-columns:repeat(2,minmax(0,1fr))}
+  :is(#moOv,#beOv) :is(#moForm,#beForm) > .field-span-2{grid-column:span 2}
 }
 @media(max-width:560px){
-  #moOv{padding:8px}
-  #moOv .number-editor{width:calc(100vw - 16px);max-height:calc(100dvh - 16px)}
-  #moOv .number-editor .mo-head{min-height:80px;padding:15px 16px}
-  .number-editor-subtitle{display:none}
-  #moOv .number-editor .mo-body{padding:0 16px 20px}
-  .number-editor-note{margin-inline:-16px;padding-inline:16px}
-  #moOv #moForm{grid-template-columns:minmax(0,1fr)}
-  #moOv #moForm > .field-span-2,#moOv #moForm > .full{grid-column:1}
-  #moOv #moForm .fsect{margin-inline:-16px;padding-inline:16px}
+  #moOv,#beOv{padding:8px}
+  :is(#moOv,#beOv) .record-editor{width:calc(100vw - 16px);max-height:calc(100dvh - 16px)}
+  :is(#moOv,#beOv) .record-editor .mo-head{min-height:80px;padding:15px 16px}
+  .record-editor-subtitle{display:none}
+  :is(#moOv,#beOv) .record-editor .mo-body{padding:0 16px 20px}
+  .record-editor-note{margin-inline:-16px;padding-inline:16px}
+  :is(#moOv,#beOv) :is(#moForm,#beForm){grid-template-columns:minmax(0,1fr)}
+  :is(#moOv,#beOv) :is(#moForm,#beForm) > .field-span-2,
+  :is(#moOv,#beOv) :is(#moForm,#beForm) > .full{grid-column:1}
+  :is(#moOv,#beOv) :is(#moForm,#beForm) .fsect{margin-inline:-16px;padding-inline:16px}
   .posted-time-fields{grid-template-columns:minmax(0,1.7fr) minmax(64px,.65fr) minmax(64px,.65fr)}
-  #moOv .number-editor .mo-foot{padding:10px 14px}
-  .number-editor-footnote{display:none}
-  .number-editor-actions{width:100%}
-  .number-editor-actions .btn{flex:1 1 auto;justify-content:center}
+  :is(#moOv,#beOv) .record-editor .mo-foot{padding:10px 14px}
+  .record-editor-footnote{display:none}
+  .record-editor-actions{width:100%}
+  .record-editor-actions .btn{flex:1 1 auto;justify-content:center}
 }
 
 @media(min-width:1101px){

@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="app.css?v=30">
+<link rel="stylesheet" href="app.css?v=31">
 </head>
 <body>
 
@@ -398,17 +398,17 @@
 
 <!-- ADD / EDIT MODAL -->
 <div class="mo-ov" id="moOv">
-  <div class="mo number-editor">
+  <div class="mo record-editor number-editor">
     <div class="mo-head">
-      <div class="number-editor-heading">
-        <span class="number-editor-kicker">Inventory record</span>
+      <div class="record-editor-heading">
+        <span class="record-editor-kicker">Inventory record</span>
         <span class="mo-title" id="moTitle">Add Number</span>
-        <span class="number-editor-subtitle">Update ownership, posting, provider, and routing details.</span>
+        <span class="record-editor-subtitle">Update ownership, posting, provider, and routing details.</span>
       </div>
       <button type="button" class="act-btn" aria-label="Close number editor" onclick="closeMo()">✕</button>
     </div>
     <div class="mo-body">
-      <div class="number-editor-note">
+      <div class="record-editor-note">
         <span>Record details</span>
         <span><b>*</b> Required field</span>
       </div>
@@ -500,12 +500,12 @@
       </div>
     </div>
     <div class="mo-foot">
-      <span class="number-editor-footnote">Changes are recorded in the activity log.</span>
-      <div class="number-editor-actions">
+      <span class="record-editor-footnote">Changes are recorded in the activity log.</span>
+      <div class="record-editor-actions">
         <button type="button" class="btn" onclick="closeMo()">Cancel</button>
         <button type="button" class="btn btn-d" id="mDeactBtn" style="display:none" onclick="toggleDeactivate('single')">Deactivate</button>
         <button type="button" class="btn pin-modal-btn" id="mPinBtn" style="display:none" onclick="togglePinModal()">Pin</button>
-        <button type="button" class="btn btn-p number-editor-save" onclick="saveRec()">Save number</button>
+        <button type="button" class="btn btn-p record-editor-save" onclick="saveRec()">Save number</button>
       </div>
     </div>
   </div>
@@ -513,15 +513,25 @@
 
 <!-- BULK EDIT MODAL -->
 <div class="mo-ov" id="beOv">
-  <div class="mo" style="width:620px">
+  <div class="mo record-editor bulk-editor">
     <div class="mo-head">
-      <span class="mo-title" id="beTitle">Bulk Edit</span>
-      <button class="act-btn" onclick="closeBE()" style="font-size:17px;color:var(--t2)">✕</button>
+      <div class="record-editor-heading">
+        <span class="record-editor-kicker">Batch operation</span>
+        <span class="mo-title" id="beTitle">Bulk Edit</span>
+        <span class="record-editor-subtitle">Update only the fields that should change across the selected records.</span>
+      </div>
+      <button type="button" class="act-btn" aria-label="Close bulk editor" onclick="closeBE()">✕</button>
     </div>
     <div class="mo-body">
-      <p style="font-size:12px;color:var(--t2);margin-bottom:14px;padding:8px 10px;background:var(--bg3);border-radius:var(--r);border-left:3px solid var(--accent)">Leave a field blank / unselected to keep each record's existing value unchanged.</p>
-      <div class="fgrid">
-        <div class="fsect">Client Information</div>
+      <div class="record-editor-note bulk-editor-note">
+        <span>Blank or unselected fields keep their existing values.</span>
+        <span>Selected records only</span>
+      </div>
+      <div class="fgrid" id="beForm">
+        <div class="fsect">
+          <span class="fsect-index">01</span>
+          <span><strong>Client information</strong><small>Ownership, availability, posting details, and client charges.</small></span>
+        </div>
         <div class="fg"><label>Client</label><select class="fc" id="beClient"><option value="">— keep existing —</option></select></div>
         <div class="fg"><label>Product</label><select class="fc" id="beProduct"><option value="">— keep existing —</option></select></div>
         <div class="fg"><label>Status</label>
@@ -532,10 +542,10 @@
           <select class="fc" id="bePosted"><option value="">— keep existing —</option><option value="Posted">Posted</option><option value="No">No</option><option value="For Posting">For Posting</option></select>
         </div>
         <div class="fg full"><label>Posted Date &amp; Time <span style="color:var(--t3);font-weight:400;font-size:11px">(leave blank to keep · time auto-sequences when set to “For Posting”)</span></label>
-          <div style="display:flex;gap:6px;align-items:center">
-            <input type="date" class="fc" id="bePostedDate" style="flex:2;min-width:0">
-            <select class="fc" id="bePostedHour" style="flex:1;min-width:0"><option value="">HH</option></select>
-            <select class="fc" id="bePostedMin" style="flex:1;min-width:0"><option value="">MM</option></select>
+          <div class="posted-time-fields">
+            <input type="date" class="fc" id="bePostedDate">
+            <select class="fc" id="bePostedHour"><option value="">HH</option></select>
+            <select class="fc" id="bePostedMin"><option value="">MM</option></select>
           </div>
         </div>
         <div class="fg"><label>Client OSF</label>
@@ -558,8 +568,11 @@
         <div class="fg"><label>Effective Date</label><input type="date" class="fc" id="beEffDate"></div>
         <div class="fg"><label>Activated Date</label><input type="date" class="fc" id="beActDate"></div>
 
-        <div class="fsect">Provider Information</div>
-        <div class="fg"><label>Provider</label><select class="fc" id="beProvider"><option value="">— keep existing —</option></select></div>
+        <div class="fsect">
+          <span class="fsect-index">02</span>
+          <span><strong>Provider information</strong><small>Source, activation timing, and provider-side charges.</small></span>
+        </div>
+        <div class="fg field-span-2"><label>Provider</label><select class="fc" id="beProvider"><option value="">— keep existing —</option></select></div>
         <div class="fg"><label>Arrival Date</label><input type="date" class="fc" id="beArrDate"></div>
         <div class="fg"><label>Provider Activation Date</label><input type="date" class="fc" id="beProvActDate"></div>
         <div class="fg"><label>Provider OSF</label>
@@ -580,14 +593,17 @@
         </div>
         <div class="fg"><label>Type / Session</label><input class="fc" id="beTypeSession" placeholder="Leave blank to keep"></div>
 
-        <div class="fsect">Routing &amp; History</div>
+        <div class="fsect">
+          <span class="fsect-index">03</span>
+          <span><strong>Routing &amp; history</strong><small>Request ownership and previous-client context.</small></span>
+        </div>
         <div class="fg"><label>Route Request by</label><select class="fc" id="beRoute"><option value="">— keep existing —</option></select></div>
         <div class="fg"><label>Deactivation Date (Prev Client)</label><input type="date" class="fc" id="beDeactDate"></div>
         <div class="fg full"><label>Previous Client</label><select class="fc" id="bePrevClient"><option value="">— keep existing —</option></select></div>
-        <div id="bDeactSection" style="display:none;grid-column:1/-1">
-          <div style="background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.28);border-radius:var(--r);padding:12px;margin-top:4px">
-            <div style="font-size:11px;font-weight:700;color:var(--err);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(239,68,68,.2)">Deactivation Details</div>
-            <div class="fgrid" style="padding:0">
+        <div id="bDeactSection" class="deactivation-panel-wrap" style="display:none">
+          <div class="deactivation-panel">
+            <div class="deactivation-panel-title">Deactivation details</div>
+            <div class="fgrid deactivation-fields">
               <div class="fg"><label>Deactivation Date <span style="color:var(--err)">*</span></label><input type="date" class="fc" id="bdDeactDate"></div>
               <div class="fg"><label>Route Requested by</label><select class="fc" id="bdRoute"><option value="">— select —</option></select></div>
               <div class="fg full"><label>Remarks</label><input class="fc" id="bdRemarks" placeholder="Reason for deactivation…"></div>
@@ -597,11 +613,14 @@
       </div>
     </div>
     <div class="mo-foot">
-      <button class="btn" onclick="closeBE()">Cancel</button>
-      <button class="btn btn-d" id="bDeactBtn" onclick="toggleDeactivate('bulk')">Deactivate Selected</button>
-      <button class="btn pin-modal-btn" onclick="pinSelected()">Pin Selected</button>
-      <button class="btn pin-modal-btn" onclick="unpinSelected()">Unpin Selected</button>
-      <button class="btn btn-p" onclick="saveBulkEdit()">Apply to Selected</button>
+      <span class="record-editor-footnote">Every updated record is captured in the activity log.</span>
+      <div class="record-editor-actions bulk-editor-actions">
+        <button type="button" class="btn" onclick="closeBE()">Cancel</button>
+        <button type="button" class="btn btn-d" id="bDeactBtn" onclick="toggleDeactivate('bulk')">Deactivate selected</button>
+        <button type="button" class="btn pin-modal-btn" onclick="pinSelected()">Pin selected</button>
+        <button type="button" class="btn pin-modal-btn" onclick="unpinSelected()">Unpin selected</button>
+        <button type="button" class="btn btn-p record-editor-save" onclick="saveBulkEdit()">Apply changes</button>
+      </div>
     </div>
   </div>
 </div>

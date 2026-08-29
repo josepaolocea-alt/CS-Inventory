@@ -2417,7 +2417,7 @@ function resetDeactSection(mode) {
   const sec = document.getElementById(isSingle ? 'mDeactSection' : 'bDeactSection');
   const btn = document.getElementById(isSingle ? 'mDeactBtn' : 'bDeactBtn');
   if (sec) sec.style.display = 'none';
-  if (btn) { btn.classList.remove('active'); btn.textContent = isSingle ? 'Deactivate' : 'Deactivate Selected'; }
+  if (btn) { btn.classList.remove('active'); btn.textContent = isSingle ? 'Deactivate' : 'Deactivate selected'; }
   const d = document.getElementById(isSingle ? 'dDeactDate' : 'bdDeactDate');
   const r = document.getElementById(isSingle ? 'dRoute' : 'bdRoute');
   const m = document.getElementById(isSingle ? 'dRemarks' : 'bdRemarks');
@@ -2433,7 +2433,7 @@ function toggleDeactivate(mode) {
   } else {
     sec.style.display = 'block';
     btn.classList.add('active');
-    btn.textContent = '✕ Cancel Deactivate';
+    btn.textContent = '✕ Cancel deactivation';
   }
 }
 
@@ -3795,7 +3795,11 @@ function openBulkEdit() {
   Object.keys(BE_FIELD_MAP).forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
   resetFeeSelects(BE_FEE_FIELDS);
   resetDeactSection('bulk');
-  document.getElementById('beOv').classList.add('on');
+  const ov = document.getElementById('beOv');
+  ov.classList.add('on');
+  void ov.offsetHeight;
+  const body = ov.querySelector('.mo-body');
+  if (body) body.scrollTop = 0;
 }
 function closeBE() { document.getElementById('beOv').classList.remove('on'); }
 async function saveBulkEdit() {
