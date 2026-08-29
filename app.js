@@ -1600,7 +1600,7 @@ function renderDash() {
   }
 
   const total = DB.length || 1;
-  const colors = {Active:'#4f8ef7',Available:'#34d399',Reserved:'#fbbf24',Inactive:'#f87171'};
+  const colors = {Active:'#ff7043',Available:'#65c878',Reserved:'#e8bd59',Inactive:'#8d5bea'};
   if (EL.dStatus) {
     EL.dStatus.innerHTML = Object.entries(counts).map(([s,c]) => `
       <div class="sbar">
@@ -1656,16 +1656,16 @@ function drawChart() {
     const y = pad.t+(cH/4)*i;
     ctx.strokeStyle=gc; ctx.lineWidth=1;
     ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(W-pad.r,y); ctx.stroke();
-    ctx.fillStyle=tc; ctx.font=`9px 'DM Sans',system-ui`; ctx.textAlign='right';
+    ctx.fillStyle=tc; ctx.font=`9px 'Manrope',system-ui`; ctx.textAlign='right';
     ctx.fillText(Math.round(maxV-(maxV/4)*i), pad.l-3, y+3);
   }
   labels.forEach((day,i) => {
     const x  = pad.l+(cW/days)*i+(cW/days)*0.1;
     const aH = act[i]/maxV*cH, dH = deact[i]/maxV*cH;
-    ctx.fillStyle='#4f8ef7'; ctx.fillRect(x, pad.t+cH-aH, bW, aH);
-    ctx.fillStyle='#f87171'; ctx.fillRect(x+bW+2, pad.t+cH-dH, bW, dH);
+    ctx.fillStyle='#ff7043'; ctx.fillRect(x, pad.t+cH-aH, bW, aH);
+    ctx.fillStyle='#8d5bea'; ctx.fillRect(x+bW+2, pad.t+cH-dH, bW, dH);
     if (i % labelEvery === 0) {
-      ctx.fillStyle=tc; ctx.font=`8px 'DM Sans',system-ui`; ctx.textAlign='center';
+      ctx.fillStyle=tc; ctx.font=`8px 'Manrope',system-ui`; ctx.textAlign='center';
       ctx.fillText(day, x+bW, H-5);
     }
   });
