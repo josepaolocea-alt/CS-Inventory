@@ -1956,13 +1956,13 @@ html[data-dark]{color-scheme:dark}
 }
 @media(hover:hover){
   #page-admin .admin-management-card:hover{
-    border-color:var(--flat-purple);
-    background:color-mix(in srgb,var(--flat-purple) 22%,var(--theme-surface));
+    border-color:var(--accent);
+    background:color-mix(in srgb,var(--accent) 22%,var(--theme-surface));
   }
 }
 #page-admin .admin-management-card:focus-within{
-  border-color:var(--flat-purple);
-  background:color-mix(in srgb,var(--flat-purple) 22%,var(--theme-surface));
+  border-color:var(--accent);
+  background:color-mix(in srgb,var(--accent) 22%,var(--theme-surface));
 }
 
 /* Add/Edit Number: a compact record workspace instead of one long form. */
