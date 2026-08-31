@@ -1030,7 +1030,7 @@ tbody tr:hover td{background:color-mix(in srgb,var(--accent-bg) 72%,var(--bg))}
   --border:#171713;
   --t1:#151512;
   --t2:#575750;
-  --t3:#74746c;
+  --t3:#575750;
   --accent:#e85a31;
   --accent-h:#ca4723;
   --accent-bg:#f2c0ae;
@@ -1053,7 +1053,7 @@ tbody tr:hover td{background:color-mix(in srgb,var(--accent-bg) 72%,var(--bg))}
   --border:#35352f;
   --t1:#f3efe5;
   --t2:#aaa79e;
-  --t3:#77766f;
+  --t3:#aaa79e;
   --accent:#ff6d42;
   --accent-h:#f45d32;
   --accent-bg:#2a1b16;
@@ -1420,7 +1420,7 @@ input[type=checkbox]:checked{border-color:var(--flat-line);background:var(--flat
   --theme-surface:#e7e1d5;
   --theme-surface-alt:#dad3c5;
   --theme-text:#151512;
-  --theme-muted:#5f5e56;
+  --theme-muted:#575750;
   --theme-line:#171713;
   --theme-tooltip:#1a1a17;
   --theme-tooltip-border:#515149;
@@ -3017,4 +3017,228 @@ html:not([data-dark]) #invTbl .num-cell{
   .lf-reset-btn{margin-left:auto}
   /* Stretched actions keep the wrapped rows from looking ragged. */
   .lf-actions .btn{flex:1 1 auto;justify-content:center}
+}
+
+/* ═══════════════════════════════════════════════════════
+   MODERN MINIMALIST HEADER + DASHBOARD PALETTE
+   Neutral structural surfaces use the approved three-color system.
+   Semantic Status and Posted Status colors remain unchanged.
+   ═══════════════════════════════════════════════════════ */
+:root{
+  --mm-base:#11110f;
+  --mm-mid:#4e4e4c;
+  --mm-silver:#e4e4e3;
+}
+
+/* Global navigation and structural page headers. */
+.nav{background:var(--mm-base);color:var(--mm-silver)}
+.nav-brand{color:var(--mm-silver)}
+.nav-btn:hover{border-color:var(--mm-mid);background:var(--mm-mid);color:var(--mm-silver)}
+.nav-btn.on{border-color:var(--mm-silver);background:var(--mm-mid);color:var(--mm-silver)}
+.nav-user,.nav-ico{border-color:var(--mm-mid);background:var(--mm-base);color:var(--mm-silver)}
+.nav-user:hover,.nav-ico:hover{border-color:var(--mm-silver);background:var(--mm-mid);color:var(--mm-silver)}
+.nav-user-badge{background:var(--mm-silver);color:var(--mm-base)}
+.nav-rail .nav-ico:hover,.nav-rail .nav-ico:active{background:var(--mm-mid);color:var(--mm-silver)}
+.nav-rail .nav-ico-exit:hover,.nav-rail .nav-ico-exit:active{background:var(--flat-red);color:var(--mm-base)}
+
+.ph{
+  border-color:var(--mm-mid);
+  background:var(--mm-base);
+  color:var(--mm-silver);
+}
+.ph h1{color:var(--flat-orange)}
+.ph p{color:var(--mm-silver);opacity:.76}
+.inventory-ph .last-posted{
+  border-color:var(--mm-mid);
+  background:var(--mm-base);
+}
+.inventory-ph .last-posted .lp-label{color:var(--mm-silver);opacity:.68}
+.inventory-ph .last-posted .lp-time{color:var(--flat-orange)}
+
+/* Dashboard: gray data blocks, charcoal panels, and silver information. */
+#page-dashboard .stats{
+  border-color:var(--mm-base);
+  background:var(--mm-base);
+}
+#page-dashboard .stat,
+#page-dashboard .stat:nth-child(2),
+#page-dashboard .stat:nth-child(3),
+#page-dashboard .stat:nth-child(4),
+#page-dashboard .stat:first-child:hover,
+#page-dashboard .stat:nth-child(2):hover,
+#page-dashboard .stat:nth-child(3):hover,
+#page-dashboard .stat:nth-child(4):hover{
+  background:var(--mm-mid);
+  color:var(--mm-silver);
+}
+#page-dashboard .stat-lbl,
+#page-dashboard .stat-val,
+#page-dashboard .stat.c-a .stat-val,
+#page-dashboard .stat.c-ok .stat-val,
+#page-dashboard .stat.c-w .stat-val{color:var(--mm-silver)}
+
+#page-dashboard .dg2 > .card,
+#page-dashboard .dg2 > .card:first-child,
+#page-dashboard .dg2 > .card:nth-child(2),
+#page-dashboard .dg2 > .card:first-child:hover,
+#page-dashboard .dg2 > .card:nth-child(2):hover,
+#page-dashboard .dg3 > .card,
+#page-dashboard .dg3 > .card:hover{
+  border-color:var(--mm-mid);
+  background:var(--mm-base);
+  color:var(--mm-silver);
+}
+#page-dashboard .dg2 > .card .ctitle,
+#page-dashboard .dg3 > .card .ctitle{color:var(--flat-orange)!important}
+#page-dashboard .dg2 > .card .li-name,
+#page-dashboard .dg2 > .card .li-sub,
+#page-dashboard .dg2 > .card .legend-item,
+#page-dashboard .dg3 > .card .li-name,
+#page-dashboard .dg3 > .card .li-sub,
+#page-dashboard .dg3 .sbar-row{color:var(--mm-silver)!important}
+#page-dashboard .dg2 > .card .li,
+#page-dashboard .dg3 > .card .li{border-color:var(--mm-mid)}
+#page-dashboard .dg2 > .card .pgsel{
+  border-color:var(--mm-silver);
+  background:var(--mm-mid);
+  color:var(--mm-silver);
+}
+#page-dashboard .dg3 .sbar-track{background:var(--mm-mid)}
+#page-dashboard #d-recent > p{color:var(--mm-silver)!important;opacity:.62}
+#page-dashboard .dg3 .li > span:last-child:not(.badge){color:var(--mm-silver)!important;opacity:.68}
+#page-dashboard .legend-item:first-child .legend-dot{
+  border:1px solid var(--mm-silver);
+  background:var(--mm-silver)!important;
+}
+#page-dashboard .legend-item:nth-child(2) .legend-dot{
+  border:1px solid var(--mm-silver);
+  background:var(--mm-base)!important;
+}
+
+/* Inventory controls and data-table headers use the same neutral hierarchy. */
+.inv-top,[data-dark] .inv-top{
+  border-color:var(--mm-base);
+  background:var(--mm-mid);
+  color:var(--mm-silver);
+}
+.inv-top .finp,.inv-top .fsel,.inv-top .pselect-trigger,
+.inv-top .pdate-trigger,.inv-top .btn:not(.btn-p),.inv-top .last-posted{
+  border-color:var(--mm-silver);
+  background:var(--mm-base);
+  color:var(--mm-silver);
+}
+.inv-top .btn-p,
+.inv-top .btn-p:hover{
+  border-color:var(--mm-silver);
+  background:var(--mm-base);
+  color:var(--flat-orange);
+}
+.inv-top .filter-clear-btn{
+  border-color:var(--mm-silver)!important;
+  background:transparent!important;
+  color:var(--mm-silver)!important;
+}
+.inv-top .filter-clear-btn:hover{
+  border-color:var(--mm-silver)!important;
+  background:var(--mm-base)!important;
+  color:var(--mm-silver)!important;
+}
+.filter-group-title,.date-filter-field,.more-row{color:var(--mm-silver)}
+.more-row{border-color:var(--mm-silver);background:var(--mm-base)}
+.tb-actions-divider{background:var(--mm-base)}
+.filter-count{
+  border-color:var(--mm-base);
+  background:var(--mm-silver);
+  color:var(--mm-base);
+}
+.inv-top .pselect.is-filled .pselect-trigger,
+.inv-top .pdate.is-filled .pdate-trigger,
+.inv-top #fSearch:not(:placeholder-shown){
+  border-color:var(--mm-silver);
+  box-shadow:inset 0 -2px 0 var(--mm-silver)!important;
+}
+.filter-more-btn.has-active-filters{border-color:var(--mm-silver)!important}
+.inv-top .duplicate-filter-btn.active,
+.inv-top .duplicate-filter-btn[aria-pressed="true"]{
+  border-color:var(--mm-base)!important;
+  background:var(--mm-silver)!important;
+  color:var(--mm-base)!important;
+}
+.inv-top :is(.finp,.fsel,.pselect-trigger,.pdate-trigger,.btn):focus-visible,
+#invTbl th.sort:focus-visible{
+  outline-color:var(--mm-silver);
+}
+
+thead,th{
+  border-color:var(--mm-base);
+  background:var(--mm-mid);
+  color:var(--mm-silver);
+}
+th.sort:hover{background:var(--mm-base);color:var(--mm-silver)}
+th.asc::after,th.desc::after{color:var(--mm-silver)}
+
+/* Sheets, modals, accordions, and entry summaries inherit the header system. */
+.sp-head,.mo-head{
+  border-color:var(--mm-mid);
+  background:var(--mm-base);
+  color:var(--mm-silver);
+}
+.sp-title,.mo-title{color:var(--mm-silver)}
+.sp-kicker,.record-editor-kicker{color:var(--flat-orange)}
+.sp-subtitle,.record-editor-subtitle{color:var(--mm-silver);opacity:.7}
+.sp-head .btn{
+  border-color:var(--mm-mid);
+  background:var(--mm-base);
+  color:var(--mm-silver);
+}
+.sp-head .btn:hover{
+  border-color:var(--mm-silver);
+  background:var(--mm-mid);
+  color:var(--mm-silver);
+}
+.sp-head .btn-p{
+  border-color:var(--mm-silver);
+  background:var(--mm-silver);
+  color:var(--mm-base);
+}
+.sp-close,.mo-head > .act-btn{
+  border-color:var(--mm-silver);
+  background:transparent;
+  color:var(--mm-silver)!important;
+}
+.sp-close:hover,.sp-close:focus-visible,
+.mo-head > .act-btn:hover{
+  border-color:var(--mm-silver);
+  background:var(--mm-silver);
+  color:var(--mm-base)!important;
+}
+.entry-summary{
+  border-color:var(--mm-base);
+  background:var(--mm-mid);
+  color:var(--mm-silver);
+}
+.entry-summary-item{border-color:var(--mm-base)}
+.entry-summary-item > span,
+.entry-summary-item > strong{color:var(--mm-silver)}
+
+.lf-head,.sel-head{border-color:var(--mm-base);background:var(--mm-mid);color:var(--mm-silver)}
+.lf-head:hover,.sel-head:hover{background:var(--mm-base)}
+.lf-label,.sel-label,.lf-ico,.lf-arrow,.sel-arrow{color:var(--mm-silver)}
+.lf-hint,
+.lf-panel.is-active .lf-ico{color:var(--mm-silver)}
+.lf-summary{
+  border-color:var(--mm-silver);
+  background:var(--mm-base);
+  color:var(--mm-silver);
+}
+.lf-head:focus-visible{outline-color:var(--mm-silver)}
+
+/* Keep small header affordances above the WCAG 4.5:1 text threshold. */
+.inv-top .pselect-trigger.is-placeholder .pselect-value,
+.inv-top .pdate-trigger.is-placeholder .pdate-value{
+  color:color-mix(in srgb,var(--mm-silver) 76%,var(--mm-base));
+}
+#invTbl th.sort:not(.asc):not(.desc)::after{
+  color:var(--mm-silver);
+  opacity:1;
 }

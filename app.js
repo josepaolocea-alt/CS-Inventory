@@ -1693,10 +1693,9 @@ function drawChart() {
   canvas.height = rect.height * dpr;
   const ctx = canvas.getContext('2d'); ctx.scale(dpr, dpr);
   const W = rect.width, H = rect.height;
-  // The chart sits on the same purple editorial block in both themes, so its
-  // contrast should follow that surface instead of the document theme.
-  const tc = '#211f1b';
-  const gc = 'rgba(17,17,15,.28)';
+  // The chart uses the fixed minimalist dashboard palette in both themes.
+  const tc = '#e4e4e3';
+  const gc = '#4e4e4c';
   const labels=[], act=[], deact=[];
   const now = Date.now();
   for (let i = days-1; i >= 0; i--) {
@@ -1722,8 +1721,12 @@ function drawChart() {
   labels.forEach((day,i) => {
     const x  = pad.l+(cW/days)*i+(cW/days)*0.1;
     const aH = act[i]/maxV*cH, dH = deact[i]/maxV*cH;
-    ctx.fillStyle='#ff6d42'; ctx.fillRect(x, pad.t+cH-aH, bW, aH);
-    ctx.fillStyle='#11110f'; ctx.fillRect(x+bW+2, pad.t+cH-dH, bW, dH);
+    ctx.fillStyle='#e4e4e3'; ctx.fillRect(x, pad.t+cH-aH, bW, aH);
+    if (dH > 0) {
+      ctx.fillStyle='#11110f'; ctx.fillRect(x+bW+2, pad.t+cH-dH, bW, dH);
+      ctx.strokeStyle='#e4e4e3'; ctx.lineWidth=1;
+      ctx.strokeRect(x+bW+2.5, pad.t+cH-dH+.5, Math.max(0,bW-1), Math.max(0,dH-1));
+    }
     if (i % labelEvery === 0) {
       ctx.fillStyle=tc; ctx.font=`600 9px 'Manrope',system-ui`; ctx.textAlign='center';
       ctx.fillText(day, x+bW, H-5);
