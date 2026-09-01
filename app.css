@@ -365,6 +365,10 @@ input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px;cursor:po
 .rb-viewer{background:var(--bg3);color:var(--t2);border:1px solid var(--border)}
 [data-dark] .rb-admin{background:#1e3a5f;color:#93c5fd}
 [data-dark] .rb-semi{background:#3b0764;color:#c4b5fd}
+/* Needs its own dark rule like its siblings above: the flat pass forces every
+   .role-badge to --flat-ink, and .rb-viewer's --bg3 backdrop is near-black in
+   dark mode, so without this the badge renders 1.07:1 (invisible). */
+[data-dark] .rb-viewer{background:#2c2c26;color:#ded9cd;border-color:#4a4a42}
 .viewer-hide{display:none!important}
 
 /* TOAST NOTIFICATIONS */
@@ -2374,7 +2378,25 @@ html[data-dark]{color-scheme:dark}
 
 @media(pointer:coarse){
   .num-cell .num-copy{opacity:.76}
-  .act-btn{width:32px;height:32px}
+  .act-btn{width:36px;height:36px}
+
+  /* Touch sizing. The copy chip was 18x18 — the one control in the app under the
+     24x24 WCAG 2.2 AA floor. Centre it in the row and give it a real box; the
+     glyph stays 13px. margin-top (not translateY) keeps clear of the reveal
+     transform the flat pass sets on this element. */
+  .num-cell{padding-right:42px}
+  .num-cell .num-copy{
+    top:50%;right:5px;
+    width:30px;height:30px;
+    margin-top:-15px;
+    border-radius:6px;
+  }
+
+  /* Comfort sizing for controls with room to grow — the row stays 52px tall and
+     the nav/paginator are their own flex rows, so none of this costs layout. */
+  .cb-cell label{min-height:44px}
+  .nav-ico,.nav-user{min-height:40px}
+  .pgn .btn,.pgn .pgsel{min-height:40px}
 }
 
 @media(max-width:700px){
@@ -2603,7 +2625,10 @@ html:not([data-dark]) #invTbl td{
   border-color:color-mix(in srgb,var(--theme-line) 60%,transparent);
 }
 html:not([data-dark]) #invTbl .num-cell{
-  color:color-mix(in srgb,var(--flat-orange) 58%,#4b1d12);
+  /* 42% is the highest orange share that clears AA (4.5:1) against BOTH row
+     stripes — #e7e1d5 (5.28:1) and #dad3c5 (4.62:1). At 58% the even rows fell
+     to 3.54:1, making the number the least legible column in the table. */
+  color:color-mix(in srgb,var(--flat-orange) 42%,#4b1d12);
   font-weight:650;
 }
 [data-dark] #invTbl .num-cell{color:var(--flat-orange)}
