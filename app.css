@@ -1481,6 +1481,9 @@ body{background:var(--theme-canvas)}
 .dg3 .li,.li,.lf-body,.sel-body,.mo-head,.mo-foot,.sp-head{border-color:var(--theme-line)}
 .dg3 .li-name,.dg3 .li-sub,.li-name,.lf-label,.sel-label,.mo,.sp,.dv{color:var(--theme-text)}
 .li-sub,.dl,.tbl-info,.toast-msg{color:var(--theme-muted)}
+/* The flat pass fixed toast text to ink while the type rules keep a themed
+   background, so in dark mode the title rendered ink-on-ink and vanished. */
+.toast{color:var(--theme-text)}
 .dg3 .sbar-track{background:var(--theme-surface-alt)}
 
 /* Menus follow the active theme while keeping the flat language. */
