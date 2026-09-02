@@ -1182,12 +1182,22 @@ function saveDeviceName() {
 // The inventory is large (thousands of docs), so re-reading the whole collection
 // on every login / reload / Sync is the dominant Firebase read cost. Instead we keep
 // a local IndexedDB copy and, after one cold load, fetch only the records that changed
-// since last time (updatedAt > cursor). A cheap count() catches remote deletions; a
-// daily full reload is the ultimate safety net. Everything degrades gracefully to a
-// full read if IndexedDB or the delta path ever fails, so the app can't get stuck.
+// since last time (updatedAt > cursor). Deletions ride in on tombstones, and a one-doc
+// record count (meta/invStats) verifies on every warm load that the cache is still whole.
+// A forced full reload is the last resort, not the routine. Everything degrades gracefully
+// to a full read if IndexedDB or the delta path ever fails, so the app can't get stuck.
 const IDB_NAME = 'cs-inv-cache', IDB_VER = 1;
 const DELTA_REWIND_MS = 2 * 60 * 1000;        // re-fetch a 2-min overlap to tolerate clock skew
-const FULL_REFRESH_MS = 24 * 60 * 60 * 1000;  // force a full reconcile at least once a day
+// Backstop only. The invStats counter below catches anything that changes the RECORD COUNT
+// within seconds, so this no longer has to run daily — it now just bounds how long an edit
+// that never bumped updatedAt (someone editing straight in the Firebase console) could sit
+// unnoticed in a local cache. At ~8,000 reads a pop, daily was costing ~26k reads/day across
+// the team; weekly costs ~3.6k.
+const FULL_REFRESH_MS = 7 * 24 * 60 * 60 * 1000;
+// Bump to push every client through ONE full reconcile on its next load, for changes that need
+// a known-good starting point. v1: seed meta/invStats and give every browser a verified cache
+// for it to count. Costs one cold load per browser, once.
+const INV_CACHE_VERSION = 1;
 // Bump when a shipped bug could have written a corrupt logs cache. A client whose stored
 // logsCacheVer differs (older clients have none) does ONE forced full log reload on next
 // load, discarding the bad cache, then resumes normal incremental sync. v2: recover the
@@ -1250,19 +1260,61 @@ function rewindIso(iso, ms) {
   const t = Date.parse(iso); if (isNaN(t)) return '';
   return new Date(t - ms).toISOString();
 }
+// ── SHARED RECORD COUNT (cache integrity) ─────────────────
+// Firestore's count() aggregate isn't in the compat build we load, so we keep the total
+// ourselves: one tiny doc moved by FieldValue.increment on every path that creates or
+// deletes a record. A warm load reads that ONE doc and compares it to the local cache —
+// a mismatch means this client missed something no delta query can show it (a tombstone
+// trimmed before it reconnected, a record deleted straight from the Firebase console),
+// and only then does it pay for a full reconcile.
+const INV_STATS_DOC = 'invStats';
+// If the counter itself goes wrong — a failed increment, or a viewer who can't write meta/
+// and so can't correct it — an unguarded check would force a full reload on EVERY load.
+// After a reconcile that couldn't heal the counter we stop consulting it for this long,
+// capping the worst case at one full reload per day: the old behaviour, never worse.
+const INV_STATS_DISTRUST_MS = 24 * 60 * 60 * 1000;
+
 async function serverInvCount() {
   try {
-    const col = fdb.collection('inventory');
-    if (typeof col.count !== 'function') return null;   // aggregate count unsupported → caller falls back
-    const agg = await col.count().get();
-    return agg.data().count;
+    const snap = await fdb.collection('meta').doc(INV_STATS_DOC).get();
+    const n = snap.exists ? snap.data().count : null;
+    return typeof n === 'number' ? n : null;   // absent / not yet seeded → caller skips the check
   } catch(e) { console.error('serverInvCount:', e); return null; }
 }
+async function invStatsDistrusted() {
+  const until = await kvGet('invStatsDistrustUntil');
+  return !!until && Date.now() < until;
+}
+// Move the shared count by a local create/delete. increment() is atomic, so concurrent
+// editors can't clobber each other. Best effort: a failure here costs a later reconcile,
+// never data.
+async function bumpInvCount(delta) {
+  if (!delta) return;
+  try {
+    await fdb.collection('meta').doc(INV_STATS_DOC).set({
+      count: firebase.firestore.FieldValue.increment(delta),
+      at: new Date().toISOString()
+    }, { merge: true });
+  } catch(e) { console.error('bumpInvCount:', e); }
+}
+// Publish the true total after a full load, healing whatever drift the increments picked up.
+// Returns false when we couldn't write it (viewers have read-only access to meta/).
+async function resetInvCount(n) {
+  try {
+    await fdb.collection('meta').doc(INV_STATS_DOC).set({
+      count: n, at: new Date().toISOString(), by: currentUser?.email || ''
+    }, { merge: true });
+    return true;
+  } catch(e) { return false; }
+}
 // Mirror a local change into the cache AND notify other open clients (one call per write path).
-function propagateChange(ids = [], del = [], full = false) {
+// `added` is how many of `ids` are brand-new records; the rest are updates, which don't move
+// the total. Deletes arrive in `del`, so the two together give the net change to the count.
+function propagateChange(ids = [], del = [], full = false, added = 0) {
   cachePutInv(ids.map(id => DB.find(r => r.id === id)).filter(Boolean));
   cacheDelInv(del);
   if (del.length) recordDeletions(del);   // persistent tombstone so closed clients catch the delete
+  bumpInvCount(added - del.length);       // keep the shared record count honest
   broadcastSync(ids, del, full);
 }
 // Deletions don't show up in an `updatedAt >` delta query, so we also append a small
@@ -1306,8 +1358,10 @@ async function loadInventory() {
     const cached  = await cacheGetAllInv();
     const cursor  = await kvGet('invCursor');
     const lastFull= await kvGet('invFullAt');
+    const cacheVer= await kvGet('invCacheVer');
     const stale   = !lastFull || (Date.now() - Date.parse(lastFull) > FULL_REFRESH_MS);
-    if (!cached.length || !cursor || stale) { await fullLoadInventory(); return; }
+    const upgraded= cacheVer !== INV_CACHE_VERSION;   // first load after a bump → one forced reconcile
+    if (upgraded || !cached.length || !cursor || stale) { await fullLoadInventory(); return; }
 
     // Warm path: pull only records changed since last sync.
     DB = cached;
@@ -1321,9 +1375,14 @@ async function loadInventory() {
       changed.forEach(rec => { const i = DB.findIndex(r => r.id===rec.id); if (i>-1) DB[i]=rec; else DB.push(rec); });
       await cachePutInv(changed);
     }
-    // Secondary net (only fires if this Firestore build ever gains count()): totals disagree → full reconcile.
-    const cnt = await serverInvCount();
-    if (cnt != null && cnt !== DB.length) { await fullLoadInventory(); return; }
+    // Integrity net: one doc read says whether this cache still holds every record the server
+    // has. Disagreement means we missed something a delta query can't reveal → reconcile in
+    // full. Skipped while the counter is under suspicion, so a bad counter can't turn every
+    // single load into an 8,000-read reload.
+    if (!(await invStatsDistrusted())) {
+      const cnt = await serverInvCount();
+      if (cnt != null && cnt !== DB.length) { await fullLoadInventory(); return; }
+    }
     await kvSet('invCursor', maxUpdatedAt(DB) || cursor);
     refreshInventoryRecent();
   } catch(e) {
@@ -1338,7 +1397,13 @@ async function fullLoadInventory() {
   await cacheReplaceInv(DB);
   await kvSet('invCursor', maxUpdatedAt(DB));
   await kvSet('invFullAt', new Date().toISOString());
-  refreshInventoryRecent();
+  await kvSet('invCacheVer', INV_CACHE_VERSION);
+  refreshInventoryRecent();          // paint first — the counter bookkeeping below isn't user-visible
+  // DB is authoritative now, so publish the true total and clear any drift the increments
+  // accumulated. If we can't write it, stop consulting the counter for a day rather than
+  // letting it force this reconcile on every load.
+  const healed = await resetInvCount(DB.length);
+  await kvSet('invStatsDistrustUntil', healed ? 0 : Date.now() + INV_STATS_DISTRUST_MS);
 }
 function activityStamp(r) {
   return r?.updatedAt || r?.createdAt || '';
@@ -2624,7 +2689,7 @@ async function saveRec() {
       refreshInventoryRecent();
       const reseq = await resequencePostingTimes();
       renderTbl(); closeMo();
-      propagateChange([ref.id, ...reseq]);
+      propagateChange([ref.id, ...reseq], [], false, 1);
       showToast(`Added ${nd.number}`, 'success');
     }
   } catch(e) { showToast('Save error: '+e.message, 'error'); }
@@ -2660,7 +2725,7 @@ function delRec(id) {
             await fdb.collection('inventory').doc(rid).set({...data, id:rid});
             DB.push(savedRec);
             refreshInventoryRecent();
-            propagateChange([rid]);
+            propagateChange([rid], [], false, 1);
             await addLog('Added', `Restored ${savedRec.number} (undo delete)`);
             showToast(`Restored ${savedRec.number}`, 'success');
           } catch(e) { showToast('Restore failed: '+e.message, 'error'); }
@@ -2811,7 +2876,7 @@ async function handleCSV(e) {
     const deactMsg = deactivated ? `, ${deactivated} deactivated` : '';
     await addLog('CSV Upload', `"${f.name}": ${added} added, ${updated} updated${deactMsg}`);
     // broadcastSync escalates to a full reload on its own if this set exceeds the cap.
-    propagateChange([...csvIds, ...reseq]);
+    propagateChange([...csvIds, ...reseq], [], false, added);
     showToast(`Upload complete — ${added} added, ${updated} updated${deactMsg}`, 'success');
   } catch(err) { showToast('Import error: '+err.message, 'error'); }
   e.target.value='';
@@ -3886,7 +3951,7 @@ function delSelected() {
           }
           savedRecs.forEach(rec => { if (!DB.find(r => r.id===rec.id)) DB.push(rec); });
           refreshInventoryRecent();
-          propagateChange(savedRecs.map(r => r.id));
+          propagateChange(savedRecs.map(r => r.id), [], false, savedRecs.length);
           await addLog('Added', `Restored ${savedRecs.length} records (undo bulk delete)`, {records: affectedRecords});
           showToast(`Restored ${savedRecs.length} records`, 'success');
         } catch(e) { showToast('Restore failed: '+e.message, 'error'); }
