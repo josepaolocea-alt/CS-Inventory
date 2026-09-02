@@ -1098,6 +1098,7 @@ fauth.onAuthStateChanged(async user => {
     if (currentRole === 'admin') loadUsers();
     startSyncListener();
     initAutoBackup();
+    pruneOldLogs();                           // daily, editors only, best-effort — never blocks the UI
     setTimeout(maybePromptDeviceName, 500);   // one-time nudge to name this device
   } else {
     stopSyncListener();
@@ -1105,7 +1106,7 @@ fauth.onAuthStateChanged(async user => {
     _abTimer = null; clearTimeout(_abDeferT); AB = null;
     currentUser = null; currentRole = 'viewer';
     DB=[]; LOGS=[]; fd=[]; fl=[]; recentViewed=[]; _logsReady=false;
-    USERS=[]; _umSig=''; SELECTIONS={clients:[],products:[],providers:[],routes:[]};
+    USERS=[]; _usersAt=0; _umSig=''; SELECTIONS={clients:[],products:[],providers:[],routes:[]};
     persistentSelIds = new Set();
     document.getElementById('authOv').style.display = 'flex';
     document.getElementById('appNav').style.display = 'none';
@@ -1190,10 +1191,13 @@ const IDB_NAME = 'cs-inv-cache', IDB_VER = 1;
 const DELTA_REWIND_MS = 2 * 60 * 1000;        // re-fetch a 2-min overlap to tolerate clock skew
 // Backstop only. The invStats counter below catches anything that changes the RECORD COUNT
 // within seconds, so this no longer has to run daily — it now just bounds how long an edit
-// that never bumped updatedAt (someone editing straight in the Firebase console) could sit
-// unnoticed in a local cache. At ~8,000 reads a pop, daily was costing ~26k reads/day across
-// the team; weekly costs ~3.6k.
-const FULL_REFRESH_MS = 7 * 24 * 60 * 60 * 1000;
+// that never bumped updatedAt could sit unnoticed in a local cache. Two ways that happens:
+// someone editing straight in the Firebase console, or a writer whose laptop clock is behind
+// by more than DELTA_REWIND_MS, so its updatedAt lands before other clients' cursors. Live
+// sync still catches the second case for anyone with the app OPEN (the signal carries record
+// ids, not timestamps) — this backstop only covers a client that was closed at the time.
+// At ~8,000 reads a pop, daily was costing ~26k reads/day across the team; 14 days costs ~1.8k.
+const FULL_REFRESH_MS = 14 * 24 * 60 * 60 * 1000;
 // Bump to push every client through ONE full reconcile on its next load, for changes that need
 // a known-good starting point. v1: seed meta/invStats and give every browser a verified cache
 // for it to count. Costs one cold load per browser, once.
@@ -1273,6 +1277,14 @@ const INV_STATS_DOC = 'invStats';
 // After a reconcile that couldn't heal the counter we stop consulting it for this long,
 // capping the worst case at one full reload per day: the old behaviour, never worse.
 const INV_STATS_DISTRUST_MS = 24 * 60 * 60 * 1000;
+// The guard above only arms when we COULDN'T write the healed count (viewers). An editor's
+// write succeeds, so it never arms for them — yet a write race can still leave the counter
+// wrong: client A publishes count=N from its full load just as client B creates a record and
+// increments to N+1, and A's write lands last. Every warm load then sees a mismatch and pays
+// another 8,000-read reconcile. This cooldown arms whenever a mismatch actually TRIGGERS a
+// reload, regardless of whether the heal wrote, so the repeat case costs one reconcile per
+// window instead of one per load. The first reload still happens immediately.
+const INV_STATS_RELOAD_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 
 async function serverInvCount() {
   try {
@@ -1284,6 +1296,10 @@ async function serverInvCount() {
 async function invStatsDistrusted() {
   const until = await kvGet('invStatsDistrustUntil');
   return !!until && Date.now() < until;
+}
+async function invStatsReloadCoolingDown() {
+  const at = await kvGet('invStatsReloadAt');
+  return !!at && Date.now() - at < INV_STATS_RELOAD_COOLDOWN_MS;
 }
 // Move the shared count by a local create/delete. increment() is atomic, so concurrent
 // editors can't clobber each other. Best effort: a failure here costs a later reconcile,
@@ -1379,9 +1395,16 @@ async function loadInventory() {
     // has. Disagreement means we missed something a delta query can't reveal → reconcile in
     // full. Skipped while the counter is under suspicion, so a bad counter can't turn every
     // single load into an 8,000-read reload.
-    if (!(await invStatsDistrusted())) {
+    if (!(await invStatsDistrusted()) && !(await invStatsReloadCoolingDown())) {
       const cnt = await serverInvCount();
-      if (cnt != null && cnt !== DB.length) { await fullLoadInventory(); return; }
+      if (cnt != null && cnt !== DB.length) {
+        // Stamp BEFORE reloading: if the reconcile can't heal the counter (a write race
+        // that re-breaks it, a heal that loses the race again), the next load skips the
+        // check instead of paying for the same reconcile over and over.
+        await kvSet('invStatsReloadAt', Date.now());
+        await fullLoadInventory();
+        return;
+      }
     }
     await kvSet('invCursor', maxUpdatedAt(DB) || cursor);
     refreshInventoryRecent();
@@ -3377,10 +3400,18 @@ async function runWeeklyBackup(opts = {}) {
 
 // Fire-and-forget POST to the Apps Script mailer. `no-cors` keeps it a "simple"
 // cross-origin request (no preflight); it resolves unless the network truly fails.
+// Shared by the weekly inventory backup and the log archive below.
+async function postToMailer(payload) {
+  await fetch(BACKUP_MAILER_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // avoids CORS preflight
+    body: JSON.stringify({ token: BACKUP_MAILER_KEY, ...payload })
+  });
+}
 async function deliverBackupEmail(to, filename, csvText, count, manual) {
   const today = new Date();
-  const payload = {
-    token: BACKUP_MAILER_KEY,
+  await postToMailer({
     to,
     subject: `CS Inventory \u2014 ${manual ? 'Manual' : 'Weekly'} Backup (${today.toISOString().slice(0,10)})`,
     body: `${manual ? 'Manual' : 'Automated weekly'} backup of CS Inventory.\n\n`
@@ -3389,12 +3420,6 @@ async function deliverBackupEmail(to, filename, csvText, count, manual) {
     filename,
     mimeType: 'text/csv',
     dataB64: toB64Utf8(csvText)
-  };
-  await fetch(BACKUP_MAILER_URL, {
-    method: 'POST',
-    mode: 'no-cors',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // avoids CORS preflight
-    body: JSON.stringify(payload)
   });
 }
 
@@ -3562,6 +3587,90 @@ async function deleteLogsByIds(ids) {
   LOGS = LOGS.filter(r => !gone.has(r.id));
   applyLF();
 }
+
+// ── LOG RETENTION ─────────────────────────────────────
+// Nothing bounded the logs collection: addLog() appends on every action forever, while the
+// UI only ever reads the newest 500 (loadLogs' limit) — so everything older was unreachable
+// weight that surfaced only as cost, most sharply in clearAllLogs(), which pays one read per
+// document in the entire collection. This trims the tail on a daily, per-browser schedule and
+// reads only what it is about to delete.
+const LOG_RETENTION_DAYS   = 90;
+const LOG_PRUNE_BATCH      = 400;                // one Firestore batch commit
+const LOG_PRUNE_MAX_ROUNDS = 3;                  // ≤1,200 docs/run, so a first-time backlog drains over days
+const LOG_PRUNE_EVERY_MS   = 24 * 60 * 60 * 1000;
+// Expiring entries are emailed out as CSV before deletion, because they are otherwise
+// unrecoverable — buildBackupCSV() covers inventory only, so logs have never been in the
+// weekly backup. Pruning therefore stays OFF until the mailer is configured: nothing is
+// deleted that wasn't archived first. Set this true to prune without keeping an archive.
+const LOG_PRUNE_WITHOUT_ARCHIVE = false;
+
+async function pruneOldLogs() {
+  if (!(currentRole === 'admin' || currentRole === 'semi-admin')) return;   // rules: only editors may delete
+  const archiveReady = !!(BACKUP_MAILER_URL && BACKUP_MAILER_KEY);
+  if (!archiveReady && !LOG_PRUNE_WITHOUT_ARCHIVE) {
+    console.warn('pruneOldLogs: skipped — set BACKUP_MAILER_URL/KEY so expiring logs are archived first, '
+               + 'or set LOG_PRUNE_WITHOUT_ARCHIVE = true to prune without an archive.');
+    return;
+  }
+  const last = await kvGet('logPruneAt');
+  if (last && Date.now() - last < LOG_PRUNE_EVERY_MS) return;
+  await kvSet('logPruneAt', Date.now());   // claim before working, so a failure can't hot-loop
+
+  const cutoff = new Date(Date.now() - LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  let pruned = 0;
+  try {
+    for (let round = 0; round < LOG_PRUNE_MAX_ROUNDS; round++) {
+      // Filtered query, so once the tail is drained this returns nothing and the daily
+      // cost settles at a single empty-result read.
+      const snap = await fdb.collection('logs')
+        .where('datetime', '<', cutoff).orderBy('datetime', 'asc').limit(LOG_PRUNE_BATCH).get();
+      if (snap.empty) break;
+      const rows = snap.docs.map(d => ({...d.data(), id: d.id}));
+      // Archive FIRST — a batch is deleted only once its copy is on its way out.
+      if (archiveReady && !(await archivePrunedLogs(rows))) break;
+      const b = fdb.batch();
+      snap.docs.forEach(d => b.delete(d.ref));
+      await b.commit();
+      pruned += snap.size;
+      if (snap.size < LOG_PRUNE_BATCH) break;
+    }
+  } catch(e) { console.error('pruneOldLogs:', e); }
+
+  if (pruned) {
+    // Low-activity periods can leave entries this old still inside the newest-500 window.
+    LOGS = LOGS.filter(r => !r.datetime || r.datetime >= cutoff);
+    if (_logsReady) { kvSet('logsCache', LOGS.slice(0, 500)); }
+    fl = [...LOGS]; renderLogs();
+    await addLog('Backup', `Archived and removed ${pruned} log entr${pruned===1?'y':'ies'} older than ${LOG_RETENTION_DAYS} days`);
+  }
+}
+
+// Email one batch of expiring logs as CSV. Returns false if it couldn't be sent, which
+// stops the prune so the entries stay put until the next run.
+async function archivePrunedLogs(rows) {
+  const to = (AB && AB.recipient) || currentUser?.email || '';
+  if (!to) return false;
+  const first = rows[0]?.datetime?.slice(0,10) || '';
+  const last  = rows[rows.length-1]?.datetime?.slice(0,10) || '';
+  const csv = csvString([
+    ['Date & Time','User','Action','Details','Device'],
+    ...rows.map(r => [r.datetime, r.user, r.action, r.details, r.device || ''])
+  ]);
+  try {
+    await postToMailer({
+      to,
+      subject: `CS Inventory — Log Archive (${first} to ${last})`,
+      body: `${rows.length} log entries older than ${LOG_RETENTION_DAYS} days, archived before removal from the app.\n\n`
+          + `Range: ${first} to ${last}\nGenerated: ${new Date().toLocaleString()}\n\n`
+          + `The entries are attached as a CSV file.`,
+      filename: `CS-Inventory-Logs-${first}_to_${last}.csv`,
+      mimeType: 'text/csv',
+      dataB64: toB64Utf8(csv)
+    });
+    return true;
+  } catch(e) { console.error('archivePrunedLogs:', e); return false; }
+}
+
 function openClearLogsConfirm({title, question, desc, note, buttonText, onConfirm}) {
   const ov = document.getElementById('clearLogsOv');
   document.getElementById('clearLogsTitle').textContent = title;
@@ -3611,9 +3720,23 @@ function clearAllLogs() {
     buttonText: 'Clear All',
     onConfirm: async () => {
       try {
-        const snap = await fdb.collection('logs').get();
-        await deleteLogsByIds(snap.docs.map(d => d.id));
-        showToast('All logs cleared.', 'info');
+        // Page through instead of pulling the whole collection into one query. Firestore
+        // bills a read per document either way, but an unbounded .get() on a collection
+        // that has grown for months can exhaust memory or time out before deleting
+        // anything. Retention pruning above is what keeps this number small.
+        let cleared = 0;
+        for (;;) {
+          const snap = await fdb.collection('logs').limit(LOG_PRUNE_BATCH).get();
+          if (snap.empty) break;
+          const b = fdb.batch();
+          snap.docs.forEach(d => b.delete(d.ref));
+          await b.commit();
+          cleared += snap.size;
+          if (snap.size < LOG_PRUNE_BATCH) break;
+        }
+        LOGS = []; fl = []; renderLogs();
+        if (_logsReady) { kvSet('logsCache', LOGS); }
+        showToast(`Cleared ${cleared.toLocaleString()} log${cleared!==1?'s':''}.`, 'info');
       } catch(e) { showToast('Error: '+e.message, 'error'); }
     }
   });
@@ -4156,10 +4279,18 @@ function applyRoleRestrictions() {
 }
 
 // ── USER MANAGEMENT ───────────────────────────────────
-async function loadUsers() {
+// go('admin') used to refetch this whole collection on EVERY Admin tab click. Every local
+// add/edit/delete already patches USERS in place, so the only thing a refetch can reveal is
+// another admin's change on a different device — worth a short freshness window, not a read
+// per click. Callers that must see the server state now (none today) can pass force.
+const USERS_TTL_MS = 5 * 60 * 1000;
+let _usersAt = 0;
+async function loadUsers(force = false) {
+  if (!force && USERS.length && Date.now() - _usersAt < USERS_TTL_MS) { renderUsers(); return; }
   try {
     const snap = await fdb.collection('users').get();
     USERS = snap.docs.map(d => ({...d.data(), uid:d.id}));
+    _usersAt = Date.now();
     renderUsers();
   } catch(e) { console.error('loadUsers:', e); }
 }
