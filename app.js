@@ -4230,6 +4230,91 @@ async function saveBulkEdit() {
   } catch(err) { showToast('Bulk edit error: '+err.message, 'error'); }
 }
 
+// ── BULK RESET POSTING TIME ───────────────────────────
+// Clears the HH:MM on the selected "For Posting" rows so assignPostingTimes() rebuilds them as
+// one clean run — bottom row earliest, +1 going up, continuing from the highest time still on
+// the board. Rows that are "Posted" (or carry no time) are filtered out and reported as
+// skipped: a time that has already gone out is never disturbed.
+function resetSelectedPostingTimes() {
+  const ids = getCheckedIds(); if (!ids.length) return;
+  const targets = ids.map(id => DB.find(r => r.id === id)).filter(r =>
+    r && canonPostedStatus(r.postedStatus) === 'For Posting' && r.postedHour !== '' && r.postedHour != null);
+  if (!targets.length) {
+    showToast('No “For Posting” rows with a time in that selection.', 'warning');
+    return;
+  }
+  const skipped = ids.length - targets.length;
+  const preview = targets.slice(0,5).map(r => `${r.number} (${r.postedHour}:${r.postedMin || '00'})`);
+  document.getElementById('resetTimeTitle').textContent =
+    `Reset the posting time on ${targets.length} record${targets.length!==1?'s':''}?`;
+  document.getElementById('resetTimeInfo').innerHTML = `
+    <div><span style="color:var(--t2)">Rows to renumber:</span> <strong>${targets.length}</strong></div>
+    ${skipped?`<div style="margin-top:4px"><span style="color:var(--t2)">Skipped — not “For Posting”, or no time set:</span> <strong>${skipped}</strong></div>`:''}
+    <div style="margin-top:4px"><span style="color:var(--t2)">Currently:</span> ${preview.map(p=>esc(p)).join(', ')}${targets.length>5?` <em>+${targets.length-5} more</em>`:''}</div>`.trim();
+  document.getElementById('resetTimeOv').classList.add('on');
+  const btn   = document.getElementById('resetTimeConfirmBtn');
+  const fresh = btn.cloneNode(true); btn.replaceWith(fresh);
+  fresh.textContent = `Reset ${targets.length}`;
+  fresh.onclick = () => {
+    document.getElementById('resetTimeOv').classList.remove('on');
+    applyPostingTimeReset(targets.map(r => r.id));
+  };
+}
+async function applyPostingTimeReset(ids) {
+  // Original times, kept for both the toast Undo and the revert-from-Logs payload below.
+  const savedRecs = ids.map(id => {
+    const r = DB.find(x => x.id === id); if (!r) return null;
+    return { id, postedHour: r.postedHour || '', postedMin: r.postedMin || '', postedTimeAt: r.postedTimeAt || '' };
+  }).filter(Boolean);
+  const before  = new Map(savedRecs.map(r => [r.id, r]));
+  const fields  = ['postedHour','postedMin'];   // postedTimeAt is internal, not worth logging
+  const cleared = { postedHour:'', postedMin:'', postedTimeAt:'' };
+  const updatedBy = currentUser?.email || 'system';
+  const updatedAt = new Date().toISOString();
+
+  try {
+    const CHUNK = 400;
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      const b = fdb.batch();
+      ids.slice(i, i + CHUNK).forEach(id =>
+        b.update(fdb.collection('inventory').doc(id), {...cleared, updatedBy, updatedAt}));
+      await b.commit();
+    }
+    ids.forEach(id => { const i = DB.findIndex(r => r.id===id); if (i>-1) DB[i] = {...DB[i], ...cleared, updatedBy, updatedAt}; });
+    refreshInventoryEditedFirst(ids);   // reset rows on top, low→high by Number
+    const stamped = await assignPostingTimes();
+    renderTbl();
+    // Logged after the restamp so "to" is the time the row actually ended up with, not the
+    // momentary blank — which also makes the Logs-page revert restore the right values.
+    const affectedRecords = ids.map(id => DB.find(r => r.id===id)).filter(Boolean).map(r => ({
+      ...logRecordSummary(r),
+      changes: fields.map(f => ({ field:f, label: FIELD_LABELS[f] || f, from: before.get(r.id)?.[f] ?? '', to: r[f] ?? '' }))
+    }));
+    await addLog('Updated', `Reset posting time on ${ids.length} record${ids.length!==1?'s':''}`, {records: affectedRecords, fields});
+    propagateChange([...ids, ...stamped]);
+    showUndoToast(`Reset posting time on ${ids.length} record${ids.length!==1?'s':''}`, async () => {
+      try {
+        const CHUNK2 = 400;
+        const by = currentUser?.email || 'system', at = new Date().toISOString();
+        for (let i = 0; i < savedRecs.length; i += CHUNK2) {
+          const b = fdb.batch();
+          savedRecs.slice(i, i + CHUNK2).forEach(rec => {
+            const {id, ...data} = rec;
+            b.update(fdb.collection('inventory').doc(id), {...data, updatedBy: by, updatedAt: at});
+          });
+          await b.commit();
+        }
+        savedRecs.forEach(rec => { const i = DB.findIndex(r => r.id===rec.id); if (i>-1) DB[i] = {...DB[i], ...rec}; });
+        refreshInventoryEditedFirst(savedRecs.map(r => r.id));
+        propagateChange(savedRecs.map(r => r.id));
+        await addLog('Updated', `Reverted posting time reset on ${savedRecs.length} record${savedRecs.length!==1?'s':''} (undo)`,
+          {records: reverseBulkChanges(affectedRecords), fields});
+        showToast(`Reverted ${savedRecs.length} record${savedRecs.length!==1?'s':''}`, 'success');
+      } catch(e) { showToast('Revert failed: '+e.message, 'error'); }
+    }, 6000, 'Updated');
+  } catch(err) { showToast('Reset error: '+err.message, 'error'); }
+}
+
 // ── ROLES & RESTRICTIONS ──────────────────────────────
 function getSecondApp() {
   if (!_secondApp) _secondApp = firebase.initializeApp(firebaseConfig,'secondary');
@@ -4262,7 +4347,7 @@ function applyRoleRestrictions() {
   ['btnAdd','btnUpload','btnExportWrap'].forEach(id => {
     const el = document.getElementById(id); if (el) el.style.display = isViewer ? 'none' : '';
   });
-  ['btnBulkEdit','btnBulkDel'].forEach(id => {
+  ['btnBulkEdit','btnBulkResetTime','btnBulkDel'].forEach(id => {
     const el = document.getElementById(id); if (el) el.style.display = isViewer ? 'none' : '';
   });
   ['btnSpEdit','btnSpCopy'].forEach(id => {
