@@ -177,9 +177,12 @@ function stepMinute(h, m) {
 // set, regardless of Posted Status ("Posted" / "For Posting" / "No") — for the at-a-glance
 // readout above the table. Returns { time:'HH:MM', rec } (raw stored time, so it matches the
 // table exactly) or null when no entry has a posted time yet.
-function latestPostedInfo() {
+// `exclude` (a Set of ids, optional) leaves rows out of the reckoning — used when working out
+// what the latest time will be once a batch of rows has had its times cleared.
+function latestPostedInfo(exclude) {
   let best = -1, bestRec = null;
   for (const r of DB) {
+    if (exclude && exclude.has(r.id)) continue;
     if (r.postedHour === '' || r.postedHour == null) continue;
     const mins = (parseInt(r.postedHour, 10) || 0) * 60 + (parseInt(r.postedMin || '0', 10) || 0);
     if (mins > best) { best = mins; bestRec = r; }
@@ -190,8 +193,8 @@ function latestPostedInfo() {
 // That same latest time as {h,m} (or null if nothing carries one) — the point a newly stamped
 // "For Posting" entry continues from, +1 minute. Deliberately the exact figure the "Last
 // posted" chip shows, so the header always reads as what the next entry will count up from.
-function latestPostedAnchor() {
-  const info = latestPostedInfo();
+function latestPostedAnchor(exclude) {
+  const info = latestPostedInfo(exclude);
   if (!info) return null;
   return { h: parseInt(info.rec.postedHour, 10) || 0, m: parseInt(info.rec.postedMin || '0', 10) || 0 };
 }
@@ -222,15 +225,31 @@ function updateLastPosted() {
 // When no entry carries a time at all the run seeds at the current clock time. Where several
 // are stamped at once (a CSV upload, a bulk edit) the bottom row of the table is the earliest
 // and each row above it is +1 minute.
-async function assignPostingTimes() {
-  // DB is in display order (top→bottom) after any inventory refresh; bottom = last row.
-  const pending = DB.filter(r => canonPostedStatus(r.postedStatus) === 'For Posting'
-    && (r.postedHour === '' || r.postedHour == null)).reverse();
-  if (!pending.length) return [];
+//
+// `seed` ({h,m}, optional) pins where the run starts instead of deriving it from the board.
+// Reset Time passes it so a wrong series can be renumbered to the right times — otherwise the
+// remaining wrong entries would just anchor the new run back onto the same bad times.
+//
+// A row carrying `postedTimeHold` is left blank and skipped entirely. That flag is what makes
+// "Clear time" stick: without it the next save from anyone — a colleague adding a number, an
+// import — would stamp the row straight back in. Reset (and setting a time by hand) lifts it.
+//
+// The arithmetic lives in planPostingTimes() so the Reset dialog can show the exact HH:MM each
+// row is about to get without writing anything — preview and result run the same code.
+//
+// `rows` is the pending set in display order (top→bottom); returns a Map of id → 'HH:MM'.
+function planPostingTimes(rows, seed) {
+  const ordered = [...rows].reverse();                          // bottom row is the earliest
+  // Whatever the pending rows hold now is about to be released, so they count for neither the
+  // anchor nor the taken-minutes set. That is what lets the preview run before the clear is
+  // written and still land on the same answer the save path reaches after it.
+  const pendingIds = new Set(ordered.map(r => r.id));
 
   let cur;
-  const anchor = latestPostedAnchor();
-  if (anchor) {
+  const anchor = seed ? null : latestPostedAnchor(pendingIds);
+  if (seed) {
+    cur = { h: seed.h, m: seed.m };                             // caller pinned the start time
+  } else if (anchor) {
     cur = stepMinute(anchor.h, anchor.m);                       // continue from the latest time
   } else {
     const n = new Date();
@@ -241,18 +260,37 @@ async function assignPostingTimes() {
   // Mostly matters just after midnight: the anchor is the highest time of day, so it stays on
   // 23:59 and every following entry would otherwise be handed 00:00 again.
   const taken = new Set();
-  for (const r of DB) if (r.postedHour !== '' && r.postedHour != null) taken.add(`${pad2(r.postedHour)}:${pad2(r.postedMin || '0')}`);
+  for (const r of DB) {
+    if (pendingIds.has(r.id) || r.postedHour === '' || r.postedHour == null) continue;
+    taken.add(`${pad2(r.postedHour)}:${pad2(r.postedMin || '0')}`);
+  }
 
-  const base = Date.now();
-  for (let i = 0; i < pending.length; i++) {
+  const plan = new Map();
+  for (let i = 0; i < ordered.length; i++) {
     if (i > 0) cur = stepMinute(cur.h, cur.m);
     for (let guard = 0; guard < 1440 && taken.has(`${pad2(cur.h)}:${pad2(cur.m)}`); guard++) cur = stepMinute(cur.h, cur.m);
-    const r = pending[i];
-    r.postedHour = pad2(cur.h);
-    r.postedMin = pad2(cur.m);
-    r.postedTimeAt = new Date(base + i).toISOString();
-    taken.add(`${r.postedHour}:${r.postedMin}`);
+    const key = `${pad2(cur.h)}:${pad2(cur.m)}`;
+    taken.add(key);
+    plan.set(ordered[i].id, key);
   }
+  return plan;
+}
+async function assignPostingTimes(seed) {
+  // DB is in display order (top→bottom) after any inventory refresh; bottom = last row.
+  const pendingTop = DB.filter(r => canonPostedStatus(r.postedStatus) === 'For Posting'
+    && (r.postedHour === '' || r.postedHour == null)
+    && !r.postedTimeHold);
+  if (!pendingTop.length) return [];
+
+  const plan    = planPostingTimes(pendingTop, seed);
+  const pending = [...pendingTop].reverse();                    // stamp bottom-first, as planned
+  const base = Date.now();
+  pending.forEach((r, i) => {
+    const [hh, mm] = plan.get(r.id).split(':');
+    r.postedHour = hh;
+    r.postedMin = mm;
+    r.postedTimeAt = new Date(base + i).toISOString();
+  });
 
   try {
     const CHUNK = 400;
@@ -1473,7 +1511,9 @@ function sortInventoryByActivity() {
 // top and sorted Number ascending, then everyone else in the default recent order.
 // Used only after a CSV upload or a bulk edit, so you land right on the batch you
 // changed, in clean numeric order (like the source spreadsheet), rest still below.
-function sortInventoryEditedFirst(editedIds) {
+// Split out non-mutating so the Reset dialog can work out the order rows will land in — and
+// therefore the times they will get — before anything is written.
+function orderEditedFirst(editedIds) {
   const edited = new Set(editedIds || []);
   const byNum = (a,b) => invCompare(a,b,'number',1);
   const pinned     = DB.filter(r => pinnedIds.has(r.id));
@@ -1482,8 +1522,12 @@ function sortInventoryEditedFirst(editedIds) {
   pinned.sort(inventoryRecentCompare); // pins keep their usual spot at the very top
   editedRows.sort(byNum);  // the batch you just changed, low→high by Number
   rest.sort(inventoryRecentCompare);   // everything else stays in default most-recent order
+  return [...pinned, ...editedRows, ...rest];
+}
+function sortInventoryEditedFirst(editedIds) {
+  const ordered = orderEditedFirst(editedIds);
   DB.length = 0;
-  for (const r of [...pinned, ...editedRows, ...rest]) DB.push(r);
+  for (const r of ordered) DB.push(r);
 }
 // Both refreshes keep DB order equal to on-screen order, which
 // assignPostingTimes() and pagination both rely on.
@@ -2457,6 +2501,7 @@ function fillTimeSelects(hourId, minId) {
 function initPostedTimeSelects() {
   fillTimeSelects('mPostedHour', 'mPostedMin');
   fillTimeSelects('bePostedHour', 'bePostedMin');
+  fillTimeSelects('rtStartHour', 'rtStartMin');
 }
 function initDateMirrors() {
   bindDateMirror('mEffDate','mActDate',() => actDateTouched,v => { effDateTouched=v; },v => { actDateTouched=v; });
@@ -2517,11 +2562,18 @@ function clearMo() {
     const el = document.getElementById(id); if (el) el.value = id==='mStatus'?'Available':id==='mPosted'?'No':'';
   });
   resetFeeSelects(FEE_FIELDS);
+  resetPostedTimeAct();
   document.getElementById('mNumber')?.classList.remove('err');
+}
+// The time action is a one-shot instruction, never a stored field — it always opens at "none"
+// so reopening an entry can't silently re-clear or re-stamp it.
+function resetPostedTimeAct() {
+  const el = document.getElementById('mPostedTimeAct'); if (el) el.value = '';
 }
 function fillMo(r) {
   _editUpdatedAt = r.updatedAt || null;
   resetDateMirror('single');
+  resetPostedTimeAct();
   Object.entries(mMap).forEach(([id,key]) => {
     const el = document.getElementById(id); if (!el) return;
     const raw = r[key];
@@ -2645,7 +2697,7 @@ async function saveRec() {
       deactivatedAt: nd.updatedAt
     };
     nd.client = ''; nd.status = 'Available'; nd.remarks = ''; nd.postedStatus = '';
-    nd.postedDate = ''; nd.postedHour = ''; nd.postedMin = ''; nd.postedTimeAt = '';
+    nd.postedDate = ''; nd.postedHour = ''; nd.postedMin = ''; nd.postedTimeAt = ''; nd.postedTimeHold = '';
     nd.clientOSF = ''; nd.clientMRC = ''; nd.clientOTRF = '';
     nd.clientCF = ''; nd.clientCPM = ''; nd.effDate = ''; nd.actDate = '';
     nd.deactDate = deactDateVal;
@@ -2658,6 +2710,17 @@ async function saveRec() {
   // Persist Posted Status in canonical form. A "For Posting" entry saved without a time picks
   // one up from assignPostingTimes() below; a time already set here or on another entry stays.
   nd.postedStatus = canonPostedStatus(nd.postedStatus);
+
+  // Posting-time action, the single-entry twin of the Clear / Reset buttons in the selection
+  // bar. Blank leaves things as they were; a time typed into the selects above always wins and
+  // lifts any hold, so the two controls can't contradict each other.
+  const timeAct = document.getElementById('mPostedTimeAct')?.value || '';
+  if (timeAct === 'clear' || timeAct === 'reset') {
+    nd.postedHour = ''; nd.postedMin = ''; nd.postedTimeAt = '';
+    nd.postedTimeHold = timeAct === 'clear';   // held blank, or released for the restamp below
+  } else if (nd.postedHour) {
+    nd.postedTimeHold = '';
+  }
 
   try {
     if (editId) {
@@ -2835,7 +2898,7 @@ async function handleCSV(e) {
         // must overwrite even with blanks, so they bypass the strip-empties logic below.
         const updateData = {
           client: '', status: 'Available', remarks: '', postedStatus: '',
-          postedDate: '', postedHour: '', postedMin: '', postedTimeAt: '',
+          postedDate: '', postedHour: '', postedMin: '', postedTimeAt: '', postedTimeHold: '',
           clientOSF: '', clientMRC: '', clientOTRF: '', clientCF: '', clientCPM: '',
           effDate: '', actDate: '',
           deactDate: nd.deactDate,
@@ -4126,7 +4189,7 @@ async function saveBulkEdit() {
           const histEntry = { previousClient: rec?.client||'', activation: activationSnapshot(rec || {}), deactDate: deactDateVal, requestedBy, remarks: bdRemarks, postedStatus: rec?.postedStatus||'', postedDate: rec?.postedDate||'', postedHour: rec?.postedHour||'', postedMin: rec?.postedMin||'', deactivatedBy, deactivatedAt };
           const updateData = {
             client:'', status:'Available', remarks:'', postedStatus:'', postedDate:'',
-            postedHour:'', postedMin:'', postedTimeAt:'',
+            postedHour:'', postedMin:'', postedTimeAt:'', postedTimeHold:'',
             clientOSF:'', clientMRC:'', clientOTRF:'', clientCF:'', clientCPM:'',
             effDate:'', actDate:'', deactDate: deactDateVal, route: requestedBy,
             prevClient: rec?.client||'',
@@ -4143,7 +4206,7 @@ async function saveBulkEdit() {
         if (idx>-1) {
           const rec = DB[idx];
           const histEntry = { previousClient: rec.client||'', activation: activationSnapshot(rec), deactDate: deactDateVal, requestedBy, remarks: bdRemarks, postedStatus: rec.postedStatus||'', postedDate: rec.postedDate||'', postedHour: rec.postedHour||'', postedMin: rec.postedMin||'', deactivatedBy, deactivatedAt };
-          const updateData = {client:'', status:'Available', remarks:'', postedStatus:'', postedDate:'', postedHour:'', postedMin:'', postedTimeAt:'', clientOSF:'', clientMRC:'', clientOTRF:'', clientCF:'', clientCPM:'', effDate:'', actDate:'', deactDate: deactDateVal, route: requestedBy, prevClient: rec.client||'', deactivationHistory:[...(rec.deactivationHistory||[]),histEntry], updatedBy:deactivatedBy, updatedAt:deactivatedAt};
+          const updateData = {client:'', status:'Available', remarks:'', postedStatus:'', postedDate:'', postedHour:'', postedMin:'', postedTimeAt:'', postedTimeHold:'', clientOSF:'', clientMRC:'', clientOTRF:'', clientCF:'', clientCPM:'', effDate:'', actDate:'', deactDate: deactDateVal, route: requestedBy, prevClient: rec.client||'', deactivationHistory:[...(rec.deactivationHistory||[]),histEntry], updatedBy:deactivatedBy, updatedAt:deactivatedAt};
           applyReservationHistory(rec, {...rec, ...updateData}, updateData, deactivatedAt, deactivatedBy);
           DB[idx] = {...rec, ...updateData};
         }
@@ -4230,59 +4293,146 @@ async function saveBulkEdit() {
   } catch(err) { showToast('Bulk edit error: '+err.message, 'error'); }
 }
 
-// ── BULK RESET POSTING TIME ───────────────────────────
-// Clears the HH:MM on the selected "For Posting" rows so assignPostingTimes() rebuilds them as
-// one clean run — bottom row earliest, +1 going up, continuing from the highest time still on
-// the board. Rows that are "Posted" (or carry no time) are filtered out and reported as
-// skipped: a time that has already gone out is never disturbed.
-function resetSelectedPostingTimes() {
+// ── BULK POSTING TIME: CLEAR / RESET ──────────────────
+// Two selection-bar actions sharing one dialog, both confined to "For Posting" rows — a time
+// that has already gone out on a "Posted" row is never disturbed by either.
+//
+//   Clear Time  empties HH:MM and stops there. The rows keep their "For Posting" status and
+//               simply show no time.
+//   Reset Time  renumbers the rows as one run starting from the latest time still on the
+//               board + 1 — which, once a Clear has removed a wrong series, is the genuine
+//               last posted value.
+//
+// That split is the fix for a wrong series: Clear the bad rows first so their times stop
+// counting, then Reset them. Resetting them while they still hold the wrong times just
+// anchors the new run back onto those same wrong times.
+function clearSelectedPostingTimes() { openPostingTimeDialog('clear'); }
+function resetSelectedPostingTimes() { openPostingTimeDialog('reset'); }
+
+function openPostingTimeDialog(mode) {
+  const reset = mode === 'reset';
   const ids = getCheckedIds(); if (!ids.length) return;
+  // Clear only has work where a time exists; Reset also takes rows that are already blank —
+  // the normal case, since Clear will usually have just emptied them.
   const targets = ids.map(id => DB.find(r => r.id === id)).filter(r =>
-    r && canonPostedStatus(r.postedStatus) === 'For Posting' && r.postedHour !== '' && r.postedHour != null);
+    r && canonPostedStatus(r.postedStatus) === 'For Posting'
+      && (reset || (r.postedHour !== '' && r.postedHour != null)));
   if (!targets.length) {
-    showToast('No “For Posting” rows with a time in that selection.', 'warning');
+    showToast(reset ? 'No “For Posting” rows in that selection.'
+                    : 'No “For Posting” rows with a time in that selection.', 'warning');
     return;
   }
   const skipped = ids.length - targets.length;
-  const preview = targets.slice(0,5).map(r => `${r.number} (${r.postedHour}:${r.postedMin || '00'})`);
+
+  document.getElementById('resetTimeHead').textContent  = reset ? 'Reset Posting Time' : 'Clear Posting Time';
   document.getElementById('resetTimeTitle').textContent =
-    `Reset the posting time on ${targets.length} record${targets.length!==1?'s':''}?`;
-  document.getElementById('resetTimeInfo').innerHTML = `
-    <div><span style="color:var(--t2)">Rows to renumber:</span> <strong>${targets.length}</strong></div>
-    ${skipped?`<div style="margin-top:4px"><span style="color:var(--t2)">Skipped — not “For Posting”, or no time set:</span> <strong>${skipped}</strong></div>`:''}
-    <div style="margin-top:4px"><span style="color:var(--t2)">Currently:</span> ${preview.map(p=>esc(p)).join(', ')}${targets.length>5?` <em>+${targets.length-5} more</em>`:''}</div>`.trim();
+    `${reset ? 'Reset' : 'Clear'} the posting time on ${targets.length} record${targets.length!==1?'s':''}?`;
+  document.getElementById('resetTimeFoot').textContent = reset
+    ? 'The bottom row gets the start time and each row above it is +1 minute. Undo is offered right after.'
+    : 'The rows keep their “For Posting” status — only the time is emptied. Use Reset Time next to renumber them.';
+
+  // Reads the start time straight off the selects, so the preview and the confirm button
+  // always work from whatever is showing right now.
+  const currentSeed = () => {
+    if (!reset) return null;
+    const hh = document.getElementById('rtStartHour').value;
+    const mm = document.getElementById('rtStartMin').value;
+    return hh === '' ? null : { h: parseInt(hh,10)||0, m: parseInt(mm||'0',10)||0 };  // blank = derive it
+  };
+  // Shows each row as "now → next". The projection runs the real planner over the order the
+  // rows will actually land in after the save, so what is listed is what gets written.
+  const renderPreview = () => {
+    let plan = null;
+    if (reset) {
+      const targetIds = new Set(targets.map(r => r.id));
+      // What assignPostingTimes() will see once these rows are cleared: the targets, plus any
+      // "For Posting" row that is already blank and not being held.
+      const pending = orderEditedFirst([...targetIds]).filter(r => targetIds.has(r.id) || (
+        canonPostedStatus(r.postedStatus) === 'For Posting'
+        && (r.postedHour === '' || r.postedHour == null) && !r.postedTimeHold));
+      plan = planPostingTimes(pending, currentSeed());
+    }
+    const rows = targets.slice(0,5).map(r => {
+      const from = r.postedHour ? `${r.postedHour}:${r.postedMin || '00'}` : 'blank';
+      const to   = reset ? (plan.get(r.id) || '—') : 'blank';
+      return `<div style="margin-top:3px;display:flex;gap:8px;align-items:baseline">
+        <span style="color:var(--t3);min-width:96px">${esc(r.number)}</span>
+        <span>${esc(from)}</span><span style="color:var(--t3)">→</span><strong style="color:var(--t1)">${esc(to)}</strong>
+      </div>`;
+    }).join('');
+    document.getElementById('resetTimeInfo').innerHTML = `
+      <div><span style="color:var(--t2)">${reset ? 'Rows to renumber' : 'Rows to clear'}:</span> <strong>${targets.length}</strong></div>
+      ${skipped?`<div style="margin-top:4px"><span style="color:var(--t2)">Skipped — not “For Posting”${reset?'':', or no time set'}:</span> <strong>${skipped}</strong></div>`:''}
+      <div style="margin-top:8px">${rows}${targets.length>5?`<div style="margin-top:4px;color:var(--t3)"><em>+${targets.length-5} more</em></div>`:''}</div>`.trim();
+  };
+
+  // The start time only belongs to Reset; Clear has nothing to seed.
+  document.getElementById('rtStartWrap').style.display = reset ? '' : 'none';
+  if (reset) {
+    // Pre-fill with the figure the run would reach on its own: the latest time left once these
+    // rows are cleared, +1. After a Clear that is the real last posted value, so the usual case
+    // is confirm-and-go; typing over it stays available as the escape hatch.
+    const anchor = latestPostedAnchor(new Set(targets.map(r => r.id)));
+    const now    = new Date();
+    const dflt   = anchor ? stepMinute(anchor.h, anchor.m) : { h: now.getHours(), m: now.getMinutes() };
+    document.getElementById('rtStartHour').value = pad2(dflt.h);
+    document.getElementById('rtStartMin').value  = pad2(dflt.m);
+    document.getElementById('rtStartNote').textContent = anchor
+      ? `One past ${pad2(anchor.h)}:${pad2(anchor.m)}, the latest time left on the board. Change it only if that time is wrong.`
+      : 'Nothing else on the board carries a time, so this fell back to the clock. Type the time the series should start at.';
+    // Retype the start and the listed times follow. Assigned (not addEventListener) so
+    // reopening the dialog replaces the handler instead of stacking another one.
+    document.getElementById('rtStartHour').onchange = renderPreview;
+    document.getElementById('rtStartMin').onchange  = renderPreview;
+  }
+  renderPreview();
+
   document.getElementById('resetTimeOv').classList.add('on');
   const btn   = document.getElementById('resetTimeConfirmBtn');
   const fresh = btn.cloneNode(true); btn.replaceWith(fresh);
-  fresh.textContent = `Reset ${targets.length}`;
+  fresh.textContent = `${reset ? 'Reset' : 'Clear'} ${targets.length}`;
   fresh.onclick = () => {
+    const seed = currentSeed();
     document.getElementById('resetTimeOv').classList.remove('on');
-    applyPostingTimeReset(targets.map(r => r.id));
+    applyPostingTimeChange(targets.map(r => r.id), reset, seed);
   };
 }
-async function applyPostingTimeReset(ids) {
+// `restamp` false = Clear (rows are left blank); true = Reset (assignPostingTimes fills them
+// straight back in, from `seed` when the dialog's start time was changed).
+async function applyPostingTimeChange(ids, restamp, seed) {
+  const verb = restamp ? 'Reset' : 'Cleared';
   // Original times, kept for both the toast Undo and the revert-from-Logs payload below.
   const savedRecs = ids.map(id => {
     const r = DB.find(x => x.id === id); if (!r) return null;
-    return { id, postedHour: r.postedHour || '', postedMin: r.postedMin || '', postedTimeAt: r.postedTimeAt || '' };
+    return { id, postedHour: r.postedHour || '', postedMin: r.postedMin || '',
+             postedTimeAt: r.postedTimeAt || '', postedTimeHold: r.postedTimeHold || '' };
   }).filter(Boolean);
   const before  = new Map(savedRecs.map(r => [r.id, r]));
   const fields  = ['postedHour','postedMin'];   // postedTimeAt is internal, not worth logging
-  const cleared = { postedHour:'', postedMin:'', postedTimeAt:'' };
+  // Clear parks the row (held blank until something lifts it); Reset lifts the hold so
+  // assignPostingTimes() below will stamp the row.
+  const cleared = { postedHour:'', postedMin:'', postedTimeAt:'', postedTimeHold: restamp ? '' : true };
   const updatedBy = currentUser?.email || 'system';
   const updatedAt = new Date().toISOString();
+  // Rows already blank need no write — unless this is a Reset and they are being held, in
+  // which case the hold has to come off or the restamp would skip right past them.
+  const toWrite = ids.filter(id => {
+    const r = DB.find(x => x.id === id); if (!r) return false;
+    const hasTime = r.postedHour !== '' && r.postedHour != null;
+    return hasTime || (restamp ? !!r.postedTimeHold : !r.postedTimeHold);
+  });
 
   try {
     const CHUNK = 400;
-    for (let i = 0; i < ids.length; i += CHUNK) {
+    for (let i = 0; i < toWrite.length; i += CHUNK) {
       const b = fdb.batch();
-      ids.slice(i, i + CHUNK).forEach(id =>
+      toWrite.slice(i, i + CHUNK).forEach(id =>
         b.update(fdb.collection('inventory').doc(id), {...cleared, updatedBy, updatedAt}));
       await b.commit();
     }
-    ids.forEach(id => { const i = DB.findIndex(r => r.id===id); if (i>-1) DB[i] = {...DB[i], ...cleared, updatedBy, updatedAt}; });
-    refreshInventoryEditedFirst(ids);   // reset rows on top, low→high by Number
-    const stamped = await assignPostingTimes();
+    toWrite.forEach(id => { const i = DB.findIndex(r => r.id===id); if (i>-1) DB[i] = {...DB[i], ...cleared, updatedBy, updatedAt}; });
+    refreshInventoryEditedFirst(ids);   // affected rows on top, low→high by Number
+    const stamped = restamp ? await assignPostingTimes(seed) : [];
     renderTbl();
     // Logged after the restamp so "to" is the time the row actually ended up with, not the
     // momentary blank — which also makes the Logs-page revert restore the right values.
@@ -4290,9 +4440,9 @@ async function applyPostingTimeReset(ids) {
       ...logRecordSummary(r),
       changes: fields.map(f => ({ field:f, label: FIELD_LABELS[f] || f, from: before.get(r.id)?.[f] ?? '', to: r[f] ?? '' }))
     }));
-    await addLog('Updated', `Reset posting time on ${ids.length} record${ids.length!==1?'s':''}`, {records: affectedRecords, fields});
+    await addLog('Updated', `${verb} posting time on ${ids.length} record${ids.length!==1?'s':''}`, {records: affectedRecords, fields});
     propagateChange([...ids, ...stamped]);
-    showUndoToast(`Reset posting time on ${ids.length} record${ids.length!==1?'s':''}`, async () => {
+    showUndoToast(`${verb} posting time on ${ids.length} record${ids.length!==1?'s':''}`, async () => {
       try {
         const CHUNK2 = 400;
         const by = currentUser?.email || 'system', at = new Date().toISOString();
@@ -4307,12 +4457,12 @@ async function applyPostingTimeReset(ids) {
         savedRecs.forEach(rec => { const i = DB.findIndex(r => r.id===rec.id); if (i>-1) DB[i] = {...DB[i], ...rec}; });
         refreshInventoryEditedFirst(savedRecs.map(r => r.id));
         propagateChange(savedRecs.map(r => r.id));
-        await addLog('Updated', `Reverted posting time reset on ${savedRecs.length} record${savedRecs.length!==1?'s':''} (undo)`,
+        await addLog('Updated', `Reverted posting time change on ${savedRecs.length} record${savedRecs.length!==1?'s':''} (undo)`,
           {records: reverseBulkChanges(affectedRecords), fields});
         showToast(`Reverted ${savedRecs.length} record${savedRecs.length!==1?'s':''}`, 'success');
       } catch(e) { showToast('Revert failed: '+e.message, 'error'); }
     }, 6000, 'Updated');
-  } catch(err) { showToast('Reset error: '+err.message, 'error'); }
+  } catch(err) { showToast(`${restamp ? 'Reset' : 'Clear'} error: `+err.message, 'error'); }
 }
 
 // ── ROLES & RESTRICTIONS ──────────────────────────────
@@ -4347,7 +4497,7 @@ function applyRoleRestrictions() {
   ['btnAdd','btnUpload','btnExportWrap'].forEach(id => {
     const el = document.getElementById(id); if (el) el.style.display = isViewer ? 'none' : '';
   });
-  ['btnBulkEdit','btnBulkResetTime','btnBulkDel'].forEach(id => {
+  ['btnBulkEdit','btnBulkClearTime','btnBulkResetTime','btnBulkDel'].forEach(id => {
     const el = document.getElementById(id); if (el) el.style.display = isViewer ? 'none' : '';
   });
   ['btnSpEdit','btnSpCopy'].forEach(id => {
