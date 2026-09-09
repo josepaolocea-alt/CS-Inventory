@@ -2210,6 +2210,8 @@ function historyStatusStyle(status) {
 function activationRowsHTML(a={}) {
   if (!hasActivationSnapshot(a)) return '';
   const status = historyStatusStyle(a.status);
+  // A reservation has no route assignment yet, so the field is noise on Reserved entries.
+  const showRoute = status.label !== 'Reserved';
   return `
     ${a.client ? `<div class="deact-hist-row"><span style="color:var(--t3)">Client</span> ${esc(a.client)}</div>` : ''}
     ${a.product ? `<div class="deact-hist-row"><span style="color:var(--t3)">Product</span> ${esc(a.product)}</div>` : ''}
@@ -2220,7 +2222,7 @@ function activationRowsHTML(a={}) {
     ${a.provider ? `<div class="deact-hist-row"><span style="color:var(--t3)">Provider</span> ${esc(a.provider)}</div>` : ''}
     ${a.arrDate ? `<div class="deact-hist-row"><span style="color:var(--t3)">Arrival Date</span> ${fmt(a.arrDate)}</div>` : ''}
     ${a.provActDate ? `<div class="deact-hist-row"><span style="color:var(--t3)">Provider Activation</span> ${fmt(a.provActDate)}</div>` : ''}
-    ${a.route ? `<div class="deact-hist-row"><span style="color:var(--t3)">Route Request by</span> ${esc(a.route)}</div>` : ''}`;
+    ${(showRoute && a.route) ? `<div class="deact-hist-row"><span style="color:var(--t3)">Route Request by</span> ${esc(a.route)}</div>` : ''}`;
 }
 function metaDate(v) {
   return v ? new Date(v).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
