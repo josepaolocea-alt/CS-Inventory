@@ -554,7 +554,11 @@ let premiumSelectSeq = 0;
 function premiumSelectLabel(select) {
   const explicit = select.getAttribute('aria-label');
   const fieldLabel = select.closest('.fg')?.querySelector('label')?.textContent?.trim();
-  return explicit || fieldLabel || select.id.replace(/([a-z])([A-Z])/g, '$1 $2') || 'Dropdown';
+  if (explicit || fieldLabel) return explicit || fieldLabel;
+  // Last resort: derive words from the id, dropping the short lowercase
+  // namespace prefix our ids carry so fClient reads "Client", not "f Client".
+  const words = select.id.replace(/^[a-z]{1,2}(?=[A-Z])/, '').replace(/([a-z0-9])([A-Z])/g, '$1 $2').trim();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : 'Dropdown';
 }
 
 function syncPremiumSelect(select) {

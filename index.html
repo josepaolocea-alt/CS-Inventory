@@ -72,7 +72,7 @@
     <div class="card">
       <div class="ctitle" style="display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:4px;margin-bottom:14px">
         <span>Activated &amp; Deactivated</span>
-        <select id="chartDays" class="pgsel" onchange="drawChart()" style="text-transform:none;letter-spacing:0;font-size:11px;height:22px">
+        <select id="chartDays" class="pgsel" aria-label="Chart range" onchange="drawChart()" style="text-transform:none;letter-spacing:0;font-size:11px;height:22px">
           <option value="7">Last 7 days</option>
           <option value="14" selected>Last 14 days</option>
           <option value="30">Last 30 days</option>
@@ -116,13 +116,13 @@
           <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.25"/><path d="m12.5 12.5 4 4"/></svg>
           <input class="finp" id="fSearch" aria-label="Search inventory" placeholder="Search inventory…" oninput="applyF()">
         </div>
-        <select class="fsel" id="fClient" onchange="applyF()"><option value="">All Clients</option></select>
-        <select class="fsel" id="fStatus" onchange="applyF()">
+        <select class="fsel" id="fClient" aria-label="Client" onchange="applyF()"><option value="">All Clients</option></select>
+        <select class="fsel" id="fStatus" aria-label="Status" onchange="applyF()">
           <option value="">All Statuses</option>
           <option>Active</option><option>Available</option><option>Reserved</option><option>Inactive</option>
         </select>
-        <select class="fsel" id="fProduct" onchange="applyF()"><option value="">All Products</option></select>
-        <select class="fsel" id="fProvider" onchange="applyF()"><option value="">All Providers</option></select>
+        <select class="fsel" id="fProduct" aria-label="Product" onchange="applyF()"><option value="">All Products</option></select>
+        <select class="fsel" id="fProvider" aria-label="Provider" onchange="applyF()"><option value="">All Providers</option></select>
         <button class="btn filter-more-btn" id="moreBtn" type="button" aria-expanded="false" aria-controls="moreRow" onclick="toggleMore()">
           <span>Advanced</span>
           <span class="filter-count" id="advancedFilterCount" hidden>0</span>
@@ -195,7 +195,7 @@
       <div class="tbl-info" id="tInfo">—</div>
       <div class="pgn">
         <span style="font-size:11.5px;color:var(--t2)">Rows:</span>
-        <select class="pgsel" id="pgSize" onchange="pg=1;renderTbl()">
+        <select class="pgsel" id="pgSize" aria-label="Rows per page" onchange="pg=1;renderTbl()">
           <option selected>50</option><option>100</option><option>200</option><option>300</option><option>500</option><option>1000</option>
         </select>
         <button class="btn btn-sm" id="pgFirst" onclick="goToPage('first')">« First</button>
@@ -225,7 +225,7 @@
     </div>
     <div class="lf-body" id="lfBody">
       <div class="lf-filters">
-        <select class="fsel" id="lAction" onchange="applyLF()">
+        <select class="fsel" id="lAction" aria-label="Action" onchange="applyLF()">
           <option value="">All Actions</option>
           <option>Added</option><option>Updated</option><option>Deleted</option>
           <option>CSV Upload</option><option>Exported</option><option>Login</option>
@@ -266,7 +266,7 @@
       <div class="tbl-info" id="lInfo">—</div>
       <div class="pgn">
         <span style="font-size:11.5px;color:var(--t2)">Rows:</span>
-        <select class="pgsel" id="lPgSize" onchange="lpg=1;renderLogs()">
+        <select class="pgsel" id="lPgSize" aria-label="Rows per page" onchange="lpg=1;renderLogs()">
           <option value="25" selected>25</option>
           <option value="50">50</option><option value="100">100</option>
           <option value="200">200</option><option value="500">500</option>
@@ -988,7 +988,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
 <!-- App -->
-<script src="app.js?v=54"></script>
+<script src="app.js?v=55"></script>
 
 </body>
 </html>
