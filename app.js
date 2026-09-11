@@ -2320,6 +2320,22 @@ function historySectionHTML(r, sectionIndex='04') {
   return (current || reserved || deact) ? `<div class="ds entry-section entry-history-section">${entrySectionHeading(sectionIndex,'Record history','Reservations, activations, and deactivations in reverse chronological order.')}${current}${reserved}${deact}</div>` : '';
 }
 
+// Canonical (key-order independent) serialisation, used to tell "the same history entry"
+// from "a different one". Firestore returns map fields with their keys sorted, while the
+// copies this app writes locally — and caches in IndexedDB — keep the order they were built
+// in (previousClient, activation, deactDate, …). A plain JSON.stringify comparison therefore
+// reports "changed" for two entries holding identical data, which blocked deleting history
+// from any record whose cached copy came from a local write.
+function stableStringify(value) {
+  if (Array.isArray(value)) return '[' + value.map(stableStringify).join(',') + ']';
+  if (value && typeof value === 'object') {
+    return '{' + Object.keys(value).sort()
+      .filter(k => value[k] !== undefined)
+      .map(k => JSON.stringify(k) + ':' + stableStringify(value[k]))
+      .join(',') + '}';
+  }
+  return JSON.stringify(value === undefined ? null : value);
+}
 function confirmDeleteHistoryEntry(recordId, historyIndex, historyField='deactivationHistory') {
   if (!canDeleteHistoryEntry()) {
     showToast(`Only ${HISTORY_DELETE_ADMIN_EMAIL} can delete history entries.`, 'warning');
@@ -2346,7 +2362,7 @@ function confirmDeleteHistoryEntry(recordId, historyIndex, historyField='deactiv
   const button = document.getElementById('delHistConfirmBtn');
   const freshButton = button.cloneNode(true);
   button.replaceWith(freshButton);
-  const expectedEntry = JSON.stringify(entry);
+  const expectedEntry = stableStringify(entry);
   freshButton.onclick = async () => {
     if (!canDeleteHistoryEntry()) {
       document.getElementById('delHistOv').classList.remove('on');
@@ -2361,12 +2377,20 @@ function confirmDeleteHistoryEntry(recordId, historyIndex, historyField='deactiv
       if (!snap.exists) throw new Error('The inventory record no longer exists.');
       const latest = snap.data();
       const latestHistory = Array.isArray(latest[historyField]) ? latest[historyField] : [];
-      if (!latestHistory[historyIndex] || JSON.stringify(latestHistory[historyIndex]) !== expectedEntry) {
+      // Delete the entry that was actually on screen: prefer the index it was rendered from,
+      // and fall back to a content match so a concurrent delete elsewhere in the same list
+      // (which shifts every index after it) doesn't block this one. No match at all means the
+      // entry really was changed or removed server-side.
+      const targetIndex = stableStringify(latestHistory[historyIndex]) === expectedEntry
+        ? historyIndex
+        : latestHistory.findIndex(h => stableStringify(h) === expectedEntry);
+      if (targetIndex < 0) {
+        console.debug('history delete mismatch', {expected: expectedEntry, server: stableStringify(latestHistory[historyIndex])});
         throw new Error('The history changed since you opened it. Reload and try again.');
       }
 
       const nextHistory = [...latestHistory];
-      const [removed] = nextHistory.splice(historyIndex, 1);
+      const [removed] = nextHistory.splice(targetIndex, 1);
       const updatedAt = new Date().toISOString();
       const updatedBy = currentUser.email;
       await ref.update({[historyField]: nextHistory, updatedAt, updatedBy});
