@@ -3387,3 +3387,18 @@ html:not([data-dark]) #invTbl .num-cell{color:var(--flat-ink);font-weight:600}
   color:var(--mm-silver)!important;
   opacity:.72;
 }
+
+/* ---- 6. Deactivate jumps to the panel ----
+   The Deactivate button lives in the footer but its fields are at the far end
+   of the scrolling form, so the click used to look like nothing happened.
+   The scroll is in toggleDeactivate(); this is the one-shot ring that lands. */
+@keyframes deact-panel-flash{
+  from{box-shadow:0 0 0 0 color-mix(in srgb,var(--err) 50%,transparent)}
+  to{box-shadow:0 0 0 11px transparent}
+}
+.deactivation-panel-wrap.deact-flash .deactivation-panel{
+  animation:deact-panel-flash .85s ease-out 1;
+}
+@media(prefers-reduced-motion:reduce){
+  .deactivation-panel-wrap.deact-flash .deactivation-panel{animation:none}
+}

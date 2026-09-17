@@ -2666,12 +2666,34 @@ function resetDeactSection(mode) {
   const isSingle = mode === 'single';
   const sec = document.getElementById(isSingle ? 'mDeactSection' : 'bDeactSection');
   const btn = document.getElementById(isSingle ? 'mDeactBtn' : 'bDeactBtn');
-  if (sec) sec.style.display = 'none';
+  if (sec) { sec.style.display = 'none'; sec.classList.remove('deact-flash'); }
   if (btn) { btn.classList.remove('active'); btn.textContent = isSingle ? 'Deactivate' : 'Deactivate selected'; }
   const d = document.getElementById(isSingle ? 'dDeactDate' : 'bdDeactDate');
   const r = document.getElementById(isSingle ? 'dRoute' : 'bdRoute');
   const m = document.getElementById(isSingle ? 'dRemarks' : 'bdRemarks');
   if (d) d.value = ''; if (r) r.value = ''; if (m) m.value = '';
+}
+// The panel sits at the bottom of a long scrolling form, so un-hiding it is not
+// enough — pull it into view inside the modal body and arm the required field.
+function revealDeactSection(sec, dateId) {
+  const body = sec.closest('.mo-body');
+  const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  requestAnimationFrame(() => {
+    if (body) {
+      const bTop = body.getBoundingClientRect().top;
+      const sTop = sec.getBoundingClientRect().top;
+      body.scrollTo({ top: Math.max(0, body.scrollTop + (sTop - bTop) - 12), behavior: still ? 'auto' : 'smooth' });
+    } else {
+      sec.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'nearest' });
+    }
+    sec.classList.remove('deact-flash');
+    void sec.offsetWidth;            // restart the ring on a re-open
+    sec.classList.add('deact-flash');
+    // Date inputs are wrapped by enhancePremiumDate(); the native field is
+    // aria-hidden, so the focusable control is its trigger button.
+    const date = document.getElementById(dateId);
+    (date?.closest('.pdate')?.querySelector('.pdate-trigger') || date)?.focus({ preventScroll: true });
+  });
 }
 function toggleDeactivate(mode) {
   const isSingle = mode === 'single';
@@ -2684,6 +2706,7 @@ function toggleDeactivate(mode) {
     sec.style.display = 'block';
     btn.classList.add('active');
     btn.textContent = '✕ Cancel deactivation';
+    revealDeactSection(sec, isSingle ? 'dDeactDate' : 'bdDeactDate');
   }
 }
 
